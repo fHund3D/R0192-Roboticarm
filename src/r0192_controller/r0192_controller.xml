@@ -1,0 +1,10 @@
+<library path="r0192_controller">
+    <class name="r0192_controller/r0192Interface"
+      type="r0192_controller::r0192Interface"
+      base_class_type="hardware_interface::SystemInterface"
+    >
+      <description>
+        r0192 Hardware Interface
+      </description>
+    </class>
+  </library>
