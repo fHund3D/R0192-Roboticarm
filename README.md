@@ -26,15 +26,17 @@ Der **R0192** ist ein hochpräziser 6-Achsen-Roboterarm, der auf einem hybriden 
 #### Projektstruktur
 
 ```
-R0192_ws/
+roboticarm_r0192_ws/
 ├── src/
 │   ├── r0192_bringup/         # Bringup Sequenz für den Roboterarm
-│   ├── r0192_can_control/     # CAN-Steuerung und Treiber der Motoren
+│   ├── r0192_canbus/          # CAN-Bus Steuerung und Treiber der Motoren
+│   ├── r0192_controller/      # Controller für den Roboterarm
 │   ├── r0192_description/     # Robot-Beschreibung
-│   ├── r0192_hardware/        # Hardware-Interface
-│   ├── r0192_moveit_config/   # moveit für ROS
-│   └── r0192_msgs/            # Nachrichten/Services
-├── doc/                       # Zusätzliche Dokumente für Treiber usw.
+│   ├── r0192_moveit/          # MoveIt für ROS
+│   ├── r0192_msgs/            # Nachrichten/Services
+│   ├── r0192_remote/          # Remote-Steuerung
+│   └── r0192_utils/           # Utilities
+├── doku/                      # Zusätzliche Dokumente für Treiber usw.
 ├── build/                     # Build-Artefakte (ignoriert)
 ├── install/                   # Install-Artefakte (ignoriert)
 └── log/                       # Logs (ignoriert)
@@ -105,6 +107,7 @@ rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 source install/setup.bash
 ## Verwendung
+```
 
 ### CAN-Bus einrichten
 ```bash
