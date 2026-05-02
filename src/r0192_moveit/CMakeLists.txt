@@ -4,8 +4,9 @@ project(r0192_moveit)
 
 find_package(ament_cmake REQUIRED)
 
-install(
-  DIRECTORY launch config
+install(DIRECTORY 
+  config
+  launch
   DESTINATION share/${PROJECT_NAME}
 )
 
