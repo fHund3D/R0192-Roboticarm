@@ -115,6 +115,13 @@ sudo ip link set can0 up type can bitrate 500000
 candump can0
 ```
 
+### Roboterstartfrequenz starten
+```bash
+cd roboticarm_r0192_ws/
+source install/setup.bash
+ros2 launch r0192_bringup real_robot.launch.py
+```
+
 ### CAN-Steuerung starten
 ```bash
 ros2 run r0192_can_control can_service_node
