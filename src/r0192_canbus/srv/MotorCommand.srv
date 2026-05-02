@@ -1,0 +1,27 @@
+# MotorCommand.srv --> Die Werte, die an den Treiber gesendet werden (Canbus schreiben)
+
+# Request
+uint8 node_id      # ID des Motors (1-6)
+uint8 command_id   # CMD-ID 
+
+float64 value      # Hauptwert: Entweder Zielposition (rad) oder Status-ID
+float64 velocity   # Zusatzwert: Limit (rad/s)
+float64 torque     # Zusatzwert: Limit (Nm oder A)
+
+uint32 control_mode # 3: Position control
+uint32 input_mode   # 0: Idle, 3: Position Filtering
+uint32 axis_requested_state # 1: Idle, 8: Closed-loop
+
+#int16 velocity_FF   # Zusatzwert: Velocity Feedforward in rad/s
+#int16 torque_FF     # Zusatzwert: Torque Feedforward in Nm
+
+float64 kp           # Zusatzwert: Proportionaler Verstärkungsfaktor (0-500)
+float64 kd           # Zusatzwert: Differentieller Verstärkungsfaktor (0-5)
+
+uint32 duration_ms
+
+---
+# Response
+bool success       # War der CAN-Schreibvorgang erfolgreich?
+string message     # Fehlermeldung oder Statusbericht
+
