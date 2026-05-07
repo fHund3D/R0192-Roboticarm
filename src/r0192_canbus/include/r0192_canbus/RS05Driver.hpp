@@ -1,31 +1,85 @@
 #pragma once
+
 #include <rclcpp/rclcpp.hpp>
 #include "r0192_canbus/CanCommunication.hpp"
 #include <memory>
 #include <cstdint>
+#include <string>
+#include <linux/can.h> // Notwendig für struct can_frame
 
-// --- To DO: Alle Funktionen implementieren, siehe Protokoll ---
-
-class GDS34Driver {
+class RS05Driver {
 public:
-    GDS34Driver(uint8_t node_id, std::shared_ptr<CanCommunication> comm, rclcpp::Logger logger);
+    // Konstruktor
+    RS05Driver(uint8_t node_id, std::shared_ptr<CanCommunication> comm, rclcpp::Logger logger);
 
-    bool setPosition(float Input_Pos, uint32_t Duration_ms, float Vel_FF, float Torque_FF);
-    bool setControllerMode(uint32_t Control_Mode, uint32_t Input_Mode); // 1.0 -> Position Control & Position Filtering == TRUE
-    bool setAxisState(uint32_t Axis_Requested_State); // 1=Idle, 8=Closed-Loop
-    bool setLimits(float Velocity_Limit, float Current_Limit);
-    bool estop();
-    bool clearErrors();
-    bool startMotor();
-    bool stopMotor();
-    bool acknowledgeFault();
-    bool get_Encoder_Estimates(uint32_t Flag);
-    bool get_Torques();
-    bool get_Powers();
-    bool saveConfiguration();
+    // --- RS05 Private Protocol (Abschnitt 4) ---
+
+    // 4.1.1. Get device ID
+    bool Get_Device_ID();
+
+    // 4.1.2. Operation control mode motor control instruction (Impedanz-/Positionsregelung)
+    bool MIT_Control(float target_pos, float target_vel, float kp, float kd, float torque);
+
+    // 4.1.4. Motor enabled to run
+    bool Motor_Enabled_To_Run();
+
+    // 4.1.5. Motor stops running
+    bool Motor_Stop_Running();
+
+    // 4.1.6. Set motor mechanical zero
+    bool Set_Motor_Mechanical_Zero();
+
+    // Communication type 7: Set motor CAN_ID
+    bool Set_Motor_CAN_ID(uint8_t new_id);
+
+    // 4.1.7. Single parameter read
+    bool Single_Parameter_Read();
+
+    // 4.1.8. Single parameter write (lost in power failure)
+    bool Single_Parameter_Write();
+
+    // 4.1.10. Motor data save frame
+    bool Motor_Data_Save_Frame();
+
+    // 4.1.11. Motor baud rate modification frame (re-power-on effect)
+    bool Motor_Baudrate_Modification_Frame(float Baudrate);
+
+    // 4.1.12. The motor actively reports frames
+    bool Actively_Reports_Frame(float Report_Time);
+
+    // 4.1.13. Motor protocol modification frame (re-power-on effect)
+    bool Motor_Protocol_Modification_Frame(float Can_Protocol);
+
+    // 4.1.14. Version number read frame
+    bool Version_Number_Read_Frame();
+
+    // 4.1.15. Read and write a single parameter list
+    bool Read_And_Write_Single_Parameter_List(std::string Parameter_Name, float Parameter_Value);
+
+    // --- Feedback Processing ---
+    
+    // Verarbeitet eingehende CAN-Frames vom Motor (Ist-Werte, Fehler, Antworten)
+    void processFeedbackFrame(const struct can_frame &frame);
+
+    // --- Getter für ROS 2 hardware_interface (noch erweitern) ---
+    float get_current_position() const { return current_pos_; }
+    float get_current_velocity() const { return current_vel_; }
+    float get_current_torque() const   { return current_torque_; }
+    float get_current_temperature() const { return current_temp_; }
+    uint8_t get_mode_status() const { return mode_status_; }
+    uint8_t get_fault_info() const { return fault_info_; }
 
 private:
     uint8_t node_id_;
     std::shared_ptr<CanCommunication> comm_;
     rclcpp::Logger logger_;
+
+    // --- Variablen zum Speichern der Ist-Werte aus processFeedbackFrame ---
+    float current_pos_ = 0.0f;
+    float current_vel_ = 0.0f;
+    float current_torque_ = 0.0f;
+    float current_temp_ = 0.0f;
+    
+    uint8_t mode_status_ = 0;
+    uint8_t fault_info_ = 0;
 };

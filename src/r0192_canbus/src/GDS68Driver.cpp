@@ -15,17 +15,43 @@ float radToRev(float rad, int gear_ratio = 8) {
     return rad * gear_ratio / (2.0f * M_PI);
 }
 
+
 GDS68Driver::GDS68Driver(uint8_t node_id, std::shared_ptr<CanCommunication> comm, rclcpp::Logger logger) 
     : node_id_(node_id), comm_(comm), logger_(logger) {} 
 
-// Estop CMD ID: 0x002
-bool GDS68Driver::estop() {
+
+// ------------------ Canbus Protokoll: CAN Simple Protocol (siehe Doku - 4.1) ------------------
+
+// ------------------ Canbus Write ------------------
+
+// CMD ID: 0x001
+bool GDS68Driver::Heartbeat() {
+}
+
+// CMD ID: 0x002 
+bool GDS68Driver::Estop() {
     RCLCPP_WARN(logger_, "Axis %d: EMERGENCY STOP triggered!", node_id_);
     return comm_->sendFrame(createId(0x002), 0, nullptr); // [cite: 5065]
 }
 
-// Set_Axis_State CMD ID: 0x007 
-bool GDS68Driver::setAxisState(uint32_t Axis_Requested_State) {
+// CMD ID: 0x003 
+bool GDS68Driver::Get_Error() {
+}
+
+// CMD ID: 0x004
+bool GDS68Driver::RxSdo() {
+}
+
+// CMD ID: 0x005
+bool GDS68Driver::TxSdo() {
+}
+
+// CMD ID: 0x006
+bool GDS68Driver::Set_Axis_Node_ID() {
+}
+
+// CMD ID: 0x007
+bool GDS68Driver::Set_Axis_State(uint32_t Axis_Requested_State) {
     uint8_t data[8] = {0};
     // Axis_Requested_State:
     // 0: Undefined
@@ -45,9 +71,7 @@ bool GDS68Driver::setAxisState(uint32_t Axis_Requested_State) {
     return comm_->sendFrame(createId(0x007), 8, data);
 }
 
-// CMD ID: 0x008, Mit_Control
-// This implements the MIT open-source motion control protocol
-// Position in rad, Velocity in rad/s, KP and KD values for the controller, Torque in Nm --> Volle Kontrolle über die Bewegung
+// CMD ID: 0x008
 bool GDS68Driver::mitControl(float Position, float Speed, float KP_Value, float KD_Value, float Torque) {
     
     // 1. Werte limitieren und gemäß GDS68 Protokoll umrechnen 
@@ -93,17 +117,18 @@ bool GDS68Driver::mitControl(float Position, float Speed, float KP_Value, float 
 }
 
 // CMD ID: 0x009
-// start byte: 0, Name: Pos_Estimate, Type: float32, Unit: rev
-// start byte: 4, Name: Vel_Estimate, Type: float32, Unit: rad/s
-// ... bestehender Code ...
-bool GDS68Driver::get_Encoder_Estimates() {
+bool GDS68Driver::Get_Encoder_Estimates() {
     // Sendet nur den Request (Remote Transmission Request wird hier über CMD 0x09 simuliert)
     RCLCPP_DEBUG(logger_, "Axis %d: Requesting Encoder Estimates", node_id_);
     return comm_->sendFrame(createId(0x009), 0, nullptr);
 }
 
-// Set_Controller_Mode CMD ID: 0x00B, value: 1.0 -> Position Control & Position Filtering == TRUE
-bool GDS68Driver::setControllerMode(uint32_t Control_Mode, uint32_t Input_Mode) {
+// CMD ID: 0x00A
+bool GDS68Driver::Get_Encoder_Count() {
+}
+
+// CMD ID: 0x00B
+bool GDS68Driver::Set_Controller_Mode(uint32_t Control_Mode, uint32_t Input_Mode) {
     uint8_t data[8];
     
     // Control_Mode:
@@ -144,8 +169,8 @@ bool GDS68Driver::setControllerMode(uint32_t Control_Mode, uint32_t Input_Mode) 
     return comm_->sendFrame(createId(0x00B), 8, data);
 }
 
-// Set position command: CMD ID 0x00C, value: Zielposition in rad, optional vel_ff und torque_ff (nicht die eigentlichen vel und toruque, sondern Feedforward Werte)
-bool GDS68Driver::setPosition(float Input_Pos, uint32_t Duration_ms, float Vel_FF, float Torque_FF) {
+// CMD ID: 0x00C
+bool GDS68Driver::Set_Input_Pos(float Input_Pos, uint32_t Duration_ms, float Vel_FF, float Torque_FF) {
     uint8_t data[8];
     float pos_rev = radToRev(Input_Pos, 8);
     int16_t v_ff = static_cast<int16_t>(radToRev(Vel_FF, 8) * 1000.0f);
@@ -157,8 +182,16 @@ bool GDS68Driver::setPosition(float Input_Pos, uint32_t Duration_ms, float Vel_F
     RCLCPP_INFO(logger_, "Axis %d: Set_Position - Position: %f rad, Duration: %u ms, Velocity_ff: %f rad/s, Torque_ff: %f Nm", node_id_, Input_Pos, Duration_ms, Vel_FF, Torque_FF);        return comm_->sendFrame(createId(0x00C), 8, data);
 }
 
-// Set_Limit CMD ID: 0x00F, Velocity Limit in rad/s, Torque/Current Limit in Nm bzw A
-bool GDS68Driver::setLimits(float Velocity_Limit, float Current_Limit) {
+// CMD ID: 0x00D
+bool GDS68Driver::Set_Input_Vel() {    
+}
+
+// CMD ID: 0x00E
+bool GDS68Driver::Set_Input_Torque() {    
+}
+
+// CMD ID: 0x00F
+bool GDS68Driver::Set_Limits(float Velocity_Limit, float Current_Limit) {
     uint8_t data[8];
     float vel_limit_rev = radToRev(Velocity_Limit, 8);
 
@@ -168,31 +201,78 @@ bool GDS68Driver::setLimits(float Velocity_Limit, float Current_Limit) {
     return comm_->sendFrame(createId(0x00F), 8, data);
 }
 
-// Clear Errors CMD ID: 0x018
-bool GDS68Driver::clearErrors() {
+// CMD ID: 0x010
+bool GDS68Driver::Start_Anticogging() {    
+}
+
+// CMD ID: 0x011
+bool GDS68Driver::Set_Traj_Vel_Limit() {    
+}
+
+// CMD ID: 0x012
+bool GDS68Driver::Set_Traj_Accel_Limits() {    
+}
+
+// CMD ID: 0x013
+bool GDS68Driver::Set_Traj_Inertia() {    
+}
+
+// CMD ID: 0x014
+bool GDS68Driver::Get_Iq() {    
+}
+
+// CMD ID: 0x015
+bool GDS68Driver::Reboot() {    
+}
+
+// CMD ID: 0x016
+bool GDS68Driver::Set_Input_Torque() {    
+}
+
+// CMD ID: 0x017
+bool GDS68Driver::Get_Bus_Voltage_Current() {    
+}
+
+// CMD ID: 0x018
+bool GDS68Driver::Clear_Errors() {
     RCLCPP_WARN(logger_, "Axis %d: Clearing errors!", node_id_);
     return comm_->sendFrame(createId(0x018), 0, nullptr); // [cite: 5180]
 }
 
+// CMD ID: 0x019
+bool GDS68Driver::Set_Linear_Count() {    
+}
+
+// CMD ID: 0x01A
+bool GDS68Driver::Set_Pos_Gain() {    
+}
+
+// CMD ID: 0x01B
+bool GDS68Driver::Set_Vel_Gains() {    
+}
+
 // CMD ID: 0x01C
-// start byte: 0, Name: Torque_Setpoint, Type: float32, Unit: Nm
-// start byte: 4, Name: Torque, Type: float32, Unit: Nm
-bool GDS68Driver::get_Torques() {
+bool GDS68Driver::Get_Torques() {
     return comm_->sendFrame(createId(0x01C), 0, nullptr);
 }
 
 // CMD ID: 0x01D
-// start byte: 0, Name: Electrical_Power, Type: float32, Unit: W
-// start byte: 4, Name: Mechanical_Power, Type: float32, Unit: W
-bool GDS68Driver::get_Powers() {
+bool GDS68Driver::Get_Powers() {
     return comm_->sendFrame(createId(0x01D), 0, nullptr);
 }
 
-// CMD ID: 0x01E - Speichert die aktuelle Konfiguration dauerhaft im Flash-Speicher des Controllers, damit sie auch nach einem Neustart erhalten bleibt.
-bool GDS68Driver::saveConfiguration() {
-    RCLCPP_INFO(logger_, "Axis %d: Saving configuration", node_id_);
-    return comm_->sendFrame(createId(0x01E), 0, nullptr);
+// CMD ID: 0x01E
+bool GDS68Driver::Disable_Can() {    
 }
+
+// CMD ID: 0x01F
+bool GDS68Driver::Save_Configuration() {
+    RCLCPP_INFO(logger_, "Axis %d: Saving configuration", node_id_);
+    return comm_->sendFrame(createId(0x01F), 0, nullptr);
+}
+
+
+// ------------------ Canbus Read ------------------
 
 // Diese Funktion wird aufgerufen, wenn ein Frame mit der passenden ID empfangen wird
 void GDS68Driver::processFeedbackFrame(const struct can_frame &frame) {
