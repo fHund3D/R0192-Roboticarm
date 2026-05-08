@@ -274,72 +274,71 @@ bool GDS68Driver::Save_Configuration() {
 
 // ------------------ Canbus Read ------------------
 
-// Diese Funktion wird aufgerufen, wenn ein Frame mit der passenden ID empfangen wird
 void GDS68Driver::processFeedbackFrame(const struct can_frame &frame) {
-    // MIT Antwort
-    if(frame.can_id == createId(0x008)){  
-        // Position: 16 Bit (Byte 1 und 2)
+    
+    // 1. Heartbeat Frame (CMD 0x001) - Liefert Status und Fehler
+    if (frame.can_id == createId(0x001)) {
+        uint32_t axis_error;
+        uint8_t axis_state;
+        
+        std::memcpy(&axis_error, &frame.data[0], 4);
+        std::memcpy(&axis_state, &frame.data[4], 1);
+
+        {
+            std::lock_guard<std::mutex> lock(data_mutex_);
+            fault_info_ = static_cast<uint8_t>(axis_error); // Schneidet ggf. ab, falls Fehler > 255. 
+            mode_status_ = axis_state;
+        }
+    } 
+    // 2. MIT Control Feedback (CMD 0x008)
+    else if (frame.can_id == createId(0x008)) {  
         uint16_t pos_int = (static_cast<uint16_t>(frame.data[1]) << 8) | frame.data[2];
-        
-        // Geschwindigkeit: 12 Bit (Byte 3 komplett + obere 4 Bit von Byte 4)
         uint16_t vel_int = (static_cast<uint16_t>(frame.data[3]) << 4) | (frame.data[4] >> 4);
-        
-        // Drehmoment: 12 Bit (untere 4 Bit von Byte 4 + Byte 5 komplett)
         uint16_t t_int   = ((static_cast<uint16_t>(frame.data[4]) & 0x0F) << 8) | frame.data[5];
 
-        // Umrechnung der Integer-Werte in reale Float-Werte 
-        // (Exakte Umkehrung der Sender-Logik basierend auf den GDS68 Limits)
-        last_pos_rad_  = (static_cast<float>(pos_int) * 25.0f / 65535.0f) - 12.5f;
-        last_vel_rads_ = (static_cast<float>(vel_int) * 130.0f / 4095.0f) - 65.0f;
-        last_torque_   = (static_cast<float>(t_int) * 100.0f / 4095.0f) - 50.0f;
+        {
+            std::lock_guard<std::mutex> lock(data_mutex_);
+            current_pos_    = (static_cast<float>(pos_int) * 25.0f / 65535.0f) - 12.5f;
+            current_vel_    = (static_cast<float>(vel_int) * 130.0f / 4095.0f) - 65.0f;
+            current_torque_ = (static_cast<float>(t_int) * 100.0f / 4095.0f) - 50.0f;
+        }
 
-        RCLCPP_DEBUG(logger_, "Axis %d Feedback: Pos %.2f rad, Vel %.2f rad/s, Torque %.2f Nm", node_id_, last_pos_rad_, last_vel_rads_, last_torque_);
-
-    } else if (frame.can_id == createId(0x009)) {
-        // Prüfen, ob die ID zu diesem Motor und dem CMD 0x09 gehört --> Dann die Daten extrahieren und in last_pos_rad_ und last_vel_rads_ speichern
+        RCLCPP_DEBUG(logger_, "Axis %d MIT FB: Pos %.2f rad, Vel %.2f rad/s, Torque %.2f Nm", node_id_, current_pos_, current_vel_, current_torque_);
+    } 
+    // 3. Encoder Estimates Feedback (CMD 0x009)
+    else if (frame.can_id == createId(0x009)) {
         float pos_rev, vel_unit;
-        
-        // Bytes zurück in Float kopieren
         std::memcpy(&pos_rev, &frame.data[0], 4);
         std::memcpy(&vel_unit, &frame.data[4], 4);
 
-        // Umrechnen in Radianten (Pos ist in rev, Vel in rad/s)
-        std::lock_guard<std::mutex> lock(data_mutex_);
-        last_pos_rad_ = revToRad(pos_rev, 8);
-        last_vel_rads_ = revToRad(vel_unit, 8);
+        {
+            std::lock_guard<std::mutex> lock(data_mutex_);
+            current_pos_ = revToRad(pos_rev, 8);
+            current_vel_ = revToRad(vel_unit, 8);
+        }
 
-        RCLCPP_DEBUG(logger_, "Axis %d Feedback: Pos %.2f rad, Vel %.2f rad/s", node_id_, last_pos_rad_, last_vel_rads_);
-
-    } else if (frame.can_id == createId(0x01C)) {
-        // Prüfen, ob die ID zu diesem Motor und dem CMD 0x01C gehört --> Dann die Daten extrahieren
+        RCLCPP_DEBUG(logger_, "Axis %d Enc FB: Pos %.2f rad, Vel %.2f rad/s", node_id_, current_pos_, current_vel_);
+    } 
+    // 4. Get Torques Feedback (CMD 0x01C)
+    else if (frame.can_id == createId(0x01C)) {
         float torque_setpoint, torque;
-        
-        // Bytes zurück in Float kopieren
         std::memcpy(&torque_setpoint, &frame.data[0], 4);
         std::memcpy(&torque, &frame.data[4], 4);
 
         {
             std::lock_guard<std::mutex> lock(data_mutex_);
-            //torque_setpoint_ = torque_setpoint;
-            last_torque_ = torque;
+            current_torque_ = torque;
         }
-
-        RCLCPP_DEBUG(logger_, "Axis %d Feedback: torque %.2f Nm", node_id_, last_torque_);
-        
-    } else if (frame.can_id == createId(0x01D)) {
-        // Prüfen, ob die ID zu diesem Motor und dem CMD 0x01D gehört --> Dann die Daten extrahieren
+    } 
+    // 5. Get Powers Feedback (CMD 0x01D)
+    else if (frame.can_id == createId(0x01D)) {
         float electrical_power, mechanical_power;
-        
-        // Bytes zurück in Float kopieren
         std::memcpy(&electrical_power, &frame.data[0], 4);
         std::memcpy(&mechanical_power, &frame.data[4], 4);
 
         {
             std::lock_guard<std::mutex> lock(data_mutex_);
             electrical_power_ = electrical_power;
-            //mechanical_power_ = mechanical_power;
         }
-
-        RCLCPP_DEBUG(logger_, "Axis %d Feedback: Electrical Power %.2f W", node_id_, electrical_power_);
     }
 }

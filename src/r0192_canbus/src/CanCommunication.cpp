@@ -35,9 +35,17 @@ bool CanCommunication::init() {
 }
 
 // Funktion zum Senden eines Frames
+// in CanCommunication.cpp
 bool CanCommunication::sendFrame(uint32_t can_id, uint8_t dlc, const uint8_t* data) {
     struct can_frame frame;
-    frame.can_id = can_id;
+    
+    // Auto-Detect für Extended Frames (29-Bit)
+    if (can_id > 0x7FF) {
+        frame.can_id = can_id | CAN_EFF_FLAG; // Setzt das Extended Flag für SocketCAN
+    } else {
+        frame.can_id = can_id; // Standard 11-Bit Frame
+    }
+    
     frame.can_dlc = dlc;
     std::memcpy(frame.data, data, dlc);
     

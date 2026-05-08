@@ -16,23 +16,18 @@ pkg_check_modules(SERIAL libserial)
 add_executable(slider_control src/slider_control.cpp)
 ament_target_dependencies(slider_control rclcpp trajectory_msgs sensor_msgs)
 
-add_library(${PROJECT_NAME} SHARED 
-  src/r0192_interface.cpp
-)
 target_include_directories(${PROJECT_NAME} PRIVATE 
   include
   "${SERIAL_INCLUDE_DIRS}"
 )
 target_link_libraries(${PROJECT_NAME}
  "${SERIAL_LDFLAGS}")
+
 ament_target_dependencies(${PROJECT_NAME}
-  hardware_interface
   pluginlib
   rclcpp
   rclcpp_lifecycle
 )
-
-pluginlib_export_plugin_description_file(hardware_interface r0192_controller.xml)
 
 install(TARGETS
   slider_control
@@ -64,7 +59,6 @@ ament_export_libraries(
 )
 
 ament_export_dependencies(
-  hardware_interface
   pluginlib
   rclcpp
   rclcpp_lifecycle
