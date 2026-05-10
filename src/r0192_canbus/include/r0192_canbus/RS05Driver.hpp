@@ -5,7 +5,8 @@
 #include <memory>
 #include <cstdint>
 #include <string>
-#include <linux/can.h> // Notwendig für struct can_frame
+#include <mutex>
+#include <linux/can.h>
 
 class RS05Driver {
 public:
@@ -61,25 +62,27 @@ public:
     // Verarbeitet eingehende CAN-Frames vom Motor (Ist-Werte, Fehler, Antworten)
     void processFeedbackFrame(const struct can_frame &frame);
 
-    // --- Getter für ROS 2 hardware_interface (noch erweitern) ---
-    float get_current_position() const { return current_pos_; }
-    float get_current_velocity() const { return current_vel_; }
-    float get_current_torque() const   { return current_torque_; }
-    float get_current_temperature() const { return current_temp_; }
-    uint8_t get_mode_status() const { return mode_status_; }
-    uint8_t get_fault_info() const { return fault_info_; }
+    // --- Getter für ROS 2 hardware_interface ---
+    float get_current_position()    { std::lock_guard<std::mutex> lock(data_mutex_); return current_pos_; }
+    float get_current_velocity()    { std::lock_guard<std::mutex> lock(data_mutex_); return current_vel_; }
+    float get_current_torque()      { std::lock_guard<std::mutex> lock(data_mutex_); return current_torque_; }
+    float get_current_temperature() { std::lock_guard<std::mutex> lock(data_mutex_); return current_temp_; }
+    uint8_t get_mode_status()       { std::lock_guard<std::mutex> lock(data_mutex_); return mode_status_; }
+    uint8_t get_fault_info()        { std::lock_guard<std::mutex> lock(data_mutex_); return fault_info_; }
 
 private:
     uint8_t node_id_;
     std::shared_ptr<CanCommunication> comm_;
     rclcpp::Logger logger_;
 
+    std::mutex data_mutex_;
+
     // --- Variablen zum Speichern der Ist-Werte aus processFeedbackFrame ---
     float current_pos_ = 0.0f;
     float current_vel_ = 0.0f;
     float current_torque_ = 0.0f;
     float current_temp_ = 0.0f;
-    
+
     uint8_t mode_status_ = 0;
     uint8_t fault_info_ = 0;
 };

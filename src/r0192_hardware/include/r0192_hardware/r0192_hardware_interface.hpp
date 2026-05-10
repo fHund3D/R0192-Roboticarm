@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <thread>
 #include <atomic>
@@ -43,6 +44,11 @@ private:
   std::shared_ptr<CanCommunication> can_comm_;
   std::shared_ptr<GDS68Driver> axis1_;
   std::shared_ptr<RS05Driver> axis4_;
+  bool can_available_ = false;  // false if can0 was not up at configure time
+
+  // Encoder zero-offset tare: captured once in on_activate so all joints start at 0
+  float pos_offset_1_ = 0.0f;
+  float pos_offset_4_ = 0.0f;
 
   // --- RX Thread für asynchronen Empfang ---
   std::thread rx_thread_;
@@ -59,8 +65,11 @@ private:
   std::vector<double> hw_cmd_positions_;
   std::vector<double> hw_cmd_velocities_;
   std::vector<double> hw_cmd_efforts_; // Torque / Effort
-  std::vector<double> hw_cmd_kp_;      // Optional für reine Impedanzregelung
-  std::vector<double> hw_cmd_kd_;      // Optional für reine Impedanzregelung
+  std::vector<double> hw_cmd_kp_;
+  std::vector<double> hw_cmd_kd_;
+
+  // Joint name → vector index, built once in on_init()
+  std::unordered_map<std::string, size_t> joint_index_;
 };
 
 }  // namespace r0192_hardware

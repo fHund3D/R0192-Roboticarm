@@ -9,8 +9,8 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
 
-    is_sim = LaunchConfiguration("is_sim")  # Simulation oder Echtbetrieb
-    
+    is_sim = LaunchConfiguration("is_sim")
+
     is_sim_arg = DeclareLaunchArgument(
         "is_sim",
         default_value="True"
@@ -18,14 +18,20 @@ def generate_launch_description():
 
     moveit_config = (
         MoveItConfigsBuilder("r0192", package_name="r0192_moveit")
-        .robot_description(file_path=os.path.join(
-            get_package_share_directory("r0192_description"),
-            "urdf",
-            "r0192.urdf.xacro"
-            )
+        .robot_description(
+            file_path=os.path.join(
+                get_package_share_directory("r0192_description"),
+                "urdf",
+                "r0192.urdf.xacro"
+            ),
+            mappings={"is_sim": "false", "is_ignition": "false"},
         )
         .robot_description_semantic(file_path="config/r0192.srdf")
         .trajectory_execution(file_path="config/moveit_controllers.yaml")
+        .planning_pipelines(
+            default_planning_pipeline="ompl",
+            pipelines=["ompl", "pilz_industrial_motion_planner"],
+        )
         .to_moveit_configs()
     )
 
@@ -33,17 +39,18 @@ def generate_launch_description():
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
-        parameters=[moveit_config.to_dict(), 
-                    {"use_sim_time": is_sim},
-                    {"publish_robot_description_semantic": True}],
+        parameters=[
+            moveit_config.to_dict(),
+            {"use_sim_time": is_sim},
+            {"publish_robot_description_semantic": True},
+        ],
         arguments=["--ros-args", "--log-level", "info"],
     )
 
-    # RViz
     rviz_config = os.path.join(
         get_package_share_directory("r0192_moveit"),
-            "config",
-            "moveit.rviz",
+        "config",
+        "moveit.rviz",
     )
     rviz_node = Node(
         package="rviz2",
@@ -59,10 +66,8 @@ def generate_launch_description():
         ],
     )
 
-    return LaunchDescription(
-        [
-            is_sim_arg,
-            move_group_node, 
-            rviz_node
-        ]
-    )
+    return LaunchDescription([
+        is_sim_arg,
+        move_group_node,
+        rviz_node,
+    ])

@@ -3,27 +3,16 @@
 <package format="3">
   <name>r0192_canbus</name>
   <version>0.0.0</version>
-  <description>ROS2 messages and services for R0192 CAN control</description>
+  <description>CAN bus communication and motor drivers for the R0192 robotic arm (GDS68, RS05)</description>
   <maintainer email="nils@todo.todo">nils</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
-  <build_depend>rclcpp</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <build_depend>rosidl_default_runtime</build_depend>
-  <build_depend>builtin_interfaces</build_depend>
-
-  <exec_depend>rclcpp</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>rosidl_default_runtime</exec_depend>
-  <exec_depend>builtin_interfaces</exec_depend>
+  <depend>rclcpp</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-
-  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -104,12 +104,14 @@ bool RS05Driver::Set_Motor_CAN_ID(uint8_t new_id){
 
 // 4.1.7. Communication type 17: Single parameter read
 bool RS05Driver::Single_Parameter_Read(){
-// wird erstmal nicht implementiert 
+    // nicht implementiert
+    return false;
 }
 
 // 4.1.8. Communication type 18: Single parameter write (lost in power failure)
 bool RS05Driver::Single_Parameter_Write(){
-// wird erstmal nicht implementiert 
+    // nicht implementiert
+    return false;
 }
 
 // 4.1.10. Communication type 22: Motor data save frame
@@ -205,8 +207,10 @@ bool RS05Driver::Version_Number_Read_Frame(){
 }
 
 //4.1.15. Read and write a single parameter list
-bool RS05Driver::Read_And_Write_Single_Parameter_List(string Parameter_Name, float Parameter_Value){
-// wird erstmal nicht implementiert
+bool RS05Driver::Read_And_Write_Single_Parameter_List(std::string Parameter_Name, float Parameter_Value){
+    // nicht implementiert
+    (void)Parameter_Name; (void)Parameter_Value;
+    return false;
 }
 
 
@@ -264,13 +268,15 @@ void RS05Driver::processFeedbackFrame(const struct can_frame &frame) {
             RCLCPP_DEBUG(logger_, "Axis %d Feedback | Pos: %.2f rad, Vel: %.2f rad/s, Torque: %.2f Nm, Temp: %.1f C | Mode: %d, Fault: 0x%02X", 
                          sender_id, current_pos, current_vel, current_torque, current_temp, mode_status, fault_info);
             
-            // TODO: Speichere die Werte in den Klassenvariablen für ROS 2 (z.B. this->current_pos_ = current_pos;)
-            this->current_pos_ = current_pos;
-            this->current_vel_ = current_vel;
-            this->current_torque_ = current_torque;
-            this->current_temp_ = current_temp;
-            this->mode_status_ = mode_status;
-            this->fault_info_ = fault_info;
+            {
+                std::lock_guard<std::mutex> lock(data_mutex_);
+                current_pos_    = current_pos;
+                current_vel_    = current_vel;
+                current_torque_ = current_torque;
+                current_temp_   = current_temp;
+                mode_status_    = mode_status;
+                fault_info_     = fault_info;
+            }
             break;
         }
 

@@ -4,16 +4,16 @@
   <name>r0192_bringup</name>
   <version>0.0.0</version>
   <description>Arduinobot Bringup package</description>
-  <maintainer email="antonio.brandi@outlook.it">Antonio Brandi</maintainer>
-  <license>Apache 2.0</license>
+  <maintainer email="nils@todo.todo">nils</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <exec_depend>ros2launch</exec_depend>
   <exec_depend>r0192_controller</exec_depend>
   <exec_depend>r0192_description</exec_depend>
+  <exec_depend>r0192_hardware</exec_depend>
   <exec_depend>r0192_moveit</exec_depend>
-  <exec_depend>r0192_remote</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

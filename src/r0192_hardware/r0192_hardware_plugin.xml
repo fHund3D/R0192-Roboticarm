@@ -1,0 +1,8 @@
+<library path="r0192_hardware">
+  <class
+    name="r0192_hardware/R0192SystemHardware"
+    type="r0192_hardware::R0192SystemHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>Hardware interface plugin for the R0192 6-DOF robotic arm via SocketCAN</description>
+  </class>
+</library>
