@@ -149,17 +149,8 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclc
 {
   auto logger = rclcpp::get_logger("R0192Hardware");
   if (can_available_) {
-    // Return to home BEFORE disabling — motor ignores commands after Set_Axis_State(1).
-    if (joint_index_.count("joint_1")) {
-      const size_t i = joint_index_.at("joint_1");
-      RCLCPP_INFO(logger, "Returning axis 1 to home...");
-      home_gds68(axis1_, hw_cmd_kp_[i], hw_cmd_kd_[i]);
-    }
-    if (joint_index_.count("joint_4")) {
-      const size_t i = joint_index_.at("joint_4");
-      home_rs05(axis4_, hw_cmd_kp_[i], hw_cmd_kd_[i]);
-    }
-
+    
+    // kein homing!
     axis1_->Set_Axis_State(1);
     axis4_->Motor_Stop_Running();
 

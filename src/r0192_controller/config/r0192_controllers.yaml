@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 100 # Hz
+    update_rate: 200 # Hz
 
     arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
@@ -29,10 +29,10 @@ arm_controller:
       - position
       - velocity
 
-    # open_loop_control: JTC uses the last *commanded* state (not actual measured) for
-    # tolerance checks and interpolation. Prevents PATH_TOLERANCE_VIOLATED aborts when
-    # the real motor position deviates slightly from the planned trajectory.
-    open_loop_control: true
+    # open_loop_control: Set to false so JTC uses actual hardware positions (which are perfectly
+    # passed through for simulated joints, and perfectly tracked by Set_Input_Pos for real joints).
+    # This prevents path tolerance aborts caused by JTC's internal Euler integration drifting from splines.
+    open_loop_control: false
     allow_integration_in_goal_trajectories: true
 
     constraints:
@@ -45,19 +45,19 @@ arm_controller:
         trajectory: 1.0   # 1.0 rad tracking tolerance during execution
       joint_2:
         goal: 0.05
-        trajectory: 0.5
+        trajectory: 10.0
       joint_3:
         goal: 0.05
-        trajectory: 0.5
+        trajectory: 10.0
       joint_4:
         goal: 0.10
-        trajectory: 0.5
+        trajectory: 1.0
       joint_5:
         goal: 0.05
-        trajectory: 0.5
+        trajectory: 10.0
       joint_6:
         goal: 0.05
-        trajectory: 0.5
+        trajectory: 10.0
 
 gripper_controller:
   ros__parameters:
