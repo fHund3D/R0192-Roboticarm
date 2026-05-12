@@ -46,9 +46,6 @@ private:
   std::shared_ptr<RS05Driver> axis4_;
   bool can_available_ = false;  // false if can0 was not up at configure time
 
-  // Encoder zero-offset tare: captured once in on_activate so all joints start at 0
-  float pos_offset_1_ = 0.0f;
-  float pos_offset_4_ = 0.0f;
 
   // --- RX Thread für asynchronen Empfang ---
   std::thread rx_thread_;

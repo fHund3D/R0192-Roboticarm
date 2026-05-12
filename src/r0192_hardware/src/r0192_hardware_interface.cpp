@@ -52,39 +52,6 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_configure(const rclcp
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-// GDS68 homing: explicit Get_Encoder_Estimates every 100 ms because the GDS68
-// does not reply to MIT_Control commands with position feedback frames (0x008).
-// Without this, get_current_position() returns the initial stale encoder value.
-static bool home_gds68(
-  std::shared_ptr<GDS68Driver> driver, double kp, double kd,
-  int timeout_ms = 5000, double threshold_rad = 0.05)
-{
-  const int steps = timeout_ms / 10;
-  for (int t = 0; t < steps; t++) {
-    driver->MIT_Control(0.0, 0.0, kp, kd, 0.0);
-    if (t % 10 == 9) {  // every 100 ms: request fresh position
-      driver->Get_Encoder_Estimates();
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    if (std::abs(driver->get_current_position()) < threshold_rad) return true;
-  }
-  return false;
-}
-
-// RS05 homing: RS05 sends feedback autonomously — no polling needed.
-template<typename T>
-static bool home_rs05(
-  std::shared_ptr<T> driver, double kp, double kd,
-  int timeout_ms = 5000, double threshold_rad = 0.05)
-{
-  const int steps = timeout_ms / 10;
-  for (int t = 0; t < steps; t++) {
-    if (std::abs(driver->get_current_position()) < threshold_rad) return true;
-    driver->MIT_Control(0.0, 0.0, kp, kd, 0.0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  return false;
-}
 
 hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp_lifecycle::State & /*previous_state*/)
 {
@@ -107,12 +74,16 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
     // the motor reports position ≈ 0 and MIT_Control(0.0) holds it in place.
     if (joint_index_.count("joint_1")) {
       const size_t i = joint_index_.at("joint_1");
+      // NOTE: GDS68 bootsequent & homing implementing later!
+
       axis1_->Get_Encoder_Estimates();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       RCLCPP_INFO(logger, "Axis 1 raw encoder: %.3f rad — zeroing at current position",
                   axis1_->get_current_position());
-
+      
+      // Set motor mechanical zero
       axis1_->Set_Linear_Count(0);
+      RCLCPP_INFO(logger, "Axis 1 mechanical zero set");
 
       // Wait for the autonomous encoder update (10 ms interval) to reflect the new zero.
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -121,20 +92,24 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
 
       double pos = axis1_->get_current_position();
       RCLCPP_INFO(logger, "Axis 1 after zero: %.3f rad (motor holds current physical position)", pos);
-      pos_offset_1_ = 0.0;
       hw_cmd_positions_[i] = pos;
     }
 
     // RS05 (axis 4): sends feedback autonomously — wait briefly then home.
     if (joint_index_.count("joint_4")) {
       const size_t i = joint_index_.at("joint_4");
+      // NOTE: RS05 bootsequent & homing implementing later!
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      RCLCPP_INFO(logger, "Axis 4 pre-home: %.3f rad", axis4_->get_current_position());
-      RCLCPP_INFO(logger, "Homing axis 4 (kp=%.1f kd=%.2f, timeout 5 s)...", hw_cmd_kp_[i], hw_cmd_kd_[i]);
-      bool ok = home_rs05(axis4_, hw_cmd_kp_[i], hw_cmd_kd_[i]);
+      RCLCPP_INFO(logger, "Axis 4 raw encoder: %.3f rad — zeroing at current position", axis4_->get_current_position());
+
+      // Set motor mechanical zero
+      axis4_->Set_Motor_Mechanical_Zero();
+      RCLCPP_INFO(logger, "Axis 4 mechanical zero set");
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
       double pos = axis4_->get_current_position();
-      RCLCPP_INFO(logger, "Axis 4 homed: %.3f rad (%s)", pos, ok ? "reached" : "timeout");
-      pos_offset_4_ = 0.0;
+      RCLCPP_INFO(logger, "Axis 4 after zero: %.3f rad", pos);
       hw_cmd_positions_[i] = pos;
     }
   } else {
@@ -150,7 +125,6 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclc
   auto logger = rclcpp::get_logger("R0192Hardware");
   if (can_available_) {
 
-    // kein homing!
     axis1_->Set_Axis_State(1);
     axis4_->Motor_Stop_Running();
 
@@ -201,7 +175,7 @@ hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /
   if (can_available_) {
     if (joint_index_.count("joint_1")) {
       const size_t i = joint_index_.at("joint_1");
-      hw_positions_[i] = axis1_->get_current_position() - pos_offset_1_;
+      hw_positions_[i] = axis1_->get_current_position();
       hw_velocities_[i] = axis1_->get_current_velocity();
       hw_efforts_[i]    = axis1_->get_current_torque();
       // GDS68 does not push feedback autonomously — request every cycle.
@@ -210,7 +184,7 @@ hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /
     }
     if (joint_index_.count("joint_4")) {
       const size_t i = joint_index_.at("joint_4");
-      hw_positions_[i] = axis4_->get_current_position() - pos_offset_4_;
+      hw_positions_[i] = axis4_->get_current_position();
       hw_velocities_[i] = axis4_->get_current_velocity();
       hw_efforts_[i]    = axis4_->get_current_torque();
       // RS05 sends feedback autonomously — no request needed.
@@ -267,29 +241,14 @@ hardware_interface::return_type R0192SystemHardware::write(const rclcpp::Time & 
     const size_t i = joint_index_.at("joint_1");
     // Send Position Control command instead of MIT_Control to prevent drift
     axis1_->Set_Input_Pos(
-      hw_cmd_positions_[i] + pos_offset_1_, 0, hw_cmd_velocities_[i], hw_cmd_efforts_[i]);
+      hw_cmd_positions_[i], 0, hw_cmd_velocities_[i], hw_cmd_efforts_[i]);
   }
   if (joint_index_.count("joint_4")) {
     const size_t i = joint_index_.at("joint_4");
     axis4_->MIT_Control(
-      hw_cmd_positions_[i] + pos_offset_4_, hw_cmd_velocities_[i],
+      hw_cmd_positions_[i], hw_cmd_velocities_[i],
       hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
   }
-
-  // Drift diagnostics: log commanded vs measured position every 5 s so we can see
-  // whether the commanded position is stable or the measured position is drifting.
-  if (joint_index_.count("joint_1")) {
-    const size_t i = joint_index_.at("joint_1");
-    if (++diag_counter_ >= diag_interval_) {
-      diag_counter_ = 0;
-      RCLCPP_INFO(rclcpp::get_logger("R0192Hardware"),
-                  "j1 cmd=%.4f actual=%.4f err=%.4f vel_cmd=%.4f",
-                  hw_cmd_positions_[i], hw_positions_[i],
-                  hw_cmd_positions_[i] - hw_positions_[i],
-                  hw_cmd_velocities_[i]);
-    }
-  }
-
   return hardware_interface::return_type::OK;
 }
 
