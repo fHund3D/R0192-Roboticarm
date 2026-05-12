@@ -29,8 +29,35 @@ arm_controller:
       - position
       - velocity
 
-    open_loop_control: false
+    # open_loop_control: JTC uses the last *commanded* state (not actual measured) for
+    # tolerance checks and interpolation. Prevents PATH_TOLERANCE_VIOLATED aborts when
+    # the real motor position deviates slightly from the planned trajectory.
+    open_loop_control: true
     allow_integration_in_goal_trajectories: true
+
+    constraints:
+      # Allow 5 s after the trajectory ends for the motor to settle into goal_tolerance.
+      goal_time: 5.0
+      # Motor must be nearly stopped before goal is declared reached.
+      stopped_velocity_tolerance: 0.05
+      joint_1:
+        goal: 0.15        # 0.15 rad (~8.6°) = goal reached for real motor
+        trajectory: 1.0   # 1.0 rad tracking tolerance during execution
+      joint_2:
+        goal: 0.05
+        trajectory: 0.5
+      joint_3:
+        goal: 0.05
+        trajectory: 0.5
+      joint_4:
+        goal: 0.10
+        trajectory: 0.5
+      joint_5:
+        goal: 0.05
+        trajectory: 0.5
+      joint_6:
+        goal: 0.05
+        trajectory: 0.5
 
 gripper_controller:
   ros__parameters:

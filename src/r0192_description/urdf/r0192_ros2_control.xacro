@@ -32,7 +32,12 @@
         </xacro:unless>
 
         <!-- Arm joints 1-6 (same for sim and real) -->
+        <!-- kp / kd: MIT-Control gains, read by R0192SystemHardware::on_init().
+             Only joints with real motors (joint_1, joint_4) use these at runtime;
+             passthrough joints ignore them. -->
         <joint name="joint_1">
+            <param name="kp">50.0</param>
+            <param name="kd">1.0</param>
             <command_interface name="position"/>
             <command_interface name="velocity"/>
             <state_interface name="position"/>
@@ -41,6 +46,8 @@
         </joint>
 
         <joint name="joint_2">
+            <param name="kp">0.0</param>
+            <param name="kd">0.0</param>
             <command_interface name="position"/>
             <command_interface name="velocity"/>
             <state_interface name="position"/>
@@ -49,6 +56,8 @@
         </joint>
 
         <joint name="joint_3">
+            <param name="kp">0.0</param>
+            <param name="kd">0.0</param>
             <command_interface name="position"/>
             <command_interface name="velocity"/>
             <state_interface name="position"/>
@@ -57,6 +66,8 @@
         </joint>
 
         <joint name="joint_4">
+            <param name="kp">30.0</param>
+            <param name="kd">0.5</param>
             <command_interface name="position"/>
             <command_interface name="velocity"/>
             <state_interface name="position"/>
@@ -65,6 +76,8 @@
         </joint>
 
         <joint name="joint_5">
+            <param name="kp">0.0</param>
+            <param name="kd">0.0</param>
             <command_interface name="position"/>
             <command_interface name="velocity"/>
             <state_interface name="position"/>
@@ -73,6 +86,8 @@
         </joint>
 
         <joint name="joint_6">
+            <param name="kp">0.0</param>
+            <param name="kd">0.0</param>
             <command_interface name="position"/>
             <command_interface name="velocity"/>
             <state_interface name="position"/>
@@ -82,6 +97,8 @@
 
         <!-- Gripper (joint_7 active, joint_8 passive mimic defined above) -->
         <joint name="joint_7">
+            <param name="kp">0.0</param>
+            <param name="kd">0.0</param>
             <command_interface name="position"/>
             <state_interface name="position"/>
             <state_interface name="velocity"/>

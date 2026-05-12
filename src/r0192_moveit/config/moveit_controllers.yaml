@@ -1,6 +1,14 @@
 # MoveIt uses this configuration for controller management
 moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
 
+# Execution timeout margins: allow up to 3× planned trajectory time + 10 s extra before
+# MoveIt kills the execution. The GDS68 motor in MIT mode may be slower than the planned
+# trajectory velocity, so we give it room without declaring a timeout failure.
+trajectory_execution:
+  allowed_execution_duration_scaling: 3.0
+  allowed_goal_duration_margin: 10.0
+  execution_duration_monitoring: true
+
 moveit_simple_controller_manager:
   controller_names:
     - arm_controller

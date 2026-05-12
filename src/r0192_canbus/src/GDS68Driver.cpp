@@ -111,6 +111,17 @@ bool GDS68Driver::Clear_Errors() {
     return comm_->sendFrame(createId(0x018), 0, nullptr);
 }
 
+// CMD 0x019 – Zero encoder at current physical position
+// Equivalent to odrv0.axis0.encoder.set_linear_count(n) in odrivetool.
+// After this call, get_current_position() returns ≈0 and MIT_Control(0.0)
+// holds the motor at its current physical location.
+bool GDS68Driver::Set_Linear_Count(int32_t linear_count) {
+    uint8_t data[4];
+    std::memcpy(&data[0], &linear_count, 4);
+    RCLCPP_INFO(logger_, "Axis %d: Set_Linear_Count → %d (encoder zeroed at current position)", node_id_, linear_count);
+    return comm_->sendFrame(createId(0x019), 4, data);
+}
+
 // CMD 0x01C – Request torque feedback
 bool GDS68Driver::Get_Torques() {
     return comm_->sendFrame(createId(0x01C), 0, nullptr);

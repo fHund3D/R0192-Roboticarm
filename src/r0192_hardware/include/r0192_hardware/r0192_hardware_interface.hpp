@@ -70,6 +70,10 @@ private:
 
   // Joint name → vector index, built once in on_init()
   std::unordered_map<std::string, size_t> joint_index_;
+
+  // Diagnostic: log commanded vs actual position every ~5 s at 100 Hz loop rate.
+  int diag_counter_ = 0;
+  static constexpr int diag_interval_ = 500;
 };
 
 }  // namespace r0192_hardware

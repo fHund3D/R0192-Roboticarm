@@ -21,6 +21,7 @@ public:
     bool Set_Input_Pos(float Input_Pos, uint32_t Duration_ms, float Vel_FF, float Torque_FF); // CMD 0x00C
     bool Set_Limits(float Velocity_Limit, float Current_Limit); // CMD 0x00F
     bool Clear_Errors(); // CMD 0x018
+    bool Set_Linear_Count(int32_t linear_count); // CMD 0x019 — zero encoder at current position
     bool Get_Torques(); // CMD 0x01C
     bool Get_Powers(); // CMD 0x01D
     bool Save_Configuration(); // CMD 0x01F
