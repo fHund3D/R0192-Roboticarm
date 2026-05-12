@@ -239,15 +239,12 @@ hardware_interface::return_type R0192SystemHardware::write(const rclcpp::Time & 
 
   if (joint_index_.count("joint_1")) {
     const size_t i = joint_index_.at("joint_1");
-    // Send Position Control command instead of MIT_Control to prevent drift
-    axis1_->Set_Input_Pos(
-      hw_cmd_positions_[i], 0, hw_cmd_velocities_[i], hw_cmd_efforts_[i]);
+    axis1_->MIT_Control(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
+    //axis1_->Set_Input_Pos(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_efforts_[i]);
   }
   if (joint_index_.count("joint_4")) {
     const size_t i = joint_index_.at("joint_4");
-    axis4_->MIT_Control(
-      hw_cmd_positions_[i], hw_cmd_velocities_[i],
-      hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
+    axis4_->MIT_Control(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
   }
   return hardware_interface::return_type::OK;
 }
