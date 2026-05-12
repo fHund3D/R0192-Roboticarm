@@ -91,7 +91,7 @@ bool GDS68Driver::Set_Input_Pos(float Input_Pos, uint32_t /*Duration_ms*/, float
     std::memcpy(&data[0], &pos_rev, 4);
     std::memcpy(&data[4], &v_ff,    2);
     std::memcpy(&data[6], &t_ff,    2);
-    RCLCPP_INFO(logger_, "Axis %d: Set_Input_Pos pos=%.2f rad", node_id_, Input_Pos);
+    RCLCPP_DEBUG(logger_, "Axis %d: Set_Input_Pos pos=%.2f rad", node_id_, Input_Pos);
     return comm_->sendFrame(createId(0x00C), 8, data);
 }
 

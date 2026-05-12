@@ -94,9 +94,13 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
     rx_thread_running_ = true;
     rx_thread_ = std::thread(&R0192SystemHardware::canRxThread, this);
 
-    // Enable closed-loop first so MIT_Control commands are accepted.
+    // Enable closed-loop first.
     axis1_->Set_Axis_State(8);
     axis4_->Motor_Enabled_To_Run();
+
+    // Set GDS68 to Position Control (3) and Passthrough (1) to prevent drift.
+    // This uses the motor's robust internal PID instead of the external MIT_Control.
+    axis1_->Set_Controller_Mode(3, 1);
 
     // GDS68 (axis 1): zero the encoder at current physical position so that
     // MIT_Control commands stay within ±12.5 rad.  After Set_Linear_Count(0)
@@ -270,9 +274,9 @@ hardware_interface::return_type R0192SystemHardware::write(const rclcpp::Time & 
 
   if (joint_index_.count("joint_1")) {
     const size_t i = joint_index_.at("joint_1");
-    axis1_->MIT_Control(
-      hw_cmd_positions_[i] + pos_offset_1_, hw_cmd_velocities_[i],
-      hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
+    // Send Position Control command instead of MIT_Control to prevent drift
+    axis1_->Set_Input_Pos(
+      hw_cmd_positions_[i] + pos_offset_1_, 0, hw_cmd_velocities_[i], hw_cmd_efforts_[i]);
   }
   if (joint_index_.count("joint_4")) {
     const size_t i = joint_index_.at("joint_4");
