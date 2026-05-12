@@ -1,0 +1,6877 @@
+RobStride Motor User Manual
+
+ROBSTRIDE
+
+05
+
+6N.M Quasi-Direct Drive Integrated Motor Module
+User Manual
+
+RobStride Dynamics
+https://www.robstride.com/
+
+RobStride Motor User Manual
+
+RobStride Motor User Manual
+
+RS05 instruction manual
+Precautions
+1.
+
+Please use according to the working parameters specified in this article,
+
+otherwise it may cause serious damage to the product!
+2.
+
+Do not switch the control mode when the joint is running. If you need to
+
+switch, send the command to stop the operation before switching.
+3.
+
+Check whether the parts are in good condition before use. If the parts are
+
+missing or damaged, contact technical support in time.
+4.
+
+Do not disassemble the motor at will, so as to avoid unrecoverable failure.
+
+5.
+
+Ensure that there is no short circuit when the motor is connected, and the
+
+interface is correctly connected as required.
+
+Legal Statement
+Before using this product, please read this manual carefully and operate the
+product according to the contents of this manual. If the user violates the
+contents of this manual to use this product, resulting in any property damage,
+personal injury accident, the company does not assume any responsibility.
+Because this product is composed of many parts, do not allow children to
+touch this product to avoid accidents. In order to prolong the service life of
+the product, do not use this product in high temperature and high pressure
+environment. This manual has been printed to the extent possible to include a
+description of the functions and instructions for use. However, due to the
+continuous improvement of product functions, design changes, etc., there may
+still be discrepancies with the products purchased by users.
+The color and appearance of this manual may differ from the actual product.
+Please refer to the actual product. This manual is published by Beijing Lingfoot
+
+1
+
+RobStride Motor User Manual
+
+Times Technology Co., LTD. (hereinafter referred to as Lingfoot), and Lingfoot
+may at any time make necessary improvements and changes to the inaccurate
+and up-to-date information in this manual, or make improvements to
+procedures and/or equipment. Such changes will be uploaded to the
+company's official website in electronic format. Details can be found in the
+download center (www.robstride.com). All images are for reference only.
+Please refer to actual objects.
+
+After-sales Policy
+The after-sales service of this product is implemented in strict accordance with
+the Law of the People's Republic of China on the Protection of Consumer
+Rights and Interests and the Product Quality Law of the People's Republic of
+China. The service content is as follows:
+1.
+
+Warranty period and contents
+a.
+
+Users who place orders on the online channel to purchase this
+
+product can enjoy the return service without reason within seven days
+from the day after signing. When returning goods, the user must present
+a valid proof of purchase and return the invoice. The user must ensure
+that the returned goods maintain the original quality and function, the
+appearance is intact, the trademarks and various logos of the goods
+themselves and accessories are complete, and if there are gifts, they
+should be returned together. If the goods are artificially damaged,
+artificially disassembled, missing packaging boxes, missing parts and
+accessories, they will not be returned. The logistics cost incurred during
+the return shall be borne by the user (see "After-sales Service Fee
+Standard"). If the user does not settle the logistics cost, it will be deducted
+from the refund amount according to the actual amount incurred. Refund
+the amount paid to the user within seven days from the date of receipt of
+the returned item. Refund method is the same as payment method. The
+
+2
+
+RobStride Motor User Manual
+
+specific arrival date may be affected by factors such as banks and
+payment institutions.
+b.
+
+The warranty period of this product is 1 year.
+
+c.
+
+Within 7 days after the user signs for the next day, non-human
+
+damage performance failure occurs, through the Lingzhu after-sales
+service center test and confirmation, for the user to handle the return
+business, the user must present a valid purchase voucher, and return the
+invoice. Any freebies should be returned.
+d.
+
+From 7 days to 15 days after the user signs for the next day, non-
+
+human damage performance failure occurs, through the Lingfoot aftersales service center test and confirmation, for the user to replace the
+whole set of goods. After the replacement, the three guarantee period of
+the goods themselves is recalculated.
+e.
+
+From 15 days to 365 days after the user signed the next day, after
+
+the inspection and confirmation of the Lingfoot after-sales service center,
+it is a quality fault of the product itself, and can provide free maintenance
+services. The replacement of the faulty product is owned by Lingzu
+Company. The product is not faulty and will be returned as is. This product
+has been strictly tested after the factory, if there is a quality fault other
+than the product itself, we will have the right to refuse the user's return
+demand.
+2.
+
+Non-warranty regulations The following circumstances are not covered
+
+by the warranty:
+3.
+
+Exceed the warranty period specified in the warranty terms.
+
+4.
+
+Failure to follow the instructions, resulting in product damage caused by
+
+wrong use.
+5.
+
+Damage caused by improper operation, maintenance, installation,
+
+modification, testing and other improper use.
+
+3
+
+RobStride Motor User Manual
+
+6.
+
+Non-quality failure caused by conventional mechanical loss, wear.
+
+7.
+
+Damage caused by abnormal working conditions, including but not
+
+limited to falling, impact, liquid immersion, violent impact, etc.
+8.
+
+Damage caused by natural disasters (such as floods, fires, lightning strikes,
+
+earthquakes, etc.) or incapacitated forces.
+9.
+
+Damage caused by exceeding peak torque.
+
+10. Damage caused by exceeding peak torque.
+11. Failure or damage caused by other non-product design, technology,
+
+manufacturing, quality and other problems.
+In the case of the above situation, the user must pay the cost.
+
+4
+
+RobStride Motor User Manual
+
+Table of contents
+Precautions ...................................................................................................................................... 1
+Legal Statement ............................................................................................................................. 1
+After-sales Policy ............................................................................................................................2
+1. Motor specification ...................................................................................................................8
+1.1. Outline and mounting dimensions ...........................................................................8
+1.2. Standard service condition ......................................................................................... 8
+1.3. Electrical characteristic ................................................................................................. 9
+1.4. Mechanical characteristic .......................................................................................... 11
+2. Driver Product Information .................................................................................................. 12
+2.1. Driver product Specifications ...................................................................................12
+2.2. Driver interface definition ......................................................................................... 12
+2.3. Recommended driver interface brand and model ............................................ 12
+3. Upper computer instructions .............................................................................................. 13
+3.1. Hardware disposition ..................................................................................................13
+3.2. Upper computer interface and description ......................................................... 14
+3.3. Motor settings .............................................................................................................. 15
+3.3.1. Motor connection settings ............................................................................ 15
+3.3.2. Motor configuration module ........................................................................ 16
+3.3.3. Motor upgrade module ..................................................................................16
+3.3.4. Parameter settings ........................................................................................... 19
+3.3.5. Oscilloscope ....................................................................................................... 30
+3.3.6. can communication failure protection .......................................................31
+3.3.7. Motor fault instructions ..................................................................................32
+3.4. Control Demo ............................................................................................................... 34
+3.4.1. Operation and control mode ........................................................................35
+3.4.2. Current mode .................................................................................................... 36
+3.4.3. Speed Mode .......................................................................................................37
+3.4.4. Position Mode (PP) .......................................................................................... 39
+3.4.5. Position Mode（CSP） ....................................................................................41
+4. Driver protocol and instructions .........................................................................................43
+4.1. Description of the communication protocol type ............................................. 43
+4.1.1. Communication type 0: Get device ID ....................................................... 43
+4.1.2. Communication Type 1: operation control mode motor control
+instruction ...................................................................................................................... 44
+4.1.3. Communication Type 2: motor feedback data ........................................44
+
+5
+
+RobStride Motor User Manual
+
+4.1.4. Communication Type 3: Motor enabled to run ...................................... 45
+4.1.5. Communication Type 4: Motor stops running ........................................ 45
+4.1.6. Communication type 6: Set motor mechanical zero ............................. 45
+4.1.7. Communication type 17: Single parameter read ....................................46
+4.1.8. Communication type 18: Single parameter write (lost in power
+failure) ............................................................................................................................. 47
+4.1.9. Communication type 21: Fault feedback frame ...................................... 47
+4.1.10. Communication type 22: Motor data save frame ................................ 48
+4.1.11. Communication type 23: Motor baud rate modification frame (repower-on effect) .......................................................................................................... 48
+4.1.12. Communication type 24: The motor actively reports frames ........... 49
+4.1.13. Communication type 25: Motor protocol modification frame (repower-on effect) .......................................................................................................... 50
+4.1.14. Communication type 26：Version number read frame ..................... 50
+4.1.15. Read and write a single parameter list .................................................... 51
+4.1.16. Read example: .................................................................................................52
+4.2. Motor Function Description ..................................................................................... 53
+4.2.1. Active Reporting ............................................................................................... 53
+4.2.2. Zero-Point Flag (zero_sta) ..............................................................................53
+4.2.3. Type 2 Update ................................................................................................... 54
+4.2.4. Protocol Switching (Requires CAN adapter) ............................................ 54
+4.2.5. Post-Power-Off Anti-Backdrive Protection ...............................................54
+4.2.6. Zero Calibration Rules .....................................................................................55
+4.2.7. Position Offset (add_offset) ...........................................................................55
+4.2.8. CANopen ID ....................................................................................................... 55
+4.2.9. Notes for Implementation ............................................................................. 55
+4.3. Control mode instructions ........................................................................................ 56
+4.3.1. Operation control mode ................................................................................ 56
+4.3.2. Current mode .................................................................................................... 57
+4.3.3. Velocity mode ................................................................................................... 57
+4.3.4. Location Mode (CSP) .......................................................................................58
+4.3.5. Location Mode (PP) ......................................................................................... 58
+4.3.6. Stop running ...................................................................................................... 59
+4.4. Program sample ........................................................................................................... 59
+4.4.1. Motor Enabled Run frame (communication type 3) .............................. 61
+4.4.2. Operation control mode Motor control instruction (communication
+type 1) ............................................................................................................................. 62
+4.4.3. Motor stop frame (communication type 4) ..............................................63
+
+6
+
+RobStride Motor User Manual
+
+4.4.4. Motor mode parameter write command (communication type 18,
+running mode switch) ................................................................................................ 64
+4.4.5. Motor mode parameter write command (communication type 18,
+control parameter write) ........................................................................................... 65
+5. Explanation of Canopen Communication Protocol Types .......................................... 68
+5.1. Introduction to CANopen Communication ..........................................................68
+5.2. Canopen Protocol Message Classification ........................................................... 68
+5.3. State Machine Description ........................................................................................70
+5.4. Status Feedback Parameters .................................................................................... 71
+5.5. Homing Mode (Zero Position Setting) .................................................................. 72
+5.6. Position Mode (PP - Profile Position) .................................................................... 72
+5.7. Position Mode (CSP - Cyclic Synchronous Position) ......................................... 73
+5.8. Velocity Mode ...............................................................................................................74
+5.9. Torque Mode ................................................................................................................ 75
+5.10. Protocol Switching (Extended Frame): Switch Motor Protocol (Takes
+Effect After Power Cycle) ................................................................................................... 75
+6. MIT Communication Protocol Description ...................................................................... 77
+6.1. Response Command 1: Data Feedback (Motor Status) ................................... 77
+6.2. Response Command 2: MCU Identification .........................................................78
+6.3. Command 1: Enable Motor Operation ..................................................................78
+6.4. Command 2: Stop Motor Operation ......................................................................78
+6.5. Command 3: MIT Dynamic Parameters ................................................................ 78
+6.6. Command 4: Set Zero Position (Non-Position Mode) ......................................79
+6.7. Command 5: Clear Errors & Read Fault Status ................................................... 79
+6.8. Command 7: Modify Motor CAN ID ...................................................................... 79
+6.9. Command 8: Change Communication Protocol (Takes Effect After Power
+Cycle) ....................................................................................................................................... 80
+6.10. Command 9: Modify Host CAN ID ....................................................................... 80
+6.11. Command 10: Position Mode Control Command ........................................... 80
+6.12. Command 11: Velocity Mode Control Command ........................................... 80
+6.13. Motion Control Mode .............................................................................................. 81
+6.14. Velocity Mode ............................................................................................................ 81
+6.15. Position Mode (CSP - Cyclic Synchronous Position) .......................................82
+7. Version History .........................................................................................................................83
+
+7
+
+RobStride Motor User Manual
+
+1. Motor specification
+1.1.
+
+Outline and mounting dimensions
+
+When fixing, the screw depth should not exceed the depth of the casing
+thread
+
+1.2.
+
+Standard service condition
+
+1.
+
+Rated voltage: 48 VDC
+
+2.
+
+Operating voltage range: 15V-60 VDC
+
+3.
+
+Rated load (CW) : 1.6 N.m
+
+4.
+
+Operation direction: CW/CCW from the direction of the exit shaft
+
+5.
+
+Use posture: the direction of the exit axis is horizontal or vertical
+
+6.
+
+Standard operating temperature: 25±5℃
+
+7.
+
+Operating temperature range: -20 ~ 50℃
+
+8.
+
+Standard operating humidity: 65%
+
+9.
+
+Humidity range: 5 ~ 85%, no condensation
+
+10. Storage temperature range: -30 ~ 70℃
+11. Insulation Class: Class B
+
+8
+
+RobStride Motor User Manual
+
+1.3.
+
+Electrical characteristic
+
+1.
+
+No load speed: 480 rpm±10%
+
+2.
+
+No-load current：0.14 Arms ±10%
+
+3.
+
+Rated load: 1.6 N.m
+
+4.
+
+Rated load speed: 100rpm±10%
+
+5.
+
+Rated load phase current (peak) : 2.4Apk±10%
+
+6.
+
+Peak load: 5.5 N.m
+
+7.
+
+Maximum load phase current (peak) : 11Apk±10%
+
+8.
+
+Insulation resistance/stator winding: DC 500VAC, 100M Ohms
+
+9.
+
+High voltage/stator and housing: 600 VAC, 1s, 2mA
+
+10. Motor back potential: 7.4Vrms/kRPM±10%
+11. Torque constant: 0.94N.m/Arms
+12. T-N curve (48V)
+
+13. Maximum overload curve
+
+Test conditions: Ambient temperature: 25℃
+
+9
+
+RobStride Motor User Manual
+
+Winding limit temperature: 135℃ (this is the constraint temperature, the
+actual is 180 degrees)
+Speed: 100rpm
+
+Test data
+
+14. Thermal testing Test Conditions:
+Heat sink size: 70mm x 70mm
+Ambient temperature: 25℃
+Winding protection temperature: 145℃
+Test condition 1: Motor rotates at 100rpm, monitor the motor thermistor
+temperature, and record the time it takes for the motor thermistor temperature to
+
+10
+
+RobStride Motor User Manual
+
+rise from 25℃ to 145℃.
+
+Motor locked-rotor condition 2: According to the current formula, the average
+phase current during locked-rotor is approximately 1.414 times that of rotation.
+This is used to obtain the overload time table for the locked-rotor condition.
+
+1.4.
+
+Mechanical characteristic
+
+1.
+
+Weight: 191g±3g
+
+2.
+
+Number of poles: 20
+
+3.
+
+Phase number: 3 phases
+
+4.
+
+Drive mode: FOC
+
+5.
+
+Deceleration ratio: 7.75:1
+
+11
+
+RobStride Motor User Manual
+
+2. Driver Product Information
+2.1.
+
+Driver product Specifications
+project
+
+data
+
+The rated working voltage
+
+48VDC
+
+The maximum allowable voltage
+
+60VDC
+
+Rated working phase current
+
+2.4Apk
+
+Maximum allowable phase current
+
+11.0Apk
+
+Standby power
+
+≤18mA
+
+CAN bus bit rate
+
+1Mbps
+
+Dimensions
+
+Φ41mm
+
+Working environment temperature
+
+-20℃ to 50℃
+
+The maximum allowable temperature of the control board
+
+135℃
+
+encoder resolution
+
+14bit (absolute turn)
+
+2.2.
+
+Driver interface definition
+
+2.3.
+
+Recommended driver interface brand and
+model
+
+board end model
+
+brand manufacturer
+
+line end model
+
+brand manufacturer
+
+XT30PB(2+2)-M.G.B
+
+AMASS (Ams)
+
+XT30(2+2)-F.G.B
+
+AMASS (Ams)
+
+12
+
+RobStride Motor User Manual
+
+3. Upper computer instructions
+Please go to www.robstride.com website download center
+
+3.1.
+
+Hardware disposition
+
+The articulated motor uses the CAN communication mode and has two
+communication cables. It is connected to the debugger through the can to
+USB tool. The debugger needs to be installed with the ch340 driver in advance
+and works in AT mode by default.
+It should be noted that we are based on the specific can to USB tool
+development of the debugger, so we need to use our recommended serial
+port tool to debug the debugger, if you want to transplant to other debugger
+platform can refer to the third chapter of the instructions for development.
+The CAN to USB tool is recommended to use the official USB-CAN module of
+Lingzu Times. The frame header of the corresponding serial port protocol is 41
+54, and the frame tail is 0D 0A.
+When using the CAN-to-USB module, pay attention to the settings of the DIP
+switches on the module: When DIP switch 1 is in the ON position, the module
+enters Boot mode and cannot establish a connection with the host computer.
+When DIP switch 2 is in the ON position, a 120Ω terminal resistor is connected
+to the module port, allowing normal communication with the host computer.
+
+13
+
+RobStride Motor User Manual
+
+3.2.
+
+Upper computer interface and description
+
+Mainly includes:
+A. Motor Connection Module
+•
+
+Refreshing the Serial Port
+
+•
+
+Opening the Serial Port
+
+•
+
+Testing the Device
+
+B. Motor Configuration Module
+•
+
+Starting the Upgrade
+
+•
+
+Opening a File
+
+•
+
+Starting the Upgrade
+
+•
+
+Modifying the Motor CAN ID
+
+•
+
+Setting the Motor's Mechanical Zero Position
+
+C. Motor Upgrade Module
+•
+
+Magnetic Encoder Calibration
+
+•
+
+Motor Active Reporting Switch
+
+14
+
+RobStride Motor User Manual
+
+•
+
+Setting the Motor Active Reporting Time
+
+•
+
+Modifying the Motor CAN ID
+
+•
+
+Setting the Motor's Mechanical Zero Position
+
+D. Motor Main Interface
+•
+
+Parameter Settings
+
+•
+
+Motor Oscilloscope
+
+E. Run and Debug Area
+•
+
+Parameter Debugging Buttons
+
+•
+
+Motor Mode Configuration and Parameter Modification
+
+•
+
+Sine Signal Testing
+
+3.3.
+
+Motor settings
+
+3.3.1. Motor connection settings
+
+Connect the CAN to USB tool (install the ch340 driver, which works in AT
+mode by default), click Refresh Serial Port, open the serial port, and click
+Detect Device to detect the corresponding motor. The green text below is the
+motor type.
+
+15
+
+RobStride Motor User Manual
+
+3.3.2. Motor configuration module
+
+1.
+
+Recalibrate the motor magnetic encoder. Reinstalling the motor board
+
+and motor, or reconnecting the motor's three-phase wiring requires
+recalibrating the magnetic encoder.
+2.
+
+Enable active motor reporting. Click Start Reporting to enable active
+
+motor reporting in communication type 2. You can set the interval below, with
+a minimum of 10ms.
+3.
+
+Set ID: Set the motor's CAN ID.
+
+4.
+
+Set Zero Position: Set the current position to 0.
+
+3.3.3. Motor upgrade module
+1.
+
+1. Click to open the file and select the firmware to upgrade. The rs-0x in
+
+the firmware name is the selected motor type.
+
+16
+
+RobStride Motor User Manual
+
+2.
+
+Click Start Upgrade, and the motor will enter the upgrade preparation
+
+stage.
+
+3.
+
+When the green text "Device has entered upgrade mode" pops up, click
+
+to start the upgrade
+
+17
+
+RobStride Motor User Manual
+
+4.
+
+When the green text "Upgrade Successfully" pops up, the upgrade is
+
+complete.
+
+If the green progress bar gets stuck halfway through the upgrade, you can
+click to stop the upgrade, or re-power on and re-enter the upgrade process.
+The internal program of the motor will not be lost after the upgrade fails.
+Please check whether the communication environment is good before
+upgrading again.
+
+18
+
+RobStride Motor User Manual
+
+3.3.4. Parameter settings
+
+After successfully connecting to the motor,
+1.
+
+Click Refresh Parameter Table. "Updated Parameter Table Successfully"
+
+will appear at the top, indicating that the motor parameters have been
+successfully read (Note: The parameter table must be configured while the
+motor is in standby mode. If the motor is running, the parameter table refresh
+cannot be performed). The interface will display the motor's parameters.
+Parameters in blue are stored internally in the motor and can be modified in
+the Current Value field following the corresponding parameter.
+2.
+
+Click Read Parameters to upload the motor parameters to the debugger.
+
+Parameters in light blue are observed parameters, which are collected and can
+be observed in real time.
+3.
+
+Click Write Parameters to download the debugger parameters to the
+
+motor.
+4.
+
+Click Restore Factory to restore the motor's default parameters for the
+
+latest firmware.
+
+19
+
+RobStride Motor User Manual
+
+5.
+
+Click Export to export the current motor parameters in the parameter
+
+table.
+6.
+
+Click Open Multi-Device Connection to connect the host computer to
+
+multiple motors. Note that because the parameter interfaces for different
+motor types vary, multi-device connection is only used for upgrades. After
+upgrading and debugging the motor, close multi-device connection and
+search for the motor again.
+Note: Please do not change the torque limit, protection temperature and
+overtemperature time of the motor. Our company will not bear any legal
+responsibility for any damage to human body or irreversible damage to
+joints caused by illegal operation of this product.
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+0X0000
+
+Name
+
+String
+
+0X0001
+
+BarCode
+
+String
+
+0X1000
+0X1001
+0X1002
+
+BootCodeVer
+sion
+BootBuildDat
+e
+BootBuildTim
+e
+
+String
+String
+String
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+Read/W
+
+Current
+value
+(for
+
+Remark
+
+reference)
+ÿÿÿÿÿÿÿÿÿÿÿ
+
+rite
+
+ÿÿÿÿÿ
+
+Read/W
+
+ÿÿÿÿÿÿÿÿÿÿÿ
+
+rite
+
+ÿÿÿÿÿ
+
+Read
+
+0.1.5
+
+only
+Read
+
+Mar 16
+
+only
+
+2022
+
+Read
+
+20:22:09
+
+only
+
+Motor
+0X1003
+
+AppCodeVer
+sion
+
+String
+
+Read
+
+0.0.0.1
+
+only
+
+program
+version
+number
+
+0X1004
+0X1005
+0X1006
+
+AppGitVersio
+n
+AppBuildDat
+e
+AppBuildTim
+e
+
+String
+String
+String
+
+Read
+
+7b844b0fM
+
+only
+Read
+
+Apr 14 2022
+
+only
+Read
+
+20:30:22
+
+only
+
+20
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+0X1007
+
+ter
+type
+
+AppCodeNa
+me
+
+String
+
+0X2000
+
+echoPara1
+
+uint16
+
+0X2001
+
+echoPara2
+
+uint16
+
+0X2002
+
+echoPara3
+
+uint16
+
+0X2003
+
+echoPara4
+
+uint16
+
+0X2004
+
+echoFreHz
+
+uint32
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+(for
+reference)
+
+Read
+
+Lingzu_mot
+
+only
+
+or
+
+disposit
+ion
+disposit
+ion
+disposit
+ion
+disposit
+ion
+Read/W
+rite
+
+Remark
+
+74
+
+5
+
+5
+
+74
+
+5
+
+5
+
+74
+
+5
+
+5
+
+74
+
+5
+
+5
+
+10000
+
+1
+
+500
+Motor
+
+0X2005
+
+MechOffset
+
+float
+
+Settings
+
+7
+
+-7
+
+4.619583
+
+magnetic
+encoder
+Angle offset
+
+0X2006
+
+MechPos_init
+
+float
+
+0X2007
+
+limit_torque
+
+float
+
+Read/W
+rite
+Read/W
+rite
+
+50
+
+-50
+
+4.52
+
+17
+
+0
+
+17
+
+Reserved
+parameter
+Torque
+limitation
+Weak
+
+0X2008
+
+I_FW_MAX
+
+float
+
+magnetic
+
+Read/W
+
+33
+
+rite
+
+0
+
+0
+
+current
+value,
+default 0
+
+0X2009
+
+motor_baud
+
+uint8
+
+Settings
+
+20
+
+0
+
+1
+
+0X200a
+
+CAN_ID
+
+uint8
+
+Settings
+
+127
+
+0
+
+1
+
+uint8
+
+Settings
+
+127
+
+0
+
+0
+
+0X200b
+
+CAN_MASTE
+R
+
+Baud rate
+flag bit
+id of this
+object
+can host id
+can timeout
+
+0X200c
+
+CAN_TIMEO
+UT
+
+uint32
+
+Read/W
+rite
+
+100000
+
+0
+
+0
+
+threshold.
+The default
+value is 0
+
+0X200d
+
+status2
+
+int16
+
+0X200e
+
+status3
+
+uint32
+
+Read/W
+
+1500
+
+0
+
+800
+
+100000
+
+1000
+
+20000
+
+rite
+Read/W
+
+21
+
+Reserved
+parameter
+Reserved
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+rite
+
+0X200f
+
+status1
+
+float
+
+0X2010
+
+Status6
+
+uint8
+
+0X2011
+
+cur_filt_gain
+
+float
+
+0X2012
+
+cur_kp
+
+float
+
+0X2013
+
+cur_ki
+
+float
+
+0X2014
+
+spd_kp
+
+float
+
+0X2015
+
+spd_ki
+
+float
+
+0X2016
+
+loc_kp
+
+float
+
+0X2017
+
+0X2018
+
+spd_filt_gain
+
+limit_spd
+
+float
+
+float
+
+Current
+value
+(for
+reference)
+
+0
+
+Read/W
+rite
+Read/W
+rite
+
+Remark
+
+parameter
+
+64
+
+1
+
+7.75
+
+1
+
+0
+
+1
+
+Reserved
+parameter
+Reserved
+parameter
+Current
+
+Read/W
+
+1
+
+rite
+
+0
+
+0.9
+
+filtering
+parameter
+
+Read/W
+rite
+Read/W
+rite
+Read/W
+rite
+Read/W
+rite
+Read/W
+rite
+
+200
+
+0
+
+0.025
+
+Current kp
+
+200
+
+0
+
+0.0258
+
+Current ki
+
+200
+
+0
+
+2
+
+Velocity kp
+
+200
+
+0
+
+0.021
+
+Speed ki
+
+200
+
+0
+
+30
+
+Position kp
+Velocity
+
+Read/W
+
+1
+
+rite
+
+0
+
+0.1
+
+filter
+parameter
+Location
+
+Read/W
+
+200
+
+rite
+
+0
+
+2
+
+mode
+speed limit
+Position,
+
+0X2019
+
+limit_cur
+
+float
+
+Read/W
+
+23
+
+rite
+
+0
+
+23
+
+Velocity
+mode
+current limit
+
+0X201a
+0X201b
+
+0X201c
+
+0X201d
+0X201e
+
+loc_ref_filt_ga
+in
+limit_loc
+position_offs
+et
+chasu_angle_
+offset
+spd_step_val
+
+float
+float
+
+float
+
+float
+float
+
+Read/W
+rite
+Read/W
+rite
+
+100
+
+0
+
+0
+
+100
+
+0
+
+0
+
+Reserved
+parameter
+Reserved
+parameter
+High speed
+
+Read/W
+
+27
+
+rite
+
+0
+
+0
+
+segment
+offset
+
+Read/W
+rite
+Read/W
+
+22
+
+27
+
+0
+
+150
+
+0
+
+0
+
+The low end
+is offset
+Velocity-
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+ue
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+(for
+
+Remark
+
+reference)
+
+rite
+
+mode
+acceleration
+
+0X201f
+
+vel_max
+
+float
+
+0X2020
+
+acc_set
+
+float
+
+0X2021
+
+zero_sta
+
+float
+
+0x2022
+
+protocol_1
+
+uint8
+
+0X3000
+
+timeUse0
+
+uint16
+
+0X3001
+
+timeUse1
+
+uint16
+
+0X3002
+
+timeUse2
+
+uint16
+
+0X3003
+
+timeUse3
+
+uint16
+
+Read/W
+rite
+Read/W
+rite
+Read/W
+rite
+Read/W
+
+20
+
+0
+
+1000
+
+0
+
+100
+
+0
+
+PP mode
+speed
+PP mode
+acceleration
+0
+0
+
+rite
+Read
+
+Zero marker
+Protocol
+flag
+
+5
+
+only
+Read
+
+0
+
+only
+Read
+
+10
+
+only
+Read
+
+0
+
+only
+
+Magnetic
+0X3004
+
+encoderRaw
+
+int16
+
+Read
+
+11396
+
+only
+
+encoder
+sampling
+value
+mcu
+
+0X3005
+
+mcuTemp
+
+int16
+
+Read
+
+337
+
+only
+
+internal
+temperatur
+e, *10
+
+0X3006
+
+0X3007
+
+motorTemp
+
+vBus(mv)
+
+int16
+
+uint16
+
+Motor ntc
+
+Read
+
+333
+
+only
+
+temperatur
+e, *10
+
+Read
+
+24195
+
+only
+
+Bus voltage
+adc
+
+0X3008
+
+adc1Offset
+
+int32
+
+sampling
+
+Read
+
+2084
+
+only
+
+channel 1
+Zero
+current bias
+
+0X3009
+
+adc2Offset
+
+int32
+
+Read
+
+2084
+
+only
+
+23
+
+adc
+sampling
+
+RobStride Motor User Manual
+
+functio
+n code
+
+parame
+name
+
+ter
+type
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+
+Remark
+
+(for
+reference)
+
+channel 2
+Zero
+current bias
+0X300a
+
+0X300b
+
+0X300c
+
+0X300d
+
+0X300e
+
+adc1Raw
+
+adc2Raw
+
+VBUS
+
+cmdId
+
+cmdIq
+
+uint16
+
+uint16
+
+float
+
+float
+
+float
+
+adc
+
+Read
+
+1232
+
+only
+
+sampling
+value 1
+adc
+
+Read
+
+1212
+
+only
+
+sampling
+value 2
+
+Read
+
+36
+
+only
+
+Bus voltage
+V
+id ring
+
+Read
+
+0
+
+only
+
+instruction,
+A
+iq ring
+
+Read
+
+0
+
+only
+
+command,
+A
+Position
+
+0X300f
+
+cmdlocref
+
+float
+
+Read
+
+0
+
+only
+
+loop
+command,
+rad
+
+0X3010
+
+0X3011
+
+0X3012
+
+0X3013
+
+0X3014
+
+0X3015
+
+cmdspdref
+
+cmdTorque
+
+cmdPos
+
+cmdVel
+
+rotation
+
+modPos
+
+float
+
+float
+
+float
+
+float
+
+int16
+
+float
+
+Speed loop
+
+Read
+
+0
+
+only
+
+command,
+rad/s
+Torque
+
+Read
+
+0
+
+only
+
+instruction,
+nm
+mit Protocol
+
+Read
+
+0
+
+only
+
+Angle
+instruction
+mit Protocol
+
+Read
+
+0
+
+only
+
+Speed
+instruction
+
+Read
+
+1
+
+only
+
+Number of
+turns
+Motor
+
+Read
+
+4.363409
+
+only
+
+uncounted
+coil
+
+24
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+(for
+
+Remark
+
+reference)
+mechanical
+Angle, rad
+Load end
+
+0X3016
+
+mechPos
+
+float
+
+Read
+
+0.777679
+
+only
+
+loop
+mechanical
+Angle, rad
+
+0X3017
+
+mechVel
+
+float
+
+0X3018
+
+elecPos
+
+float
+
+0X3019
+
+ia
+
+float
+
+0X301a
+
+ib
+
+float
+
+0X301b
+
+ic
+
+float
+
+0X301c
+
+timeout
+
+uint32
+
+0X301d
+
+phaseOrder
+
+uint8
+
+0X301e
+
+iqf
+
+float
+
+0X301f
+
+boardTemp
+
+int16
+
+0X3020
+
+iq
+
+float
+
+0X3021
+
+id
+
+float
+
+0X3022
+
+faultSta
+
+uint32
+
+0X3023
+
+warnSta
+
+uint32
+
+0X3024
+0X3025
+
+drv_fault
+drv_temp
+
+uint16
+int16
+
+Read
+
+0.036618
+
+only
+Read
+
+4.714761
+
+only
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+
+Load speed:
+rad/s
+Electrical
+Angle
+U-wire
+current, A
+V-wire
+current, A
+W-wire
+current, A
+Timeout
+
+Read
+
+31600
+
+only
+
+counter
+value
+
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+
+Directional
+marking
+iq filter
+value，A
+Plate
+
+Read
+
+359
+
+only
+
+temperatur
+e，*10
+
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+
+iq Original
+value，A
+id Original
+value，A
+Fault status
+value
+Warning
+status value
+The driver
+
+Read
+
+0
+
+only
+
+chip fault
+value is 1
+
+Read
+
+48
+
+25
+
+The driver
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+
+Remark
+
+(for
+reference)
+
+only
+
+chip fault
+value is 2
+
+0X3026
+
+Uq
+
+float
+
+0X3027
+
+Ud
+
+float
+
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+
+Q-axis
+voltage
+D-axis
+voltage
+The duty
+
+0X3028
+
+dtc_u
+
+float
+
+Read
+
+0
+
+only
+
+cycle of the
+U-phase
+output
+The duty
+
+0X3029
+
+dtc_v
+
+float
+
+Read
+
+0
+
+only
+
+cycle of the
+V-phase
+output
+The duty
+
+0X302a
+
+dtc_w
+
+float
+
+Read
+
+0
+
+only
+
+cycle of the
+W-phase
+output
+
+0X302b
+
+0X302c
+
+0X302d
+
+v_bus
+
+torque_fdb
+
+rated_i
+
+float
+
+float
+
+float
+
+Read
+
+24.195
+
+only
+
+Vbus in the
+closed loop
+Torque
+
+Read
+
+0
+
+only
+
+feedback
+value，nm
+Rated
+
+Read
+
+8
+
+only
+
+current of
+motor
+The motor
+
+0X302e
+
+limit_i
+
+float
+
+Read
+
+27
+
+only
+
+limits the
+maximum
+current
+
+0X302f
+
+spd_ref
+
+float
+
+Motor
+
+Read
+
+0
+
+only
+
+speed
+expectation
+Motor
+
+0X3030
+
+spd_reff
+
+float
+
+Read
+
+0
+
+only
+
+speed
+expectation
+2
+
+0X3031
+
+zero_fault
+
+float
+
+Read
+
+0
+
+26
+
+Motor
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+(for
+
+Remark
+
+reference)
+
+only
+
+position
+determinati
+on
+parameters
+Motor
+
+0X3032
+
+chasu_coder_
+raw
+
+float
+
+position
+
+Read
+
+0
+
+only
+
+determinati
+on
+parameters
+Motor
+
+0X3033
+
+chasu_angle
+
+float
+
+position
+
+Read
+
+0
+
+only
+
+determinati
+on
+parameters
+Motor
+
+0X3034
+
+as_angle
+
+float
+
+position
+
+Read
+
+0
+
+only
+
+determinati
+on
+parameters
+
+0X3035
+
+cs_angle
+
+float
+
+Read
+only
+Motor
+
+0X3036
+
+vel_max
+
+float
+
+position
+
+Read
+
+0
+
+only
+
+determinati
+on
+parameters
+Motor
+
+0X3037
+
+judge
+
+float
+
+position
+
+Read
+
+0
+
+only
+
+determinati
+on
+parameters
+
+0X3038
+
+fault1
+
+uint32
+
+0X3039
+
+fault2
+
+uint32
+
+0X303a
+
+fault3
+
+uint32
+
+0X303b
+
+fault4
+
+uint32
+
+Read
+only
+Read
+only
+Read
+only
+Read
+
+27
+
+0
+
+Log failure
+
+0
+
+Log failure
+
+0
+
+Log failure
+
+0
+
+Log failure
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+(for
+
+Remark
+
+reference)
+
+only
+0X303c
+
+fault5
+
+uint32
+
+0X303d
+
+fault6
+
+uint32
+
+0X303e
+
+fault7
+
+uint32
+
+0X303f
+
+fault8
+
+uint32
+
+0X3040
+
+ElecOffset
+
+float
+
+0X3041
+
+mcOverTemp
+
+int16
+
+0X3042
+
+Kt_Nm/Amp
+
+float
+
+0X3043
+
+Tqcali_Type
+
+uint8
+
+Read
+only
+Read
+only
+Read
+only
+Read
+only
+Read
+
+0
+
+Log failure
+
+0
+
+Log failure
+
+0
+
+Log failure
+
+0
+
+Log failure
+
+0
+
+only
+
+electrical
+Angle offset
+Overtemper
+
+Read
+
+0
+
+only
+
+ature
+threshold
+
+Read
+
+0
+
+only
+Read
+
+0
+
+only
+
+Moment
+coefficient
+Motor type
+Motor
+
+0X3044
+
+low_position
+
+float
+
+position
+
+Read
+
+0
+
+only
+
+determinati
+on
+parameters
+
+0X3045
+
+theta_mech_
+1
+
+float
+
+Type 2 Low
+
+Read
+
+0
+
+only
+
+speed
+Angle
+Motor
+
+0X3046
+
+instep
+
+float
+
+Read
+
+0
+
+only
+
+protection
+decision
+parameters
+
+0X3047
+
+position
+
+float
+
+Read
+
+18.243250
+
+only
+
+Initial
+position
+Motor
+
+0X3048
+
+chasu_angle_
+init
+
+float
+
+position
+
+Read
+
+0.598253
+
+only
+
+determinat
+ion
+parameter
+
+28
+
+RobStride Motor User Manual
+
+parame
+
+functio
+
+name
+
+n code
+
+ter
+type
+
+attribut
+
+Maxim
+
+Minim
+
+um
+
+um
+
+value
+
+value
+
+e
+
+Current
+value
+
+Remark
+
+(for
+reference)
+
+s
+Motor
+position
+0X3049
+
+chasu_angle_
+out
+
+float
+
+Read
+
+18.545835
+
+only
+
+determinat
+ion
+parameter
+s
+Motor
+position
+
+0X304A
+
+motormechin
+it
+
+float
+
+Read
+
+18.243250
+
+only
+
+determinat
+ion
+parameter
+s
+Motor
+position
+
+0X304B
+
+mech_angle_i
+nit2
+
+float
+
+Read
+
+2.353968
+
+only
+
+determinat
+ion
+parameter
+s
+Motor
+position
+
+0X304C
+
+mech_angle_
+rotat
+
+int16
+
+Read
+
+determinat
+
+only
+
+ion
+parameter
+s
+
+0X304D
+
+0X304E
+
+pos_cnt1
+
+H’
+
+uint16
+
+uint8
+
+System
+
+Read
+
+0
+
+only
+
+parameter
+s
+System
+
+Read
+
+72
+
+only
+
+parameter
+s
+
+29
+
+RobStride Motor User Manual
+
+3.3.5. Oscilloscope
+The interface supports viewing and observing the graph generated by realtime data, including motor Id/Iq current, temperature, real-time speed at the
+output end, rotor (encoder) position, output end position, etc.
+Click on the oscilloscope module in the analysis module, select the
+appropriate parameters in the channel (parameter meaning can be referred to
+the parameter table), set the output frequency, click on the start plot to
+observe the data graph, stop the plot to stop the observation graph.
+
+The command sent is in the communication command box below
+
+30
+
+RobStride Motor User Manual
+
+Communication box instruction example:
+41 54 90 07 e8 0c 08 05 70 00 00 01 00 00 00 0d 0a
+The meaning is as follows
+41 54
+
+90 07 e8 0c
+
+8
+
+05 70 00 00 01 00 00
+
+0d 0a
+
+00
+frame header
+
+Number of data
+
+extended
+
+bits
+
+frame
+
+data frame
+
+frame tail
+
+The translation of extended frame canid into real canid requires the following
+transformations:
+90 07 e8 0c converts to binary as 1001 0000 0000 0111 1110 1000 0000 1100,
+remove the 100 on the right and it becomes 1 0010 0000 0000 1111 1101
+0000 0001, convert it to hexadecimal, It is 12 00 FD 01. According to the
+communication protocol, the meaning is as follows:
+12 in hexadecimal
+
+0
+
+FD
+
+1
+
+Communication type 18 (in decimal base)
+
+No meaning
+
+host id
+
+motor canid
+
+3.3.6. can communication failure protection
+When the value of CAN_TIMEOUT is 0, this function is disabled
+
+31
+
+RobStride Motor User Manual
+
+When the CAN_TIMEOUT value is non-0, when the motor does not receive the
+can command within a certain period of time, the motor enters the reset mode,
+and 20000 is 1s
+
+3.3.7. Motor fault instructions
+Function code 0x3022 indicates the fault code, where
+bit14:motor blocking overload algorithm protection
+bit7: Encoder uncalibrated: Motor uncalibrated encoder
+bit3: Overvoltage fault: the motor voltage exceeds the protection voltage by
+60V
+bit2: Undervoltage fault: the motor voltage is lower than the protection
+voltage of 12V
+bit1: Driver chip failure: Motor driver chip failure reported
+bit0: Motor overtemperature fault: motor thermistor temperature exceeds 135
+degrees
+Function code 0x3024 is driver chip fault code 1. The specific faults are as
+follows
+
+Function code 0x3025 is driver chip fault code 2. The specific faults are as
+follows
+
+32
+
+RobStride Motor User Manual
+
+33
+
+RobStride Motor User Manual
+
+3.4.
+
+Control Demo
+
+34
+
+RobStride Motor User Manual
+
+Jog Run
+Click JOG +/- to run the motor forward and reverse at a speed of 1 rad/s.
+Control Mode Switching
+Select the desired control mode in the command box to the right of the run
+mode.
+
+3.4.1. Operation and control mode
+
+1.
+
+Switch the control mode to operation mode.
+
+2.
+
+The motor starts running and enters motor_mode.
+
+3.
+
+Set five parameter values and click Start or Send continuously. The motor
+
+will return feedback frames and run according to the target command.
+4.
+
+Click Stop to stop the motor and terminate the continuous sending of
+
+commands.
+
+35
+
+RobStride Motor User Manual
+
+3.4.2. Current mode
+
+1.
+
+Switch the control mode to current mode.
+
+2.
+
+The motor starts running and enters motor_mode.
+
+3.
+
+Set the current command value for Iq Command 1 (A). Click the >>
+
+button on the right. The motor will follow the current command.
+4.
+
+Click Stop to stop the motor.
+
+Motor Current Sine Test
+
+36
+
+RobStride Motor User Manual
+
+1.
+
+Switch the control mode to current mode.
+
+2.
+
+The motor starts running and enters motor_mode.
+
+3.
+
+Set the amplitude and frequency, click OK, and then click Start. The
+
+corresponding mode target command will be planned according to the sine
+law.
+4.
+
+Click Stop to stop the motor.
+
+3.4.3. Speed Mode
+
+1.
+
+Switch the control mode to speed mode.
+
+2.
+
+The motor starts running and enters motor_mode.
+
+3.
+
+First, set the current limit (maximum phase current) and speed step value
+
+(motor acceleration). If no settings are made, the motor will operate at the
+default values. Finally, set the speed command (target speed). The motor will
+
+37
+
+RobStride Motor User Manual
+
+follow the command.
+4.
+
+Click Stop to stop the motor.
+
+Motor Speed Sine Test
+1.
+
+Switch the control mode to speed mode.
+
+2.
+
+The motor starts running and enters motor_mode.
+
+3.
+
+Set the amplitude and frequency, click OK, and then click Start. The
+
+corresponding mode target command will be planned according to the sine
+law.
+4.
+
+Click Stop to stop the motor.
+
+38
+
+RobStride Motor User Manual
+
+3.4.4. Position Mode (PP)
+
+1.
+
+Switch the control mode to interpolation position mode.
+
+2.
+
+Start the motor and enter motor_mode.
+
+3.
+
+First, set the speed and acceleration. If not set, the motor will operate at
+
+the default values. Finally, set the position command (target position). The
+motor will follow the command.
+4.
+
+Set the speed to 0 to stop the motor at the current position. To continue
+
+operation, re-issue the speed and position.
+5.
+
+Click Stop to stop the motor.
+
+39
+
+RobStride Motor User Manual
+
+Motor Position Sine Test
+1.
+
+Switch the control mode to interpolation position mode.
+
+2.
+
+Start the motor and enter motor_mode.
+
+3.
+
+Set the amplitude and frequency, click OK, and then click Start. The
+
+corresponding mode target command will be planned according to the sine
+law.
+4.
+
+Click Stop to stop the motor.
+
+40
+
+RobStride Motor User Manual
+
+3.4.5. Position Mode（CSP）
+
+1.
+
+Switch the control mode to position mode.
+
+2.
+
+The motor starts running and enters motor_mode.
+
+3.
+
+Set the speed first. If no speed setting is made, the motor will run at the
+
+default value. Finally, set the position command (target position). The motor
+will follow the command.
+4.
+
+Click Stop to stop the motor.
+
+41
+
+RobStride Motor User Manual
+
+Motor position sinusoidal test
+1.
+
+Switch the control mode to position mode.
+
+2.
+
+The motor starts running and enters motor_mode.
+
+3.
+
+Set the amplitude and frequency, click OK, and then click Start. The
+
+corresponding mode target command is then sinusoidally planned.
+4.
+
+Click Stop to stop the motor.
+
+42
+
+RobStride Motor User Manual
+
+4. Driver protocol and instructions
+The motor communication is the CAN 2.0 communication interface, the baud
+rate is 1Mbps, and the extended frame format is adopted as follows:
+data field
+
+29-bit ID
+
+8Byte data
+field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+Description
+
+Communication type
+
+data area 2
+
+Destination address
+
+data area 1
+
+The control modes supported by the motor include:
+•
+
+Operation control mode: set 5 parameters of motor operation control;
+
+•
+
+Current mode: the specified Iq current of the given motor;
+
+•
+
+Velocity mode: the specified running speed of the given motor;
+
+•
+
+Position mode: Given the specified position of the motor, the motor will
+
+run to the specified position;
+
+4.1.
+
+Description of the communication protocol
+type
+
+4.1.1. Communication type 0: Get device ID
+Gets the device's ID and 64-bit MCU unique identifier
+data field
+
+29-bit ID
+
+8Byte data
+field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+Description
+
+0x0
+
+bit15~8: identifies host
+
+target motor
+
+0
+
+CAN_ID
+
+CAN_ID
+
+Reply frame:
+data field
+
+29-bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+Description
+
+0x0
+
+target motor CAN_ID
+
+0XFE
+
+64-bit MCU unique identifier
+
+43
+
+RobStride Motor User Manual
+
+4.1.2. Communication Type 1: operation control
+mode motor control instruction
+Data field
+
+29 bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x1
+
+Byte2: Torque
+
+target
+
+Byte0~1: target Angle [0~65535]
+
+(0~65535)
+
+motor
+
+corresponds to (-4π~4π)
+
+corresponds to
+
+CAN
+
+Byte2~3: Target angular velocity
+
+(-
+
+_ID
+
+[0~65535] corresponds to (-
+
+5.5Nm~5.5Nm)
+
+50rad/s~50rad/s)
+Byte4~5: Kp [0~65535]
+corresponds to (0.0~500.0)
+Byte6~7: Kd [0 to 65535]
+corresponds to the above data (0.0
+to 5.0). After the conversion, the
+high byte is in front and the low
+byte is in
+
+Response frame: Response motor feedback frame (see communication type 2)
+
+4.1.3. Communication Type 2: motor feedback data
+Data field
+
+29 bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+Description
+
+0x2
+
+Bit8~Bit15: CAN ID
+
+host
+
+Byte0~1: The current Angle
+
+of the current
+
+CAN
+
+[0~65535] Corresponding to (-4
+
+motor
+
+_ID
+
+π~4π)
+
+bit21~16: fault
+
+Byte2~3: Current angular
+
+information (0
+
+velocity [0~65535] corresponds
+
+none 1 has)
+
+to (-50rad/s~50rad/s)
+
+bit21: uncalibrated
+
+Byte4~5: Current torque
+
+bit20: Uncalibrated
+
+[0~65535] corresponds to (-
+
+bit20: Gridlock
+
+5.5Nm~5.5Nm)
+
+overload fault
+
+Byte6~7: Current temperature:
+
+bit19: magnetic
+
+Temp(Celsius) *10 If the value is
+
+coding fault
+
+higher than 10, the high byte is
+
+bit18:
+
+first and the low byte is last
+
+overtemperature
+bit17: Three-phase
+overcurrent fault
+bit16:
+
+44
+
+RobStride Motor User Manual
+
+undervoltage fault
+bit22~23:
+Mode status 0:
+Reset mode [reset]
+1: Cali mode
+[calibration]
+2: Motor mode
+[Run]
+
+4.1.4. Communication Type 3: Motor enabled to
+run
+data field
+
+29-bit ID
+
+8Byte data
+field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+Description
+
+0x3
+
+bit15~8: identifies the
+
+and target motor
+
+main CAN_ID
+
+CAN_ID
+
+Response frame: Response motor feedback frame (see communication type 2)
+
+4.1.5. Communication Type 4: Motor stops running
+data field
+
+29-bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x4
+
+bit15~8: used
+
+target
+
+When the motor is running
+
+to identify the
+
+motor
+
+normally, 0 must be cleared in
+
+main CAN_ID
+
+CAN_ID
+
+the data field. Byte[0]=1: The
+fault is cleared.
+
+Response frame: Response motor feedback frame (see communication type 2)
+
+4.1.6. Communication
+
+type
+
+6:
+
+Set
+
+motor
+
+mechanical zero
+data field
+
+29-bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x6
+
+bit15~8: Identifies the
+
+and target
+
+Byte[0]=1
+
+main CAN_ID
+
+motor CAN_ID
+
+Response frame: Response motor feedback frame (see communication type 2)
+
+45
+
+RobStride Motor User Manual
+
+Communication type 7: Set motor CAN_ID
+Change the current motor CAN_ID, effective immediately.
+data field
+
+29-bit ID
+
+8Byte data
+field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+description
+
+0x7
+
+bit15~8: used to identify main
+
+Target
+
+CAN_ID Bit16~23: preset CAN_ID
+
+motor
+
+Byte0~Byte7
+
+CAN_ID
+
+Answer frame: Answer motor broadcast frame (see communication type 0)
+
+4.1.7. Communication type 17: Single parameter
+read
+Data field
+
+29 bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x11
+
+bit15~8:
+
+target
+
+Byte0~1: index. For details, see the
+
+Used to
+
+motor
+
+readability parameter table below
+
+identify the
+
+CAN_ID
+
+Byte2~3:00 Byte4~7: In data above
+
+main
+
+00, the low byte is first and the high
+
+CAN_ID
+
+byte is second (
+
+Reply frame:
+Data field
+
+29 bit ID
+
+8Byte data
+field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+description
+
+0x11
+
+bit15~8: indicates
+
+Byte0~1: Byte2~3:00
+
+that the master
+
+Byte4~7:Parameter
+
+CAN_ID
+
+data. 1 byte of data
+
+Bit23~16:00
+
+above Byte4 is
+
+indicates that the
+
+preceded by low
+
+master CAN_ID is
+
+bytes and followed
+
+successfully read. 01
+
+by high bytes at
+
+indicates that the
+master can_ID
+
+46
+
+Byte0~Byte7
+
+RobStride Motor User Manual
+
+4.1.8. Communication type 18: Single parameter
+write (lost in power failure)
+With type 22, the parameter starting with function code 0x20 of the parameter
+table in the upper computer module can be saved
+Data field
+
+29 bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x12
+
+bit15~8:
+
+target
+
+Byte0~1: index. For details, see the
+
+Used to
+
+motor
+
+readability parameter table below
+
+identify the
+
+CAN_ID
+
+Byte2~3: 00
+
+main
+
+Byte4~7: Parameter data In the
+
+CAN_ID
+
+preceding data, the low byte is in the
+front and the high byte is in the rear
+
+Response frame: Response motor feedback frame (see communication type 2)
+
+4.1.9. Communication
+
+type
+
+21:
+
+Fault
+
+feedback
+
+frame
+data field
+
+29-bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x15
+
+bit15~8:
+
+identifies
+
+Byte0~3: fault value (non-0: faulty; 0:
+
+motor
+
+the main
+
+faulty). Normal)
+
+CAN_ID
+
+CAN_ID
+
+Bit 16: A-phase current sampling
+overcurrent
+Bit 14: Motor stall overload algorithm
+protection
+Bit 9: Position initialization fault
+Bit 8: Hardware identification fault
+Bit 7: Encoder uncalibrated: Motor
+encoder not calibrated
+Bit 5: C-phase current sampling
+overcurrent
+Bit 4: B-phase current sampling
+overcurrent
+bit3: overvoltage fault
+bit2: undervoltage fault
+bit1: driver chip fault
+bit0: motor overtemperature fault,
+
+47
+
+RobStride Motor User Manual
+
+Default 135 ° C
+Byte4~7: warning Value
+bit0: motor overtemperature warning,
+the default is 135 ° c
+
+4.1.10.
+
+Communication type 22: Motor data save
+
+frame
+data field
+
+29-bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+Description
+
+0x16
+
+bit15~8: identifies the
+
+and target
+
+01 02 03 04 05
+
+main CAN_ID
+
+motor CAN_ID
+
+06 07 08
+
+Response frame: Response motor feedback frame (see communication type 2)
+
+4.1.11.
+
+Communication type 23: Motor baud rate
+
+modification frame (re-power-on effect)
+Data field
+
+29 bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x17
+
+bit15~8:
+
+target
+
+01 02 03 04 05 06 F_CMD
+
+used to
+
+motor
+
+Among them, the F_CMD byte is the
+
+identify the
+
+CAN_ID
+
+motor baud rate Among them,
+
+main
+
+01 is 1M
+
+CAN_ID
+
+02 is 500K
+03 is 250K
+04 is 125K
+
+Response frame: Response motor feedback frame (see communication type 0)
+
+48
+
+RobStride Motor User Manual
+
+4.1.12.
+
+Communication
+
+type
+
+24:
+
+The
+
+motor
+
+actively reports frames
+data field
+
+29-bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x18
+
+bit15~8:
+
+target
+
+01 02 03 04 05 06 F_CMD
+
+identifies
+
+motor
+
+Among them, the F_CMD byte is the
+
+the main
+
+CAN_ID
+
+motor reporting switch 00 is to
+
+CAN_ID
+
+disable active reporting (default)
+
+01
+
+To enable active reporting, the default
+reporting interval is 10ms
+
+Response frame:
+data field
+
+29 位 ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x18
+
+Bit8~Bit15: CAN ID of the
+
+target
+
+Byte0~1: The
+
+current motor
+
+motor
+
+current Angle
+
+CAN_ID
+
+[0~65535]
+
+bit21~16:
+
+fault information (0 none 1 has)
+bit21: uncalibrated
+
+Corresponding to
+
+bit20: Uncalibrated
+
+(-4π~4π)
+
+bit20: Gridlock overload fault
+
+Byte2~3: Current
+
+bit19: magnetic coding fault
+
+angular velocity
+
+bit18:overtemperature
+
+[0~65535]
+
+bit17: Three-phase overcurrent
+
+corresponds to (-
+
+fault
+
+50rad/s~50rad/s)
+
+bit16: undervoltage fault
+
+Byte4~5: Current
+
+bit22~23: Mode status
+
+torque [0~65535]
+
+0: Reset mode [reset]
+
+corresponds to (-
+
+1: Cali mode [calibration]
+
+5.5Nm~5.5Nm)
+
+2: Motor mode [Run]
+
+Byte6~7: Current
+temperature:
+Temp(Celsius) *10
+If the value is
+higher than 10, the
+high byte is first
+and the low byte is
+last
+
+49
+
+RobStride Motor User Manual
+
+4.1.13.
+
+Communication type 25: Motor protocol
+
+modification frame (re-power-on effect)
+Data field
+
+29 bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x19
+
+bit15~8:
+
+target
+
+01 02 03 04 05 06 F_CMD
+
+used to
+
+motor
+
+Among them, the F_CMD byte is the
+
+identify the
+
+CAN_ID
+
+motor protocol type Among them,
+
+main
+
+0 is a private protocol (default)
+
+CAN_ID
+
+1 is the Canopen protocol
+2 is the MIT protocol
+
+Response frame: Response motor feedback frame (see communication type 0)
+
+4.1.14.
+
+Communication type 26：Version number
+
+read frame
+Data field
+
+29 bit ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x4
+
+bit15~8: used to
+
+target motor
+
+Byte[0]=0x00
+
+identify the main
+
+CAN_ID
+
+Byte[1]=0xC4
+
+CAN_ID
+
+Response frame:
+data field
+
+29 位 ID
+
+8Byte data field
+
+Size
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+description
+
+0x2
+
+Bit8~Bit15: CAN ID of the
+
+target
+
+Byte0=0x00
+
+current motor
+
+motor
+
+Byte1=0xC4
+
+CAN_ID
+
+Byte2=0x56
+
+bit21~16: fault
+
+information (0 none 1 has)
+bit21: uncalibrated
+
+Byte3~6:Motor
+
+bit20: Uncalibrated
+
+version number
+
+bit20: Gridlock overload fault
+
+Order from high
+
+bit19: magnetic coding fault
+
+to low
+
+bit18:overtemperature
+bit17: Three-phase overcurrent
+fault
+bit16: undervoltage fault
+bit22~23: Mode status
+0: Reset mode [reset]
+1: Cali mode [calibration]
+
+50
+
+RobStride Motor User Manual
+
+2: Motor mode [Run]
+
+4.1.15.
+
+Read and write a single parameter list
+
+index
+
+Description
+
+Type
+
+R/W Read and
+
+Number of
+
+write
+
+bytes
+
+permission
+
+0: operation mode
+1: position mode
+(PP)
+0X7005
+
+run_mode
+
+2: Velocity mode
+3: Operation mode
+
+uint8
+
+1
+
+float
+
+4
+
+float
+
+4
+
+float
+
+4
+
+W/R
+
+Current mode
+5: Position mode
+(CSP)
+0X7006
+
+iq_ref
+
+Current mode Iq
+command
+Rotational Velocity
+
+0X700A
+
+spd_ref
+
+mode Rotational
+speed command
+
+0X700B
+
+limit_torque
+
+torque limit
+
+-11 to 11A
+-50 to
+50rad/s
+0 to 5.5Nm
+
+W/R
+
+W/R
+W/R
+
+The default
+0X7010
+
+cur_kp
+
+Kp
+
+float
+
+4
+
+value is
+
+W/R
+
+0.17
+The default
+0X7011
+
+cur_ki
+
+Ki
+
+float
+
+4
+
+value is
+
+W/R
+
+0.012
+0 to 1.0,
+0X7014
+
+cur_filt_gain
+
+filt_gain
+
+float
+
+4
+
+The default
+
+W/R
+
+value is 0.1
+0X7016
+
+loc_ref
+
+0X7017
+
+limit_spd
+
+Position Mode
+Angle instruction
+Location mode
+(CSP) speed limit
+
+float
+
+4
+
+rad
+
+float
+
+4
+
+float
+
+4
+
+0 to 11A
+
+W/R
+
+float
+
+4
+
+rad
+
+R
+
+-11 to 11A
+
+R
+
+0 to
+50rad/s
+
+W/R
+W/R
+
+Velocity position
+0X7018
+
+limit_cur
+
+mode Current
+limitation
+Mechanical Angle
+
+0x7019
+
+mechPos
+
+0x701A
+
+iqf
+
+iq Filter
+
+float
+
+4
+
+0x701B
+
+mechVel
+
+Speed of the load
+
+float
+
+4
+
+of the loading coil
+
+51
+
+-50 to
+50rad/s
+
+R
+
+RobStride Motor User Manual
+
+index
+
+Description
+
+Type
+
+VBUS
+
+Bus voltage
+
+float
+
+4
+
+0x701E
+
+loc_kp kp
+
+at
+
+float
+
+4
+
+0x701F
+
+spd_kp
+
+float
+
+4
+
+speed kp
+
+write
+
+bytes
+
+0x701C
+
+Indicates the
+
+R/W Read and
+
+Number of
+
+permission
+V
+The default
+value is 40
+The default
+value is 6
+
+R
+W/R
+W/R
+
+The default
+0x7020
+
+spd_ki
+
+ki
+
+float
+
+4
+
+value is
+
+W/R
+
+0.02
+0x7021
+
+0x7022
+
+0x7024
+
+0x7025
+
+spd_filt_gain
+
+acc_rad
+
+vel_max
+
+acc_set
+
+Speed filter value
+
+float
+
+4
+
+The default
+value is 0.1
+
+W
+
+The default
+
+velocity mode
+
+float
+
+acceleration
+
+4
+
+value is
+
+W
+
+20rad/s^2
+The default
+
+Location mode
+
+float
+
+(PP) speed
+
+4
+
+value is
+
+W
+
+10rad/s
+The default
+
+Location mode
+
+float
+
+(PP) acceleration
+
+4
+
+value is
+
+W
+
+10rad/s^2
+
+Indicates the
+report time. 1
+0x7026
+
+EPScan_time
+
+indicates 10ms.
+
+uint16
+
+2
+
+uint32
+
+4
+
+uint8
+
+1
+
+float
+
+4
+
+Plus 1 increments
+
+The default
+value is 1
+
+W
+
+by 5ms
+can The timeout
+0x7028
+
+canTimeout
+
+threshold, 20000 is
+1s
+
+The default
+value is 0
+
+W
+
+Indicates the zero
+0x7029
+
+zero_sta
+
+flag bit, 0 means
+0-2π and 1 means
+
+The default
+is 0
+
+W
+
+-π-π
+0x702B
+
+add_offset
+
+4.1.16.
+
+Zero offset
+
+Read example:
+
+Take reading loc_kp as an example:
+Read instruction is
+
+52
+
+The default
+is 0
+
+W/R
+
+RobStride Motor User Manual
+
+Size
+Description
+
+Bit28~bit24
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+0x11
+
+0x00FD
+
+0x7F
+
+1E 70 00 00 00 00 00 00
+
+Type 17
+
+Host id
+
+Target motor
+
+Byte0~1: index,
+
+0xFD
+
+CAN_ID 7F
+
+corresponding to loc_kp
+
+The feedback instruction is
+Size
+
+Bit28~bit24
+
+Description
+
+bit23~8
+
+bit7~0
+
+Byte0~Byte7
+
+0x11
+
+0x007F
+
+0xFD
+
+1E 70 00 00 00 00 F0 41
+
+Type 17
+
+bit15~8:
+
+Host
+
+Byte0~1: index, corresponding to
+
+Target
+
+id
+
+loc_kp Byte4~7:loc_kp value 30, high
+
+motor
+
+0xFD
+
+right byte, (32-bit single precision)
+
+CAN_ID 7F
+
+hexadecimal IEEE-754 standard
+floating point number
+
+4.2.
+
+Motor Function Description
+
+(If the following features are unavailable, please upgrade to the latest version
+via the official Git repository.)
+
+4.2.1. Active Reporting
+•
+
+Disabled by default. Enable via Type 24.
+
+•
+
+Report type: Type 2 (default interval: 10ms). Adjust interval by modifying
+
+EPScan_time via Type 18.
+
+4.2.2. Zero-Point Flag (zero_sta)
+•
+
+Modify via:
+￮
+
+Host computer (上位机)
+
+￮
+
+Type 18 (requires saving via Type 22 for communication)
+
+•
+
+Default flag: 0 → Power-on position range: 0–2π.
+
+•
+
+If set to 1: Power-on position range: π–π.
+
+53
+
+RobStride Motor User Manual
+
+4.2.3. Type 2 Update
+•
+
+Updated to periodic looping within -4π–4π (enables cycle counting).
+
+•
+
+Note: Position interface parameters must be adjusted:
+￮
+
+P_MIN: 12.57f
+
+￮
+
+P_MAX: 12.57f
+
+4.2.4. Protocol Switching (Requires CAN adapter)
+•
+
+Methods:
+￮
+
+Modify protocol_1 via host computer.
+
+￮
+
+Send Type 25 command.
+
+•
+
+Reboot required after switching.
+
+•
+
+Post-switch CAN commands:
+￮
+
+CANopen: Send extended frame (protocol switch frame).
+
+￮
+
+MIT Protocol: Send standard frame (Command 8).
+
+4.2.5. Post-Power-Off Anti-Backdrive Protection
+•
+
+Default: Motor imposes damping if rotated rapidly while powered off
+
+(prevents surge).
+•
+
+Disable: Set damper = 1.
+
+54
+
+RobStride Motor User Manual
+
+4.2.6. Zero Calibration Rules
+•
+
+Supported modes: CSP and Motion Control.
+
+•
+
+PP Mode: Zero calibration is blocked.
+
+•
+
+Old vs. New Versions:
+￮
+
+Old: Zero calibration causes large deviation → motor immediately
+
+moves to target.
+￮
+
+New (CSP/Motion Control): Target updates to 0 instantly → motor
+
+remains stationary.
+
+4.2.7. Position Offset (add_offset)
+•
+
+Example: If offset = 1, the current zero shifts to (current position + 1
+
+rad).
+•
+
+Use case: Bypass mechanical limits (e.g., set zero at 1 rad → power-on
+
+treats 1 rad as new zero).
+
+4.2.8. CANopen ID
+•
+
+Old version: Fixed to 1.
+
+•
+
+New version: Matches the private protocol CAN ID.
+
+4.2.9. Notes for Implementation
+•
+
+Always save settings (e.g., Type 22 for zero_sta).
+
+•
+
+Verify CAN adapter compatibility for protocol switching.
+
+•
+
+For zero offsets, ensure mechanical safety limits are respected.
+
+55
+
+RobStride Motor User Manual
+
+4.3.
+
+Control mode instructions
+
+4.3.1. Operation control mode
+
+The motor is in operation control mode by default after power-on.
+Send motor Enable Run frame (communication type 3) --> Send operation
+mode motor control command (communication type 1) --> Receive motor
+feedback frame (communication type 2)
+Operation control mode description: The control logic of the operation and
+control mode is t_ref=Kd * (v_vset-v_actual)+Kp * (p_set-p_actual)+t_ff. Tref is
+converted to the expected iq current through an internal formula and output
+through the current loop Simple control demonstration: Set t_ff to 0, v_vset to
+1, Kd to 1, p_set to 0, Kp to 0. If there is no external load on the motor, it will
+run at a speed of 1rad/s. If there is an external load, kd needs to be increased
+to resist the external load Set t_ff to 0, v_vset to 0, Kd to 1, p_set to 0, Kp to 0,
+the motor is in damping mode. When the motor is externally rotated, a
+damping is applied, which increases with the increase of kd. It should be noted
+that the motor generates electricity under this condition and requires power
+supply to prevent overvoltage Set t_ff to 0, v_vset to 0, Kd to 1, p_set to 5, Kp
+to 1. If there is no external load on the motor, it will run to the target position
+of 5. Increasing kp will increase the force required to maintain the target
+position, and kd is damping. Without kd, the motor will sway to the target
+position
+
+56
+
+RobStride Motor User Manual
+
+4.3.2. Current mode
+
+Send motor mode parameter write command (communication type 18) Set the
+runmode parameter to 3 --> Send motor Enable run frame (communication
+type 3) --> Send motor mode parameter write command (communication
+type 18) set the iq_ref parameter to the default current instruction
+
+4.3.3. Velocity mode
+
+Send motor mode parameter write command (communication type 18) Set the
+runmode parameter to 2 --> Send motor Enable run frame (communication
+type 3) --> Send motor mode parameter write command (communication
+type 18) set limit_cur parameter as default maximum current instruction -->
+Send motor mode parameter write command (communication type 18) Set
+acc_rad parameter as default acceleration instruction --> Send motor mode
+parameter write command (communication type 18) Set spd_ref parameter as
+default speed instruction
+
+57
+
+RobStride Motor User Manual
+
+4.3.4. Location Mode (CSP)
+
+Send motor mode parameter write command (communication type 18) Set the
+runmode parameter to 5 --> Send motor Enable run frame (communication
+type 3) --> Send motor mode parameter write command (communication
+type 18) set limit_spd parameter as default maximum speed instruction -->
+Send motor mode parameter write command (communication type 18) Sets
+loc_ref parameter as default position instruction
+
+4.3.5. Location Mode (PP)
+
+Send motor mode parameter write command (communication type 18) Set the
+runmode parameter to 1 --> Send motor Enable run frame (communication
+type 3) --> Send motor mode parameter write command (communication
+type 18) set The vel_max parameter is the default maximum speed instruction
+--> Send motor mode parameter write command (communication type 18)
+Set the acc_set parameter to the default acceleration instruction --> Send
+motor mode parameter write command (communication type 18) Set the
+loc_ref parameter to the default position instruction
+Note: This mode does not support changing the speed and acceleration
+during operation. If you want to make an emergency stop, you can change
+vel_max to 0 during the process, and it will stop at the current speed and
+acceleration plan
+
+58
+
+RobStride Motor User Manual
+
+4.3.6. Stop running
+Sending motor stop frame (communication type 4)
+
+4.4.
+
+Program sample
+
+Examples of various mode control motors are provided below (take gd32f303
+as an example)
+The following are library, function, and macro definitions for the various
+instances
+C++
+#define P_MIN -12.57f
+
+#define P_MAX 12.57f
+
+#define V_MIN -50.0f
+
+#define V_MAX 50.0f
+
+#define KP_MIN 0.0f
+
+#define KP_MAX 500.0f
+
+#define KD_MIN 0.0f
+
+#define KD_MAX 5.0f
+
+#define T_MIN -5.5f
+
+59
+
+RobStride Motor User Manual
+
+#define T_MAX 5.5f
+
+struct exCanIdInfo{
+
+uint32_t id:8;
+
+uint32_t data:16;
+
+uint32_t mode:5;
+
+uint32_t res:3;
+
+};
+
+can_receive_message_struct rxMsg;
+
+can_trasnmit_message_struct txMsg={
+
+.tx_sfid = 0,
+
+.tx_efid = 0xff,
+
+.tx_ft = CAN_FT_DATA,
+
+.tx_ff = CAN_FF_EXTENDED,
+
+.tx_dlen = 8,
+
+};
+
+60
+
+RobStride Motor User Manual
+
+#define txCanIdEx (*((struct exCanIdInfo*)&(txMsg.tx_efid)))
+
+#define rxCanIdEx (*((struct exCanIdInfo*)&(rxMsg.rx_efid))) //将扩展帧 id 解
+析为自定义数据结构
+
+int float_to_uint(float x, float x_min, float x_max, int bits){
+
+float span = x_max - x_min;
+
+float offset = x_min;
+
+if(x > x_max) x=x_max;
+
+else if(x < x_min) x= x_min;
+
+return (int) ((x-offset)*((float)((1<<bits)-1))/span);
+
+}
+
+#define can_txd() can_message_transmit(CAN0, &txMsg)
+
+#define can_rxd() can_message_receive(CAN0, CAN_FIFO1, &rxMsg)
+The following lists the common types of communication sent:
+
+4.4.1. Motor Enabled Run frame (communication
+type 3)
+C++
+void motor_enable(uint8_t id, uint16_t master_id)
+{
+
+61
+
+RobStride Motor User Manual
+
+txCanIdEx.mode = 3;
+txCanIdEx.id = id;
+txCanIdEx.res = 0;
+txCanIdEx.data = master_id;
+txMsg.tx_dlen = 8;
+txCanIdEx.data = 0;
+can_txd();
+}
+
+4.4.2. Operation
+
+control
+
+mode
+
+Motor
+
+control
+
+instruction (communication type 1)
+C++
+void motor_controlmode(uint8_t id, float torque, float MechPosition, float
+speed, float kp, float kd)
+
+{
+
+txCanIdEx.mode = 1;
+
+txCanIdEx.id = id;
+
+txCanIdEx.res = 0;
+
+txCanIdEx.data = float_to_uint(torque,T_MIN,T_MAX,16);
+
+txMsg.tx_dlen = 8;
+
+txMsg.tx_data[0]=float_to_uint(MechPosition,P_MIN,P_MAX,16)>>8;
+
+62
+
+RobStride Motor User Manual
+
+txMsg.tx_data[1]=float_to_uint(MechPosition,P_MIN,P_MAX,16);
+
+txMsg.tx_data[2]=float_to_uint(speed,V_MIN,V_MAX,16)>>8;
+
+txMsg.tx_data[3]=float_to_uint(speed,V_MIN,V_MAX,16);
+
+txMsg.tx_data[4]=float_to_uint(kp,KP_MIN,KP_MAX,16)>>8;
+
+txMsg.tx_data[5]=float_to_uint(kp,KP_MIN,KP_MAX,16);
+
+txMsg.tx_data[6]=float_to_uint(kd,KD_MIN,KD_MAX,16)>>8;
+
+txMsg.tx_data[7]=float_to_uint(kd,KD_MIN,KD_MAX,16);
+
+can_txd();
+
+}
+
+4.4.3. Motor stop frame (communication type 4)
+Plain Text
+void motor_reset(uint8_t id, uint16_t master_id)
+
+{
+
+txCanIdEx.mode = 4;
+
+txCanIdEx.id = id;
+
+txCanIdEx.res = 0;
+
+63
+
+RobStride Motor User Manual
+
+txCanIdEx.data = master_id;
+
+txMsg.tx_dlen = 8;
+
+for(uint8_t i=0;i<8;i++)
+
+{
+
+txMsg.tx_data[i]=0;
+
+}
+
+can_txd();
+
+}
+
+4.4.4. Motor mode parameter write command
+(communication type 18, running mode switch)
+Plain Text
+uint8_t runmode;
+
+uint16_t index;
+
+void motor_modechange(uint8_t id, uint16_t master_id)
+
+{
+
+txCanIdEx.mode = 0x12;
+
+64
+
+RobStride Motor User Manual
+
+txCanIdEx.id = id;
+
+txCanIdEx.res = 0;
+
+txCanIdEx.data = master_id;
+
+txMsg.tx_dlen = 8;
+
+for(uint8_t i=0;i<8;i++)
+
+{
+
+txMsg.tx_data[i]=0;
+
+}
+
+memcpy(&txMsg.tx_data[0],&index,2);
+
+memcpy(&txMsg.tx_data[4],&runmode, 1);
+
+can_txd();
+
+}
+
+4.4.5. Motor mode parameter write command
+(communication type 18, control parameter
+write)
+Plain Text
+
+65
+
+RobStride Motor User Manual
+
+uint16_t index;
+
+float ref;
+
+void motor_write(uint8_t id, uint16_t master_id)
+
+{
+
+txCanIdEx.mode = 0x12;
+
+txCanIdEx.id = id;
+
+txCanIdEx.res = 0;
+
+txCanIdEx.data = master_id;
+
+txMsg.tx_dlen = 8;
+
+for(uint8_t i=0;i<8;i++)
+
+{
+
+txMsg.tx_data[i]=0;
+
+}
+
+memcpy(&txMsg.tx_data[0],&index,2);
+
+memcpy(&txMsg.tx_data[4],&ref,4);
+
+66
+
+RobStride Motor User Manual
+
+can_txd();
+
+}
+
+67
+
+RobStride Motor User Manual
+
+5.Explanation
+
+of
+
+Canopen
+
+Communication Protocol Types
+5.1.
+
+Introduction to CANopen Communication
+
+CANopen is a "higher-level protocol" based on the CAN bus. This means that the
+CAN bus (ISO 11898) acts like a container truck, serving as the "transportation
+vehicle" for CANopen information. CAN simply implements the transmission of
+frames with an 11-bit CAN ID, a Remote Transmission (RTR) bit, and 64 data bits
+(related to higher-level protocols). The CAN bus plays the same role in CANopen
+as it does in the J1939 protocol. CANopen implements Layer 7 of the OSI model
+and is compatible with other data link layer protocols besides CAN.Please
+download the necessary EDS files for CANopen from the official website download
+center at www.robstride.com.
+
+5.2.
+
+Canopen Protocol Message Classification
+
+Classification
+
+Function
+
+NMT
+
+Manage the network and switch node states. NMT network
+
+Network
+
+Management
+
+management messages are typically sent by the master
+
+Messages
+
+station.
+Used for setting device parameters or transmitting critical
+
+SDO Service Data
+Object Message
+
+data. Typically, the master station initiates an SDO message,
+and the slave station responds. However, a slave station can
+also initiate an SDO message, with the master station
+responding, for example, in the transmission of critical data.
+
+PDO (Process Data
+Object) messages
+EMCY
+
+Emergency
+
+Message
+SYNC
+Synchronization
+Message
+
+Transmit process data from various devices, such as
+temperature and speed. Both the master and slave stations
+send these messages.
+Transmits
+
+fault
+
+information
+
+about
+
+the
+
+transmission
+
+equipment. Both the master and slave stations send this
+message.
+Synchronization data, used to synchronize TPDO data on the
+slave station. Generally sent by the master station.
+
+68
+
+RobStride Motor User Manual
+
+Classification
+
+Function
+
+NODE GUARDING
+
+The master station requests the slave station's status; the
+
+Message
+
+master station queries, and the slave station responds.
+
+Heartbeat
+
+A device actively sends a heartbeat to indicate that it is
+
+Message
+
+online. Both the master and slave devices can send
+heartbeats.
+
+69
+
+RobStride Motor User Manual
+
+5.3.
+
+State Machine Description
+
+Motor Enable:
+When initially powered on, the motor defaults to the SWITCH_ON_DISABLED
+state. To transition to OPERATION_ENABLE, modify the Controlword (6040H)
+to 6, 7, or 15 (step-by-step transition), or directly set it to 15 for immediate
+
+70
+
+RobStride Motor User Manual
+
+enablement.
+Stopping the Motor:
+If the motor is in OPERATION_ENABLE state and needs to stop normally,
+modify the Controlword (6040H) to 1. The motor will return to the disabled
+state (SWITCH_ON_DISABLED).
+Emergency Stop (Use with Caution—Risk of Voltage Surge):
+During operation, an emergency stop can be triggered by setting the
+Controlword (6040H) to 11.
+Fault Clearance:
+If the motor enters a FAULT state due to protection mechanisms, modifying
+the Controlword (6040H) can clear standard errors.
+Important Note:
+Mode changes for this motor must be performed in the disabled state
+(SWITCH_ON_DISABLED). Ensure the desired mode is configured before
+enabling OPERATION_ENABLE to avoid unexpected behavior.
+
+5.4.
+
+Status Feedback Parameters
+
+Index
+
+Name
+
+603F
+
+Error_code
+
+6041
+
+Statusword
+
+6061
+
+Modes_of_operation_display
+
+6062
+
+Position_demand_value
+
+6064
+
+Position_actual_value
+
+606B
+
+Velocity_demand_value
+
+606C
+
+Velocity_actual_value
+
+Attribute
+Readonly
+Readonly
+Readonly
+Readonly
+Readonly
+Readonly
+Readonly
+
+71
+
+Type
+
+Unit
+
+UINTEGER16
+
+/
+
+UINTEGER16
+
+/
+
+INTEGER8
+
+/
+
+INTEGER32
+INTEGER32
+
+Pulses (1 rev = 16,384
+pulses)
+Pulses (1 rev = 16,384
+pulses)
+
+INTEGER32
+
+0.1 rpm
+
+INTEGER32
+
+0.1 rpm
+
+RobStride Motor User Manual
+
+Index
+
+Name
+
+6077
+
+Torque_actual_value
+
+6078
+
+Current_actual_value
+
+6079
+
+DC_link_circuit_voltage
+
+5.5.
+
+Attribute
+
+Type
+
+Read-
+
+Unit
+0.1% load ratio (1000
+
+INTEGER16
+
+only
+Readonly
+Readonly
+
+= 2 N·m)
+
+INTEGER16
+
+mA
+
+INTEGER32
+
+mV
+
+Homing Mode (Zero Position Setting)
+
+Index
+
+Name
+
+Attribute
+
+Type
+
+Unit
+
+6040
+
+Controlword
+
+Read-write
+
+UINTEGER16
+
+/
+
+6060
+
+Modes of operation
+
+Read-write
+
+INTEGER8
+
+/
+
+Homing method:
+•
+
+Set Modes of operation to 6 while the motor is in the disabled state
+
+(SWITCH_ON_DISABLED). The motor will then define the current position as
+the zero point.
+•
+
+To hold the zero position, modify the Controlword to 15, and the motor
+
+will maintain its position at the home location.
+
+5.6.
+Index
+
+Position Mode (PP - Profile Position)
+Name
+
+6040
+
+Controlword
+
+6060
+
+Modes of operation
+
+6067
+
+Position_window
+
+6068
+
+Position_window_time
+
+6071
+
+Target_torque
+
+607A
+
+Target_position
+
+6081
+
+Profile_velocity
+
+6083
+
+Profile_acceleration
+
+Attribute
+Readwrite
+Readwrite
+Read-
+
+Type
+UINTEGER16
+
+/
+
+INTEGER8
+
+/
+
+UINTEGER32
+
+write
+Read-
+
+UINTEGER16
+
+write
+Read-
+
+INTEGER16
+
+write
+Read-
+
+INTEGER32
+
+write
+Readwrite
+Read-
+
+72
+
+Unit
+
+Pulses (1 rev = 16,384
+pulses)
+ms
+0.1% load ratio (1000 = 2
+N·m)
+Pulses (1 rev = 16,384
+pulses)
+
+UINTEGER32
+
+0.1 rpm
+
+UINTEGER32
+
+0.1 rpm/s
+
+RobStride Motor User Manual
+
+Index
+
+Name
+
+Attribute
+
+Type
+
+Unit
+
+write
+
+Steps to Configure Position Mode (PP):
+1.
+
+While the motor is in the disabled state (SWITCH_ON_DISABLED), set
+
+Modes of operation to 1.
+Mandatory parameters:
+
+￮
+▪
+
+Target_torque (absolute max torque in position mode)
+
+▪
+
+Profile_velocity (absolute speed in position mode)
+
+▪
+
+Profile_acceleration (absolute acceleration in position mode)
+Optional parameters:
+
+￮
+▪
+
+Position_window (if not set, window check is disabled)
+
+▪
+
+Position_window_time (if not set, window check is disabled)
+
+2.
+
+Set Controlword (6040) to 15 to enable operation.
+
+3.
+
+Set Target_position (absolute position) to move the motor to the desired
+
+position.
+
+5.7.
+
+Position Mode (CSP - Cyclic Synchronous
+Position)
+
+Index
+
+Name
+
+6040
+
+Controlword
+
+6060
+
+Modes of operation
+
+6067
+
+Position_window
+
+6068
+
+Position_window_time
+
+6071
+
+Target_torque
+
+Attribute
+Readwrite
+Readwrite
+Read-
+
+Type
+UINTEGER16
+
+/
+
+INTEGER8
+
+/
+
+UINTEGER32
+
+write
+Read-
+
+UINTEGER16
+
+write
+Read-
+
+INTEGER16
+
+write
+
+73
+
+Unit
+
+Pulses (1 rev = 16,384
+pulses)
+ms
+0.1% load ratio (1000 = 2
+N·m)
+
+RobStride Motor User Manual
+
+Index
+
+Name
+
+607A
+
+Target_position
+
+6081
+
+Profile_velocity
+
+Attribute
+
+Type
+
+Read-
+
+Unit
+Pulses (1 rev = 16,384
+
+INTEGER32
+
+write
+Read-
+
+pulses)
+
+UINTEGER32
+
+write
+
+0.1 rpm
+
+Steps to Configure Position Mode (CSP):
+1.
+
+While the motor is in the disabled state (SWITCH_ON_DISABLED), set
+
+Modes of operation to 5.
+Mandatory parameters:
+
+￮
+▪
+
+Target_torque (absolute max torque in position mode)
+
+▪
+
+Profile_velocity (absolute speed in position mode)
+Optional parameters:
+
+￮
+▪
+
+Position_window (0 = disabled)
+
+▪
+
+Position_window_time (0 = disabled)
+
+2.
+
+Set Controlword (6040) to 15 to enable operation.
+
+3.
+
+Set Target_position (absolute position) to move the motor to the desired
+
+position.
+
+5.8.
+
+Velocity Mode
+
+Index
+
+Name
+
+Attribute
+
+Type
+
+6040
+
+Controlword
+
+Read-write
+
+UINTEGER16
+
+/
+
+Read-write
+
+INTEGER8
+
+/
+
+6060
+
+Modes of
+operation
+
+6071
+
+Target_torque
+
+Read-write
+
+INTEGER16
+
+60FF
+
+Target_velocity
+
+Read-write
+
+INTEGER32
+
+Unit
+
+0.1% load ratio (1000 = 2
+N·m)
+0.1 rpm
+
+Steps to Configure Velocity Mode:
+1.
+
+While the motor is in the disabled state (SWITCH_ON_DISABLED), set
+
+Modes of operation to 3.
+
+74
+
+RobStride Motor User Manual
+
+Mandatory parameter:
+
+￮
+▪
+
+Target_torque (absolute max torque in velocity mode)
+
+2.
+
+Set Controlword (6040) to 15 to enable operation.
+
+3.
+
+Set Target_velocity to reach the desired speed.
+
+5.9.
+
+Torque Mode
+
+Index
+
+Name
+
+Attribute
+
+Type
+
+Unit
+
+6040
+
+Controlword
+
+Read-write
+
+UINTEGER16
+
+/
+
+Read-write
+
+INTEGER8
+
+/
+
+Read-write
+
+INTEGER16
+
+Modes of
+
+6060
+
+operation
+
+6071
+
+Target_torque
+
+0.1% load ratio (1000 = 2
+N·m)
+
+Steps to Configure Torque Mode:
+1.
+
+While the motor is in the disabled state (SWITCH_ON_DISABLED), set
+
+Modes of operation to 4.
+2.
+
+Set Controlword (6040) to 15 to enable operation.
+
+3.
+
+Set Target_torque to output the desired torque.
+
+5.10. Protocol Switching (Extended Frame): Switch
+Motor Protocol (Takes Effect After Power Cycle)
+Data Field
+
+29-bit ID
+
+8-Byte Data Area
+
+Size
+
+Bit 28~0
+
+Byte 0~6
+
+Description
+
+0xFFF
+
+01 02 03 04 05 06 F_CMD
+
+F_CMD (Byte 6) defines the motor protocol:
+￮
+
+0: Private protocol (default)
+
+￮
+
+1: CANopen protocol
+
+￮
+
+2: MIT protocol
+75
+
+RobStride Motor User Manual
+
+Response Frame:
+Data Field
+
+11-bit ID
+
+8-Byte Data Area
+
+Size
+
+Bit 10~0
+
+Byte 0~7
+
+Description
+
+Motor ID
+
+64-bit MCU unique identifier
+
+76
+
+RobStride Motor User Manual
+
+6. MIT Communication Protocol Description
+The motor communication adopts the CAN 2.0 interface with a default baud
+rate of 1 Mbps. The baud rate can be modified by switching to the private
+protocol. The standard frame format is as follows:
+Data Field
+
+11-bit ID
+
+8-byte Data Area
+
+Size
+
+Bit 10~8
+
+Bit 7~0
+
+Description
+
+Mode type
+
+ID
+
+Byte 0~7
+
+•
+
+Supported Control Modes:
+
+•
+
+MIT Mode: Provides five motion control parameters to the motor.
+
+•
+
+Velocity Mode: Specifies the target speed for the motor.
+
+•
+
+Position Mode: Specifies the target position and speed, allowing the
+
+motor to run to the designated position at the configured speed.
+
+6.1.
+
+Response
+
+Command
+
+1:
+
+Data
+
+Feedback
+
+(Motor Status)
+Data Field
+
+11-bit
+
+8-byte Data Area
+
+ID
+Size
+
+Bit
+
+Byte 0~7
+
+10~0
+Description
+
+Host ID
+
+Byte 0: Motor CAN ID<br>
+Byte 1~2: The current angle [0~65535], corresponds to (-12.57
+rad ~ 12.57 rad)<br>
+Byte 3 (high 8 bits),
+Byte 4[7-4] (low 4 bits): The current speed [0~4096], corresponds
+to (-50 rad/s ~ 50 rad/s)<br>
+Byte 4[3-0] (high 4 bits),
+Byte 5 (low 8 bits): The current torque [0~4096], corresponds to (5.5N·m ~ 5.5 N·m)<br>
+Byte 6~7: Winding temperature (in degrees)：Temp(Celsius) *10
+
+77
+
+RobStride Motor User Manual
+
+6.2.
+
+Response Command 2: MCU Identification
+
+Data Field
+
+11-bit ID
+
+8-byte Data Area
+
+Size
+
+Bit 10~0
+
+Byte 0~7
+
+Description
+
+Motor ID
+
+64-bit MCU unique identifier
+
+6.3.
+
+Command 1: Enable Motor Operation
+
+Data Field
+
+11-bit ID
+
+8-byte Data Area
+
+Size
+
+Bit 10~0
+
+Byte 0~7
+
+Description
+
+Target motor CAN ID
+
+FF FF FF FF FF FF FF FC
+
+Response: Response Command 1
+
+6.4.
+
+Command 2: Stop Motor Operation
+
+Data Field
+
+11-bit ID
+
+8-byte Data Area
+
+Size
+
+Bit 10~0
+
+Byte 0~7
+
+Description
+
+Target motor CAN ID
+
+FF FF FF FF FF FF FF FD
+
+Response: Response Command 1
+
+6.5.
+
+Command 3: MIT Dynamic Parameters
+
+Data
+
+11-bit
+
+Field
+
+ID
+
+Size
+
+8-byte Data Area
+
+Bit
+
+Byte 0~1: Target angle [0~65535], (-12.57 rad ~ 12.57 rad)
+
+10~0
+
+Byte 2 (high 8 bits),
+Byte 3[7-4] (low 4 bits): Target speed [0~4096], (-50 rad/s ~ 50 rad/s)
+Byte 3[3-0] (high 4 bits),
+Byte 4 (low 8 bits): Kp [0~4096], (0~500)
+Byte 5 (high 8 bits),
+Byte 6[7-4] (low 4 bits): Kd [0~4096], (0~5)Byte 6[3-0] (high 4 bits),
+Byte 7 (low 8 bits): Target torque [0~4096], (-5.5N·m ~ 5.5 N·m)
+
+Response: Response Command 1
+
+78
+
+RobStride Motor User Manual
+
+6.6.
+
+Command 4: Set Zero Position (Non-Position
+Mode)
+
+Data Field
+
+11-bit ID
+
+8-byte Data Area
+
+Size
+
+Bit 10~0
+
+Byte 0~7
+
+Description
+
+Target motor CAN ID
+
+FF FF FF FF FF FF FF FE
+
+Response: Response Command 1
+
+6.7.
+
+Command 5: Clear Errors & Read Fault Status
+
+Data
+
+11-bit
+
+Field
+
+ID
+
+Size
+
+8-byte Data Area
+
+Bit
+
+FF FF FF FF FF FF F_CMD FBF_CMD:- 0xFF → Clear current fault- Any
+
+10~0
+
+other value → Returns fault value in
+
+Byte 1 of the
+
+response
+
+Response (Fault Clear): Response Command 1
+Fault Status Response:
+Data
+
+11-bit
+
+Field
+
+ID
+
+Size
+
+Bit 10~0
+
+8-byte Data Area
+Byte 0: Motor CAN ID
+Byte 1~4: Fault value (Non-zero: Fault present; 0: Normal)
+Bit 14: Stall/I²t overload fault<Bit 7: Encoder not calibrated<br>Bit
+3: Overvoltage faultBit 2: Undervoltage faultBit 1: Driver IC faultBit
+0: Motor overtemperature fault (Default threshold: 135°C)
+
+Command 6: Set Operation Mode
+
+Response: Response Command 1
+
+6.8.
+
+Command 7: Modify Motor CAN ID
+
+Data Field
+
+11-bit ID
+
+Size
+
+Bit 10~0
+
+8-byte Data Area
+FF FF FF FF FF FF F_CMD FAF_CMD: Target motor CAN ID
+
+Response: Response Command 2
+
+79
+
+RobStride Motor User Manual
+
+6.9.
+
+Command
+
+8:
+
+Change
+
+Communication
+
+Protocol (Takes Effect After Power Cycle)
+Data
+Field
+Size
+
+11-bit ID
+Bit 10~0
+
+8-byte Data Area
+FF FF FF FF FF FF F_CMD FDF_CMD: Protocol type- 0: Private
+protocol (default)- 1: CANopen<br>- 2: MIT protocol
+
+Response: Response Command 2
+
+6.10. Command 9: Modify Host CAN ID
+Data Field
+
+11-bit ID
+
+Size
+
+Bit 10~0
+
+8-byte Data Area
+FF FF FF FF FF FF F_CMD 01F_CMD: Host CAN ID
+
+Response: Response Command 2
+
+6.11. Command
+
+10:
+
+Position
+
+Mode
+
+Control
+
+Command
+Data Field
+
+11-bit
+
+8-byte Data Area
+
+ID
+Size
+
+Bit 10~8
+
+Bit 7~0
+
+Byte 0~3: Target position (rad, 32-bit float)
+Byte 4~7: Target speed (rad/s, 32-bit float)
+
+Description
+
+1
+
+Target motor
+CAN ID
+
+Response: Response Command 1
+
+6.12. Command
+
+11:
+
+Velocity
+
+Mode
+
+Control
+
+Command
+Data Field
+
+11-bit
+
+8-byte Data Area
+
+ID
+Size
+
+Bit
+
+Bit 7~0
+
+10~8
+
+Byte 0~3: Target speed (rad/s, 32-bit float)
+Byte 4~7: Current limit in speed/position mode (A,
+32-bit float)
+
+Description
+
+2
+
+Target
+motor
+
+80
+
+RobStride Motor User Manual
+
+CAN ID
+
+Response: Response Command 1
+
+6.13. Motion Control Mode
+
+The motor defaults to Motion Control Mode upon power-up.
+1.
+
+Send the Motor Enable Command (Command 1).
+
+2.
+
+Send the Motion Control Command (Command 3) to activate dynamic
+
+parameter control.
+3.
+
+Send the Motor Stop Command (Command 2) to halt operation when
+
+needed.
+
+6.14. Velocity Mode
+
+1.
+
+Configure the motor's operation mode by sending Set Operation Mode
+
+Command (Command 6) with Mode = 2 (Velocity Mode).
+2.
+
+Send the Motor Enable Command (Command 1) to activate the motor.
+
+3.
+
+Send the Velocity Mode Control Command (Command 11) to set the
+
+maximum current (absolute value) and target speed.
+4.
+
+To stop, send the Motor Stop Command (Command 2).
+
+81
+
+RobStride Motor User Manual
+
+6.15. Position Mode (CSP - Cyclic Synchronous
+Position)
+
+1.
+
+Configure the motor's operation mode by sending Set Operation Mode
+
+Command (Command 6) with Mode = 1 (Position Mode).
+2.
+
+Send the Motor Enable Command (Command 1) to activate the motor.
+
+3.
+
+Send the Position Mode Control Command (Command 10) to set the
+
+maximum speed (absolute value) and target position.
+4.
+
+To stop, send the Motor Stop Command (Command 2).
+
+82
+
+RobStride Motor User Manual
+
+7.Version History
+Version Number
+
+Description
+
+Date
+
+1.0
+
+Initial Release
+
+November 25, 2025
+
+83
+
+

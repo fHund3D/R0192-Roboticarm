@@ -149,7 +149,7 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclc
 {
   auto logger = rclcpp::get_logger("R0192Hardware");
   if (can_available_) {
-    
+
     // kein homing!
     axis1_->Set_Axis_State(1);
     axis4_->Motor_Stop_Running();
@@ -206,7 +206,7 @@ hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /
       hw_efforts_[i]    = axis1_->get_current_torque();
       // GDS68 does not push feedback autonomously — request every cycle.
       // Reply is processed asynchronously by canRxThread and available next cycle.
-      axis1_->Get_Encoder_Estimates();
+      // axis1_->Get_Encoder_Estimates();
     }
     if (joint_index_.count("joint_4")) {
       const size_t i = joint_index_.at("joint_4");

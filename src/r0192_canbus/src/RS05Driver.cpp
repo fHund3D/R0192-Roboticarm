@@ -293,7 +293,7 @@ void RS05Driver::processFeedbackFrame(const struct can_frame &frame) {
             uint16_t index = (frame.data[0] << 8) | frame.data[1]; 
             
             if (success_flag == 0x00) {
-                uint32_t raw_val = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
+                uint32_t raw_val = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (static_cast<uint32_t>(frame.data[7]) << 24);
                 float param_value;
                 std::memcpy(&param_value, &raw_val, sizeof(float));
                 
@@ -307,8 +307,8 @@ void RS05Driver::processFeedbackFrame(const struct can_frame &frame) {
         case 0x15: { 
             // 4.1.9. Communication type 21: Fault feedback frame reply
             // Auslesen der spezifischen Fehlercodes
-            uint32_t fault_value = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
-            uint32_t warning_value = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
+            uint32_t fault_value = (static_cast<uint32_t>(frame.data[0]) << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
+            uint32_t warning_value = (static_cast<uint32_t>(frame.data[4]) << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
             
             RCLCPP_ERROR(logger_, "Axis %d: FAULT FRAME! Fault Code: 0x%08X, Warning Code: 0x%08X", sender_id, fault_value, warning_value);
             break;
