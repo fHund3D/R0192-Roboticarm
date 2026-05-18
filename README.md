@@ -3,7 +3,9 @@
 [![ROS 2](https://img.shields.io/badge/ROS2-Jazzy-blue)](https://docs.ros.org/en/jazzy/index.html)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Der **R0192** ist ein hochpräziser 6-Achsen-Roboterarm, der auf einem hybriden System aus SteadyWin- und RobStride-Aktuatoren basiert. Dieses Repository enthält das vollständige ROS 2 Jazzy-Ökosystem für die Simulation (MoveIt 2), die CAN-Bus-Kommunikation und die Hardware-Abstraktion.
+Der **R0192** ist ein hochpräziser 6-Achsen-Roboterarm, der auf einem hybriden System aus SteadyWin- und RobStride-Aktuatoren basiert. Dieses Repository enthält das vollständige ROS 2 Jazzy-Ökosystem für die CAN-Bus-Kommunikation, die Hardware-Abstraktion, die Bahnplanung via MoveIt 2 und das Bedienpanel via Foxglove Studio.
+
+Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf einem **Raspberry Pi 5**. Als Bedienpanel dient **Foxglove Studio** auf einem externen Gerät (MacBook) — verbunden über Netzwerk via `foxglove_bridge`. Achsen 1 und 4 sind vollständig in Betrieb; die restlichen Achsen werden nach und nach nachgerüstet.
 
 ---
 
@@ -12,34 +14,56 @@ Der **R0192** ist ein hochpräziser 6-Achsen-Roboterarm, der auf einem hybriden 
 ### Software (ROS 2 & OS)
 - [x] OS-Setup: Ubuntu 24.04 & ROS 2 Jazzy Installation
 - [x] Workspace & Paketstruktur initialisiert
-- [x] Treiber-Integration: SteadyWin GDS68 (Achse 1-3)
-- [x] Treiber-Integration: RobStride RS05 (Achse 4-6)
-- [x] Basis-Node für CAN-Kommunikation & Einzelmotortest (Achse 1 & 4)
-- [x] URDF/XACRO Modellierung inkl. 3D-Visualisierung
-- [x] Kollisionsgeometrien für MoveIt 2 integriert
-- [x] RVIZ & MoveIt 2 Integration
-- [ ] **Aktuell:** Hardware-Interface für alle Achsen vervollständigen & Controller-Rate auf ≥ 100 Hz erhöhen
-- [ ] Closed-Loop Verbindung zwischen RVIZ-Planung und Hardware (nach Verifikation Open-Loop)
-- [ ] Implementierung der Homing-Sequenz (TLE4935L Hall-Sensoren)
-- [ ] Globaler Software-Notaus & Fehlerbehandlung
-- [ ] Echtzeit-Optimierung (RT-Kernel & CPU-Shielding)
+- [x] Treiber-Integration: SteadyWin GDS68 (Achse 1–3)
+- [x] Treiber-Integration: RobStride RS05 (Achse 4–6)
+- [x] CAN-Kommunikation & Hardware Interface (ros2_control, 100 Hz, Closed-Loop)
+- [x] URDF/XACRO Modellierung inkl. 3D-Visualisierung & Kollisionsgeometrien
+- [x] MoveIt 2 Integration — Bahnplanung & Trajektorienausführung auf Achsen 1 + 4 verifiziert
+- [x] Encoder-Homing beim Start (Hardware Interface setzt internen Nullpunkt)
+- [ ] **Aktuell:** Foxglove Tech-Pendant einrichten
+  - `foxglove_bridge` in Bringup integrieren (RPi → MacBook via WebSocket)
+  - Foxglove Studio: 3D-Ansicht, Buttons für E-Stop / Motor-Enable / Homing
+  - ROS-Services für Bedienfunktionen implementieren
+- [ ] Globaler Software-Notaus (E-Stop) — über Foxglove-Button auslösbar
+- [ ] Homing-Sequenz mit TLE4935L Hall-Sensoren als Absolutreferenz
+- [ ] Echtzeit-Optimierung (RT-Kernel & CPU-Shielding auf RPi 5)
 
 #### Projektstruktur
 
 ```
 roboticarm_r0192_ws/
 ├── src/
-│   ├── r0192_bringup/         # Bringup Sequenz für den Roboterarm
-│   ├── r0192_canbus/          # CAN-Bus Steuerung und Treiber der Motoren
-│   ├── r0192_controller/      # Controller für den Roboterarm
-│   ├── r0192_description/     # Robot-Beschreibung (URDF, Meshes)
-│   ├── r0192_hardware/        # ROS 2 Hardware Interface (ros2_control)
-│   ├── r0192_moveit/          # MoveIt 2 Konfiguration & Wegplanung
-│   └── r0192_remote/          # (Geplant) Web-basierte Remote-Steuerung
+│   ├── r0192_bringup/         # Bringup Sequenz (real + simuliert)
+│   ├── r0192_canbus/          # CAN-Bus Treiber: GDS68, RS05, CanCommunication
+│   ├── r0192_controller/      # JTC-Konfiguration, manueller Slider-Node
+│   ├── r0192_description/     # URDF/XACRO, STL-Meshes, RViz-Konfiguration
+│   ├── r0192_hardware/        # ros2_control Hardware Interface (SystemInterface)
+│   ├── r0192_moveit/          # MoveIt 2: SRDF, Kinematik, Planung, Launch
+│   └── r0192_remote/          # (Geplant) ROS-Services für Foxglove-Bedienpanel
 ├── doku/                      # Datenblätter & Treiber-Dokumentation
 ├── build/                     # Build-Artefakte (ignoriert)
 ├── install/                   # Install-Artefakte (ignoriert)
 └── log/                       # Logs (ignoriert)
+```
+
+#### System-Architektur
+
+```
+Foxglove Studio (MacBook)
+  │  WebSocket ws://<rpi-ip>:8765  [bidirektional]
+  │  Visualisierung + Bedienelemente (E-Stop, Enable, Homing)
+foxglove_bridge (RPi)
+  │
+MoveIt 2 ──► ros2_control (100 Hz, Closed-Loop)
+                 │
+         R0192SystemHardware
+                 │
+    ┌────────────┴────────────┐
+GDS68Driver              RS05Driver
+(Achsen 1–3)             (Achsen 4–6)
+    └────────────┬────────────┘
+             SocketCAN (can0, 500 kbit/s)
+             MKS CANable Pro → Motoren
 ```
 
 ### Hardware & Mechanik
