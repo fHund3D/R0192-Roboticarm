@@ -46,7 +46,19 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_configure(const rclcp
   } else {
     axis1_ = std::make_shared<GDS68Driver>(0x01, can_comm_, logger);
     axis4_ = std::make_shared<RS05Driver>(0x04, can_comm_, logger);
-    RCLCPP_INFO(logger, "R0192 hardware configured (CAN 'can0' open)");
+
+    RCLCPP_INFO(logger, "Probing physical axes (200 ms timeout each)...");
+    axis1_present_ = axis1_->probePresent(200);
+    axis4_present_ = axis4_->probePresent(200);
+
+    if (!axis1_present_ && !axis4_present_) {
+      RCLCPP_WARN(logger, "No physical axes detected — running in full virtual mode");
+    } else {
+      if (!axis1_present_) RCLCPP_WARN(logger, "Axis 1 (GDS68) not detected — virtual passthrough");
+      if (!axis4_present_) RCLCPP_WARN(logger, "Axis 4 (RS05) not detected — virtual passthrough");
+    }
+    RCLCPP_INFO(logger, "R0192 hardware configured (CAN 'can0' open, axis1=%s axis4=%s)",
+      axis1_present_ ? "real" : "virtual", axis4_present_ ? "real" : "virtual");
   }
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -61,56 +73,49 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
     rx_thread_running_ = true;
     rx_thread_ = std::thread(&R0192SystemHardware::canRxThread, this);
 
-    // Enable closed-loop first.
-    axis1_->Set_Axis_State(8);
-    axis4_->Motor_Enabled_To_Run();
+    // GDS68 (axis 1)
+    if (axis1_present_) {
+      axis1_->Set_Axis_State(8);
+      // Position Control (3) + Passthrough (1) to prevent drift.
+      axis1_->Set_Controller_Mode(3, 1);
 
-    // Set GDS68 to Position Control (3) and Passthrough (1) to prevent drift.
-    // This uses the motor's robust internal PID instead of the external MIT_Control.
-    axis1_->Set_Controller_Mode(3, 1);
-
-    // GDS68 (axis 1): zero the encoder at current physical position so that
-    // MIT_Control commands stay within ±12.5 rad.  After Set_Linear_Count(0)
-    // the motor reports position ≈ 0 and MIT_Control(0.0) holds it in place.
-    if (joint_index_.count("joint_1")) {
-      const size_t i = joint_index_.at("joint_1");
-      // NOTE: GDS68 bootsequent & homing implementing later!
-
-      axis1_->Get_Encoder_Estimates();
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      RCLCPP_INFO(logger, "Axis 1 raw encoder: %.3f rad — zeroing at current position",
-                  axis1_->get_current_position());
-      
-      // Set motor mechanical zero
-      axis1_->Set_Linear_Count(0);
-      RCLCPP_INFO(logger, "Axis 1 mechanical zero set");
-
-      // Wait for the autonomous encoder update (10 ms interval) to reflect the new zero.
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      axis1_->Get_Encoder_Estimates();
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-      double pos = axis1_->get_current_position();
-      RCLCPP_INFO(logger, "Axis 1 after zero: %.3f rad (motor holds current physical position)", pos);
-      hw_cmd_positions_[i] = pos;
+      if (joint_index_.count("joint_1")) {
+        const size_t i = joint_index_.at("joint_1");
+        axis1_->Get_Encoder_Estimates();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        RCLCPP_INFO(logger, "Axis 1 raw encoder: %.3f rad — zeroing at current position",
+                    axis1_->get_current_position());
+        axis1_->Set_Linear_Count(0);
+        RCLCPP_INFO(logger, "Axis 1 mechanical zero set");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        axis1_->Get_Encoder_Estimates();
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        double pos = axis1_->get_current_position();
+        RCLCPP_INFO(logger, "Axis 1 after zero: %.3f rad", pos);
+        hw_cmd_positions_[i] = pos;
+      }
     }
 
-    // RS05 (axis 4): sends feedback autonomously — wait briefly then home.
-    if (joint_index_.count("joint_4")) {
-      const size_t i = joint_index_.at("joint_4");
-      // NOTE: RS05 bootsequent & homing implementing later!
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      RCLCPP_INFO(logger, "Axis 4 raw encoder: %.3f rad — zeroing at current position", axis4_->get_current_position());
+    // RS05 (axis 4)
+    if (axis4_present_) {
+      axis4_->Motor_Enabled_To_Run();
 
-      // Set motor mechanical zero
-      axis4_->Set_Motor_Mechanical_Zero();
-      RCLCPP_INFO(logger, "Axis 4 mechanical zero set");
+      if (joint_index_.count("joint_4")) {
+        const size_t i = joint_index_.at("joint_4");
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        RCLCPP_INFO(logger, "Axis 4 raw encoder: %.3f rad — zeroing at current position",
+                    axis4_->get_current_position());
+        axis4_->Set_Motor_Mechanical_Zero();
+        RCLCPP_INFO(logger, "Axis 4 mechanical zero set");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        double pos = axis4_->get_current_position();
+        RCLCPP_INFO(logger, "Axis 4 after zero: %.3f rad", pos);
+        hw_cmd_positions_[i] = pos;
+      }
+    }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-      double pos = axis4_->get_current_position();
-      RCLCPP_INFO(logger, "Axis 4 after zero: %.3f rad", pos);
-      hw_cmd_positions_[i] = pos;
+    if (!axis1_present_ && !axis4_present_) {
+      RCLCPP_WARN(logger, "Activated in virtual mode — no CAN frames will be sent or received");
     }
   } else {
     RCLCPP_WARN(logger, "Activated in virtual mode — no CAN frames will be sent or received");
@@ -124,9 +129,8 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclc
 {
   auto logger = rclcpp::get_logger("R0192Hardware");
   if (can_available_) {
-
-    axis1_->Set_Axis_State(1);
-    axis4_->Motor_Stop_Running();
+    if (axis1_present_) axis1_->Set_Axis_State(1);
+    if (axis4_present_) axis4_->Motor_Stop_Running();
 
     rx_thread_running_ = false;
     if (rx_thread_.joinable()) {
@@ -171,33 +175,31 @@ std::vector<hardware_interface::CommandInterface> R0192SystemHardware::export_co
 // ==============================================================================
 hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // --- Achsen mit echtem Motor (nur wenn CAN verfügbar) ---
-  if (can_available_) {
-    if (joint_index_.count("joint_1")) {
-      const size_t i = joint_index_.at("joint_1");
+  // joint_1: real CAN feedback if probed present, otherwise passthrough
+  if (joint_index_.count("joint_1")) {
+    const size_t i = joint_index_.at("joint_1");
+    if (axis1_present_) {
       hw_positions_[i] = axis1_->get_current_position();
       hw_velocities_[i] = axis1_->get_current_velocity();
       hw_efforts_[i]    = axis1_->get_current_torque();
-      // GDS68 does not push feedback autonomously — request every cycle.
-      // Reply is processed asynchronously by canRxThread and available next cycle.
-      // axis1_->Get_Encoder_Estimates();
+    } else {
+      hw_positions_[i]  = hw_cmd_positions_[i];
+      hw_velocities_[i] = hw_cmd_velocities_[i];
+      hw_efforts_[i]    = 0.0;
     }
-    if (joint_index_.count("joint_4")) {
-      const size_t i = joint_index_.at("joint_4");
+  }
+
+  // joint_4: real CAN feedback if probed present, otherwise passthrough
+  if (joint_index_.count("joint_4")) {
+    const size_t i = joint_index_.at("joint_4");
+    if (axis4_present_) {
       hw_positions_[i] = axis4_->get_current_position();
       hw_velocities_[i] = axis4_->get_current_velocity();
       hw_efforts_[i]    = axis4_->get_current_torque();
-      // RS05 sends feedback autonomously — no request needed.
-    }
-  } else {
-    // Virtual mode: axes 1 and 4 also use passthrough
-    for (const auto& jname : {"joint_1", "joint_4"}) {
-      if (joint_index_.count(jname)) {
-        const size_t i = joint_index_.at(jname);
-        hw_positions_[i]  = hw_cmd_positions_[i];
-        hw_velocities_[i] = hw_cmd_velocities_[i];
-        hw_efforts_[i]    = 0.0;
-      }
+    } else {
+      hw_positions_[i]  = hw_cmd_positions_[i];
+      hw_velocities_[i] = hw_cmd_velocities_[i];
+      hw_efforts_[i]    = 0.0;
     }
   }
 
@@ -233,16 +235,11 @@ hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /
 // ==============================================================================
 hardware_interface::return_type R0192SystemHardware::write(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  if (!can_available_) {
-    return hardware_interface::return_type::OK;
-  }
-
-  if (joint_index_.count("joint_1")) {
+  if (axis1_present_ && joint_index_.count("joint_1")) {
     const size_t i = joint_index_.at("joint_1");
     axis1_->MIT_Control(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
-    //axis1_->Set_Input_Pos(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_efforts_[i]);
   }
-  if (joint_index_.count("joint_4")) {
+  if (axis4_present_ && joint_index_.count("joint_4")) {
     const size_t i = joint_index_.at("joint_4");
     axis4_->MIT_Control(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
   }

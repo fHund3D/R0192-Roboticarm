@@ -3,6 +3,7 @@
 #include <cstring>
 #include <algorithm>
 #include <cstdint>
+#include <chrono>
 
 // Helper: motor output revolutions ↔ joint radians (gear ratio 8:1)
 static float revToRad(float rev) { return rev * 2.0f * M_PI / 8.0f; }
@@ -188,4 +189,23 @@ void GDS68Driver::processFeedbackFrame(const struct can_frame &frame) {
         std::lock_guard<std::mutex> lock(data_mutex_);
         electrical_power_ = electrical_power;
     }
+}
+
+bool GDS68Driver::probePresent(int timeout_ms) {
+    Get_Encoder_Estimates();
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+    struct can_frame frame;
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (comm_->readFrame(frame)) {
+            if (!(frame.can_id & CAN_EFF_FLAG)) {
+                uint16_t std_id = frame.can_id & CAN_SFF_MASK;
+                if ((std_id >> 5) == node_id_) {
+                    RCLCPP_INFO(logger_, "Axis %d (GDS68): present — response received", node_id_);
+                    return true;
+                }
+            }
+        }
+    }
+    RCLCPP_WARN(logger_, "Axis %d (GDS68): no response within %d ms — treating as virtual", node_id_, timeout_ms);
+    return false;
 }

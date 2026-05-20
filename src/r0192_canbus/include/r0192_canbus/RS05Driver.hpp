@@ -57,6 +57,9 @@ public:
     // 4.1.15. Read and write a single parameter list
     bool Read_And_Write_Single_Parameter_List(std::string Parameter_Name, float Parameter_Value);
 
+    // Returns true if the motor responds within timeout_ms (probe at configure time).
+    bool probePresent(int timeout_ms);
+
     // --- Feedback Processing ---
     
     // Verarbeitet eingehende CAN-Frames vom Motor (Ist-Werte, Fehler, Antworten)

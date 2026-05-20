@@ -26,6 +26,9 @@ public:
     bool Get_Powers(); // CMD 0x01D
     bool Save_Configuration(); // CMD 0x01F
 
+    // Returns true if the motor responds within timeout_ms (probe at configure time).
+    bool probePresent(int timeout_ms);
+
     // --- Read / Feedback ---
     void processFeedbackFrame(const struct can_frame &frame);
 

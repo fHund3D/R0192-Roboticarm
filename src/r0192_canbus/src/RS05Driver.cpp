@@ -1,6 +1,7 @@
 #include "r0192_canbus/RS05Driver.hpp"
 #include <cstring>
 #include <cmath>
+#include <chrono>
 
 
 RS05Driver::RS05Driver(uint8_t node_id, std::shared_ptr<CanCommunication> comm, rclcpp::Logger logger) 
@@ -320,4 +321,25 @@ void RS05Driver::processFeedbackFrame(const struct can_frame &frame) {
             break;
         }
     }
+}
+
+
+bool RS05Driver::probePresent(int timeout_ms) {
+    Get_Device_ID();
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+    struct can_frame frame;
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (comm_->readFrame(frame)) {
+            if (frame.can_id & CAN_EFF_FLAG) {
+                uint32_t ext_id = frame.can_id & CAN_EFF_MASK;
+                uint8_t sender_id = (ext_id >> 8) & 0xFF;
+                if (sender_id == node_id_) {
+                    RCLCPP_INFO(logger_, "Axis %d (RS05): present — response received", node_id_);
+                    return true;
+                }
+            }
+        }
+    }
+    RCLCPP_WARN(logger_, "Axis %d (RS05): no response within %d ms — treating as virtual", node_id_, timeout_ms);
+    return false;
 }

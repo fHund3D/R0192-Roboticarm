@@ -44,7 +44,9 @@ private:
   std::shared_ptr<CanCommunication> can_comm_;
   std::shared_ptr<GDS68Driver> axis1_;
   std::shared_ptr<RS05Driver> axis4_;
-  bool can_available_ = false;  // false if can0 was not up at configure time
+  bool can_available_ = false;   // false if can0 was not up at configure time
+  bool axis1_present_ = false;   // false if axis 1 did not respond to probe
+  bool axis4_present_ = false;   // false if axis 4 did not respond to probe
 
 
   // --- RX Thread für asynchronen Empfang ---
