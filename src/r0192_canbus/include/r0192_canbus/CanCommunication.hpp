@@ -10,7 +10,9 @@ public:
     ~CanCommunication();
 
     bool init();
-    bool sendFrame(uint32_t can_id, uint8_t dlc, const uint8_t* data);
+    // force_extended=true: always send as 29-bit extended frame (needed for RS05
+    // comm_type 0x00 whose ID would otherwise be < 0x7FF and sent as standard).
+    bool sendFrame(uint32_t can_id, uint8_t dlc, const uint8_t* data, bool force_extended = false);
     bool readFrame(struct can_frame& frame);
 
 private:

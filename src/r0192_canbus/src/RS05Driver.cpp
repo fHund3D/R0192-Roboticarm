@@ -12,11 +12,13 @@ RS05Driver::RS05Driver(uint8_t node_id, std::shared_ptr<CanCommunication> comm, 
 // ------------------ Canbus Write ------------------
 
 // 4.1.1. Communication type 0: Get device ID
+// force_extended=true because comm_type=0x00 makes the ID equal to just node_id_
+// (e.g. 4), which is < 0x7FF and would otherwise be sent as a standard 11-bit frame.
 bool RS05Driver::Get_Device_ID(){
     uint8_t data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    uint32_t ext_id = (0x00 << 24) | node_id_; 
+    uint32_t ext_id = (0x00 << 24) | node_id_;
     RCLCPP_DEBUG(logger_, "Axis %d: Get device ID", node_id_);
-    return comm_->sendFrame(ext_id, 8, data);
+    return comm_->sendFrame(ext_id, 8, data, true);
 }
 
 // 4.1.2. Communication Type 1: operation control mode motor control instruction
