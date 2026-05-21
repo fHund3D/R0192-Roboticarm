@@ -9,11 +9,11 @@ Startet:
   5. gripper_controller      – JointTrajectoryController für Greifer
   6. move_group              – MoveIt 2 Bewegungsplanung
   7. rviz2                   – RViz mit MoveIt-Plugin (nur wenn use_rviz:=true)
-  8. rosbridge_websocket      – WebSocket-Bridge für Foxglove Studio (nur wenn use_foxglove:=true)
+  8. foxglove_bridge         – Native WebSocket-Bridge für Foxglove Studio (nur wenn use_foxglove:=true)
 
 Launch-Argumente:
   use_rviz:=true|false       Standard: true  – RViz mit MoveIt-Plugin
-  use_foxglove:=true|false   Standard: false – rosbridge WebSocket-Bridge (Port 9090)
+  use_foxglove:=true|false   Standard: false – foxglove_bridge Server (Port 8765)
 
 Voraussetzung:
   sudo ip link set can0 up type can bitrate 1000000
@@ -40,7 +40,7 @@ def generate_launch_description():
     use_foxglove_arg = DeclareLaunchArgument(
         "use_foxglove",
         default_value="false",
-        description="Launch rosbridge WebSocket server on port 9090 for Foxglove Studio"
+        description="Launch foxglove_bridge server on port 8765 for Foxglove Studio"
     )
 
     r0192_description_share = get_package_share_directory("r0192_description")
@@ -116,15 +116,15 @@ def generate_launch_description():
         ],
     )
 
-    # 8. Rosbridge WebSocket – Bridge für Foxglove Studio (MacBook), Port 9090
-    #    Verbindungstyp in Foxglove Studio: "Rosbridge WebSocket" → ws://<ip>:9090
-    rosbridge = Node(
-        package="rosbridge_server",
-        executable="rosbridge_websocket",
-        name="rosbridge_websocket",
+    # 8. Foxglove Bridge – Native ROS 2 WebSocket-Bridge, Port 8765
+    #    Verbindungstyp in Foxglove Studio: "Foxglove WebSocket" → ws://<ip>:8765
+    foxglove_bridge = Node(
+        package="foxglove_bridge",
+        executable="foxglove_bridge",
+        name="foxglove_bridge",
         output="screen",
         parameters=[{
-            "port": 9090,
+            "port": 8765,
             "use_sim_time": False,
         }],
         condition=IfCondition(LaunchConfiguration("use_foxglove")),
@@ -139,5 +139,5 @@ def generate_launch_description():
         arm_controller_spawner,
         gripper_controller_spawner,
         moveit_and_rviz,
-        rosbridge,
+        foxglove_bridge,
     ])

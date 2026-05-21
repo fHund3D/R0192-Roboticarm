@@ -14,6 +14,7 @@
   <exec_depend>r0192_description</exec_depend>
   <exec_depend>r0192_hardware</exec_depend>
   <exec_depend>r0192_moveit</exec_depend>
+  <exec_depend>foxglove_bridge</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
