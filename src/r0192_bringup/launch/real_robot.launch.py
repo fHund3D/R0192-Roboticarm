@@ -8,22 +8,40 @@ Startet:
   4. arm_controller          – JointTrajectoryController für Achsen 1-6
   5. gripper_controller      – JointTrajectoryController für Greifer
   6. move_group              – MoveIt 2 Bewegungsplanung
-  7. rviz2                   – RViz mit MoveIt-Plugin
+  7. rviz2                   – RViz mit MoveIt-Plugin (nur wenn use_rviz:=true)
+  8. rosbridge_websocket      – WebSocket-Bridge für Foxglove Studio (nur wenn use_foxglove:=true)
+
+Launch-Argumente:
+  use_rviz:=true|false       Standard: true  – RViz mit MoveIt-Plugin
+  use_foxglove:=true|false   Standard: false – rosbridge WebSocket-Bridge (Port 9090)
 
 Voraussetzung:
-  sudo ip link set can0 up type can bitrate 500000
+  sudo ip link set can0 up type can bitrate 1000000
 """
 
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
-from launch.substitutions import Command
+from launch.substitutions import Command, LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
+
+    use_rviz_arg = DeclareLaunchArgument(
+        "use_rviz",
+        default_value="true",
+        description="Launch RViz with MoveIt plugin (set false for Foxglove mode)"
+    )
+
+    use_foxglove_arg = DeclareLaunchArgument(
+        "use_foxglove",
+        default_value="false",
+        description="Launch rosbridge WebSocket server on port 9090 for Foxglove Studio"
+    )
 
     r0192_description_share = get_package_share_directory("r0192_description")
     r0192_controller_share  = get_package_share_directory("r0192_controller")
@@ -90,16 +108,36 @@ def generate_launch_description():
         actions=[
             IncludeLaunchDescription(
                 os.path.join(r0192_moveit_share, "launch", "moveit.launch.py"),
-                launch_arguments={"is_sim": "False"}.items(),
+                launch_arguments={
+                    "is_sim": "False",
+                    "use_rviz": LaunchConfiguration("use_rviz"),
+                }.items(),
             )
         ],
     )
 
+    # 8. Rosbridge WebSocket – Bridge für Foxglove Studio (MacBook), Port 9090
+    #    Verbindungstyp in Foxglove Studio: "Rosbridge WebSocket" → ws://<ip>:9090
+    rosbridge = Node(
+        package="rosbridge_server",
+        executable="rosbridge_websocket",
+        name="rosbridge_websocket",
+        output="screen",
+        parameters=[{
+            "port": 9090,
+            "use_sim_time": False,
+        }],
+        condition=IfCondition(LaunchConfiguration("use_foxglove")),
+    )
+
     return LaunchDescription([
+        use_rviz_arg,
+        use_foxglove_arg,
         robot_state_publisher,
         controller_manager,
         joint_state_broadcaster_spawner,
         arm_controller_spawner,
         gripper_controller_spawner,
         moveit_and_rviz,
+        rosbridge,
     ])

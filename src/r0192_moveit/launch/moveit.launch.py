@@ -3,6 +3,7 @@ from launch import LaunchDescription
 from moveit_configs_utils import MoveItConfigsBuilder
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 
@@ -10,10 +11,17 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
 
     is_sim = LaunchConfiguration("is_sim")
+    use_rviz = LaunchConfiguration("use_rviz")
 
     is_sim_arg = DeclareLaunchArgument(
         "is_sim",
         default_value="True"
+    )
+
+    use_rviz_arg = DeclareLaunchArgument(
+        "use_rviz",
+        default_value="true",
+        description="Launch RViz with MoveIt plugin"
     )
 
     moveit_config = (
@@ -64,10 +72,12 @@ def generate_launch_description():
             moveit_config.robot_description_kinematics,
             moveit_config.joint_limits,
         ],
+        condition=IfCondition(use_rviz),
     )
 
     return LaunchDescription([
         is_sim_arg,
+        use_rviz_arg,
         move_group_node,
         rviz_node,
     ])
