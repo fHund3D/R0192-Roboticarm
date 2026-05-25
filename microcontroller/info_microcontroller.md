@@ -1,0 +1,3 @@
+Hier ist der Code für die Homingsequenz abgelegt. Dieser läuft auf einem Microcontroller. Dieser ist zurzeit ein Arduino Uno R3 (zum Testen) und soll nachher umgerüstet werden auf einen Seeed Studio Xioa ESP32-S3. 
+
+Der Microcontroller soll von dem Hallsensor (TEL4905L) ein Signal bekommen, wenn der an der Achse bewächstigete Magent vorbeifährt und das Magentfeld ändert --> TEL4905L == LOW --> Microcontroller gibt das Signal weiter über Canbus

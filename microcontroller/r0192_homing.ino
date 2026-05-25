@@ -11,7 +11,7 @@ const bool DEBUG_MODE = true; // Auf 'false' setzen, um alle seriellen Ausgaben 
 
 // --- Pin-Definitionen für Arduino Uno R3 ---
 const int SPI_CS_PIN = 10;      // Chip Select für MCP2515 (Pin 10)
-const int HALL_SENSOR_PIN = 3;  // Signal-Pin für TLE4935L (Pin 3)
+const int HALL_SENSOR_PIN = 3;  // Signal-Pin für TLE4905L (Pin 3)
 
 // --- CAN-Bus Konfiguration ---
 MCP2515 mcp2515(SPI_CS_PIN);
@@ -82,7 +82,7 @@ void loop() {
 
   // 2. Homing-Prozess (wird nur ausgeführt, wenn isHomingActive == true)
   if (isHomingActive) {
-    // TLE4935L schaltet auf LOW, wenn der Magnet erkannt wird
+    // TLE4905L schaltet auf LOW, wenn der Magnet erkannt wird
     if (digitalRead(HALL_SENSOR_PIN) == LOW) {
       if (DEBUG_MODE) Serial.println(">>> Nullpunkt (Magnet) detektiert! Sende Bestätigung...");
 

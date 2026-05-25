@@ -25,7 +25,7 @@ Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf ein
   - Foxglove Studio: 3D-Ansicht, Buttons für E-Stop / Motor-Enable / Homing
   - ROS-Services für Bedienfunktionen implementieren
 - [ ] Globaler Software-Notaus (E-Stop) — über Foxglove-Button auslösbar
-- [ ] Homing-Sequenz mit TLE4935L Hall-Sensoren als Absolutreferenz
+- [ ] Homing-Sequenz mit TLE4905L Hall-Sensoren als Absolutreferenz
 - [ ] Echtzeit-Optimierung (RT-Kernel & CPU-Shielding auf RPi 5)
 
 #### Projektstruktur
@@ -62,7 +62,7 @@ MoveIt 2 ──► ros2_control (100 Hz, Closed-Loop)
 GDS68Driver              RS05Driver
 (Achsen 1–3)             (Achsen 4–6)
     └────────────┬────────────┘
-             SocketCAN (can0, 500 kbit/s)
+             SocketCAN (can0, 1 Mbit/s)
              MKS CANable Pro → Motoren
 ```
 
@@ -103,11 +103,11 @@ GDS68Driver              RS05Driver
 ### Elektronik & Steuerung
 * **Recheneinheit:** Raspberry Pi 5 (8GB RAM)
 * **CAN-Interface:** MKS CANable Pro (Isoliert), SocketCAN (`can0`)
-* **CAN-Bitrate:** 500 kbit/s (aktuell, GDS68 Werkseinstellung) → 1 Mbit/s (geplant)
+* **CAN-Bitrate:** 1 Mbit/s (info: 500 kbit/s GDS68 Werkseinstellung)
 * **Energieversorgung:**
     * Bus-Spannung: 48V (MeanWell LRS-600N2)
     * Logik-Spannung: 5V (MeanWell LRS-50)
-* **Sensorik:** Hall-Effekt-Sensoren (TLE4935L) für Nullpunktkalibrierung
+* **Sensorik:** Hall-Effekt-Sensoren (TLE4905L) für Nullpunktkalibrierung
 * **Schnittstellen:** XT60PW (Power-Bus), XT30PW (Motor-Abgriff), XH-2A (CAN-Bus)
 
 > **Hinweis zu URDF-Werten:** Alle Gelenkgrenzen, Trägheitsmomente und Schwerpunkte in der URDF sind derzeit Platzhalter und werden nach Abschluss des CAD-Designs mit realen Werten befüllt.
