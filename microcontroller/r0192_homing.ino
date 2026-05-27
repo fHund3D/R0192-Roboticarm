@@ -1,5 +1,5 @@
 #include <SPI.h>
-#include <mcp2515.h>
+#include <mcp2515.h>  //Library: autowp
 
 // --- Debug Konfiguration ---
 const bool DEBUG_MODE = true; // Auf 'false' setzen, um alle seriellen Ausgaben zu deaktivieren

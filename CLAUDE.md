@@ -51,7 +51,7 @@ Always consult these before implementing or modifying driver communication logic
 
 **Power supply**: 48 V bus (MeanWell LRS-600N2), 5 V logic (MeanWell LRS-50)  
 **Connectors**: XT60PW power bus, XT30PW motor tap, XH-2A CAN bus  
-**Homing**: TLE4935L Hall-effect sensors for zero-point calibration  
+**Homing**: TLE4905L Hall-effect sensors for zero-point calibration (one Arduino Uno R3 per axis via MCP2515 CAN transceiver)  
 
 ---
 
@@ -73,28 +73,34 @@ src/
 ## Architecture Overview
 
 ```
-Foxglove Studio (MacBook) ◄──── WebSocket ────► foxglove_bridge
-  [3D-Ansicht, Buttons:                              │  (RPi, Port 8765)
-   E-Stop, Enable, Homing]                           │
-                                                     ▼
-                                    MoveIt 2  ──►  ros2_control (100 Hz)
-                                                       │
-                                             ┌─────────┴──────────┐
-                                             │  arm_controller    │  gripper_controller
-                                             │ (JointTrajectory)  │  (JointTrajectory)
-                                             └─────────┬──────────┘
-                                                       │
-                                             R0192SystemHardware
-                                                read() / write()
-                                                       │
-                                              ┌────────┴────────┐
-                                         GDS68Driver       RS05Driver
-                                         (axes 1–3)        (axes 4–6)
-                                              └────────┬────────┘
-                                                   SocketCAN
-                                                   (can0 @ 1 Mbit/s)
+Web-Interface (MacBook/Browser) ──── HTTP/WS ────► r0192_remote (RPi)
+  [Operator-Pendant:                                      │
+   E-Stop, Enable, Homing, Arm-Steuerung]                 │
+                                                          ▼
+                                         MoveIt 2  ──►  ros2_control (100 Hz)
+                                                            │
+                                                  ┌─────────┴──────────┐
+                                                  │  arm_controller    │  gripper_controller
+                                                  │ (JointTrajectory)  │  (JointTrajectory)
+                                                  └─────────┬──────────┘
+                                                            │
+                                                  R0192SystemHardware
+                                                     read() / write()
+                                                            │
+                                                   ┌────────┴────────┐
+                                              GDS68Driver       RS05Driver
+                                              (axes 1–3)        (axes 4–6)
+                                                   └────────┬────────┘
+                                                        SocketCAN (can0 @ 1 Mbit/s)
+                                                            │
+                                             ┌──────────────┴──────────────┐
+                                        Arduino (Achse 1)  …  Arduino (Achse 6)
+                                         TLE4905L + MCP2515              (je 1 pro Achse)
+                                         Homing-Sensor-Node
 
-RViz (lokal, Debug) ◄──── selbe ROS-Topics (nur zur Fehlersuche)
+Debug (lokal):
+  RViz ◄──── ROS-Topics     Foxglove Studio ◄── foxglove_bridge (Port 8765)
+  (MoveIt-Planungspanel)     (Topic-Inspektion, Waveforms)
 ```
 
 **Feedback strategy per joint:**
@@ -223,53 +229,13 @@ ros2 launch r0192_moveit moveit.launch.py is_sim:=false
 
 ---
 
-## Operator Interface: Foxglove als Tech-Pendant
+## Operator Interface
 
-### Konzept
+### Geplantes Web-Interface (r0192_remote — Produktivbetrieb)
 
-Foxglove Studio auf dem MacBook ist das **Bedienpanel (Tech-Pendant)** des Roboterarms. Die gesamte Logik (MoveIt 2, Bahnplanung, CAN-Kommunikation) läuft auf dem RPi. Foxglove sendet Befehle als ROS-Topics/Services und empfängt Zustandsdaten zur Anzeige — über `foxglove_bridge` (WebSocket, bidirektional).
+Das zukünftige **Bedienpanel** ist ein eigenes Web-Interface / Programm, das auf dem MacBook (oder beliebigem Browser) läuft und den Roboterarm vollständig steuert. Es kommuniziert direkt mit dem RPi (ROS 2 Topics/Services über HTTP/WebSocket). Das Paket `r0192_remote` ist dafür vorgesehen.
 
-```
-MacBook (Foxglove Studio)
-  │  Foxglove WebSocket ws://<rpi-ip>:8765
-RPi (foxglove_bridge)
-  │  ROS 2 interne Topics & Services
-  ├── MoveIt 2 / ros2_control / Hardware Interface
-  └── CAN-Bus → Motoren
-```
-
-RViz bleibt als lokales **Debug-Werkzeug** bestehen (MoveIt-Planungspanel, Fehlersuche). Es hat keinen Platz im Produktivbetrieb, weil die Visualisierung auf dem RPi Ressourcen zieht.
-
-### Launch-Modi
-
-```bash
-# Produktivbetrieb: Foxglove als Bedienpanel, kein RViz
-ros2 launch r0192_bringup real_robot.launch.py use_rviz:=false use_foxglove:=true
-
-# Debug: lokales RViz + MoveIt-Plugin (Standard)
-ros2 launch r0192_bringup real_robot.launch.py use_rviz:=true
-```
-
-### Foxglove Bridge (RPi-Seite)
-
-```bash
-sudo apt install ros-jazzy-foxglove-bridge
-```
-
-Node-Konfiguration (in Launch):
-```python
-Node(
-    package='foxglove_bridge',
-    executable='foxglove_bridge',
-    parameters=[{'port': 8765}],
-)
-```
-
-**Hinweis**: Die native `foxglove_bridge` ist wesentlich performanter als die `rosbridge_suite` und unterstützt hochfrequente Daten wie TF oder JointStates deutlich besser. Foxglove Studio verbindet sich damit über den Verbindungstyp **"Foxglove WebSocket"** auf Port 8765. Stelle sicher, dass dein Foxglove Studio auf dem neuesten Stand ist, da neuere Versionen der Bridge das `foxglove.sdk.v1` Protokoll verwenden.
-
-### ROS-Interface für Bedienfunktionen (geplant)
-
-Die folgenden Topics/Services müssen noch implementiert werden — sie bilden das ROS-seitige Backend für die Foxglove-Bedienelemente:
+Geplante Bedienfunktionen und ihr ROS-Interface:
 
 | Funktion | ROS-Interface | Typ |
 |----------|--------------|-----|
@@ -279,15 +245,28 @@ Die folgenden Topics/Services müssen noch implementiert werden — sie bilden d
 | Arm-Status | `/diagnostics` | `diagnostic_msgs/DiagnosticArray` |
 | Trajektorie visualisieren | `/display_planned_path` | `moveit_msgs/DisplayTrajectory` |
 
-### Foxglove Studio (MacBook-Seite)
+### Foxglove Studio (Debug-Tool)
 
-- App: Foxglove Studio Desktop (download unter foxglove.dev)
-- Verbindung: **Foxglove WebSocket** → `ws://<rpi-ip>:8765`
-- URDF-Rendering: Panel **3D** → `robot_description` als Parameter-Topic
-- Bedienpanel: **Publish**-Panel oder custom Foxglove Extension (TypeScript) für Buttons (E-Stop, Enable, Homing)
-- Netzwerk: RPi und MacBook im selben LAN/WLAN; ggf. Firewall-Port 8765 öffnen
+Foxglove dient ausschließlich als **Debug-Werkzeug** (Topic-Inspektion, Waveform-Ansicht, TF-Visualisierung) — **kein Produktivbetrieb**. Die `foxglove_bridge` läuft optional via Launch-Argument.
 
-### Relevante Visualisierungs-Topics
+```bash
+# Debug mit Foxglove (zusätzlich zu oder statt RViz)
+ros2 launch r0192_bringup real_robot.launch.py use_foxglove:=true
+
+# Nur RViz (Standard-Debug)
+ros2 launch r0192_bringup real_robot.launch.py use_rviz:=true
+```
+
+Foxglove Bridge Setup (RPi):
+```bash
+sudo apt install ros-jazzy-foxglove-bridge
+```
+Node in Launch: `package='foxglove_bridge'`, `executable='foxglove_bridge'`, `port: 8765`  
+Verbindung in Foxglove Studio: **Foxglove WebSocket** → `ws://<rpi-ip>:8765`
+
+**Hinweis**: Die native `foxglove_bridge` ist wesentlich performanter als `rosbridge_suite`. Neuere Bridge-Versionen verwenden das `foxglove.sdk.v1` Protokoll — Foxglove Studio aktuell halten.
+
+### Relevante Debug-Topics
 
 | Topic | Inhalt |
 |-------|--------|
@@ -299,6 +278,63 @@ Die folgenden Topics/Services müssen noch implementiert werden — sie bilden d
 
 ---
 
+## Homing-Architektur (Arduino + TLE4905L)
+
+### Konzept
+
+Jede Achse hat einen **eigenen Arduino Uno R3** als dedizierter Homing-Node. Der Arduino verbindet sich über einen **MCP2515 SPI-CAN-Transceiver** mit dem CAN-Bus (1 Mbit/s, 8 MHz Quarz am MCP2515). Ein **TLE4905L** Hall-Effekt-Sensor detektiert einen an der rotierenden Achse befestigten Magneten.
+
+Aktueller Stand: **Achse 1 vollständig implementiert** — Arduino-Firmware (`microcontroller/r0192_homing.ino`) und ROS-seitiger Service (in `r0192_hardware`). Achsen 2–6 folgen mit identischer Firmware (nur CAN-IDs anpassen).
+
+### CAN-Protokoll (Pi ↔ Arduino)
+
+| Richtung | CAN-ID | DLC | Data | Bedeutung |
+|----------|--------|-----|------|-----------|
+| Pi → Arduino | `0x100` | 1 | axis_id | Homing-Befehl: Sensor scharf stellen |
+| Arduino → Pi | `0x000` | 1 | `0xFF` | Magnet erkannt: Achse stoppen |
+
+Arduino geht nach Senden der Bestätigung in **Standby** zurück (wartet auf nächsten `0x100`).
+
+### Homing-Ablauf (zweiseitiger Bisektionsalgorithmus)
+
+1. **Pass 1 (vorwärts)**: Pi aktiviert Homing-Modus (`0x100` → Arduino), sendet dann kontinuierlich Bewegungsbefehl in eine Richtung. Arduino überwacht TLE4905L (LOW = Magnet). Bei Detektion: Arduino sendet `0x00 / 0xFF` → Pi stoppt Achse. Position P1 merken.
+2. **Pass 2 (rückwärts)**: Gleicher Ablauf in Gegenrichtung. Pi schickt erneut `0x100`, bewegt Achse zurück bis Magnet wieder detektiert. Position P2 merken.
+3. **Mitte berechnen**: Magnet-Mittelpunkt = `(P1 + P2) / 2` → Achse auf Mittelpunkt fahren.
+4. **Zero setzen**: Achse auf gewünschte Nullposition fahren (ggf. mit konfiguriertem Offset zum Magnetmittelpunkt) und Encoder-Nullpunkt im Hardware Interface setzen.
+
+### ROS-seitiger Homing-Service (in `r0192_hardware`)
+
+Der `/homing`-Service ist **direkt im Hardware-Interface-Plugin** eingebettet, nicht als separater Node. Beim `on_activate()` wird automatisch ein Sub-Node `r0192_homing` mit dem Service erstellt.
+
+- Service: `/homing` (`std_srvs/Trigger`) — verfügbar solange das Hardware-Interface aktiviert ist
+- Während Homing: `homing_active_`-Flag sperrt `write()` für Achse 1 → kein Konflikt mit arm_controller
+- Arduino-ACK wird vom bestehenden `canRxThread()` erkannt und per `arduino_ack_`-Atomic weitergegeben
+- Nach Homing: `hw_positions_[joint_1]` und `hw_cmd_positions_[joint_1]` werden auf 0 synchronisiert
+
+Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value>`:
+
+| Parameter | Default | Bedeutung |
+|-----------|---------|-----------|
+| `homing_vel` | 0.15 | Suchgeschwindigkeit (rad/s) |
+| `homing_kd` | 2.0 | Velocity-Gain in MIT_Control (KD, KP=0) |
+| `hold_kp` | 30.0 | Positions-Gain nach Kantenerkennung |
+| `hold_kd` | 1.0 | Dämpfungs-Gain nach Kantenerkennung |
+| `zero_offset` | 0.0 | Offset vom Magnetmittelpunkt zur Nullposition (rad) |
+| `homing_timeout` | 60.0 | Max. Sekunden pro Sweep-Richtung |
+
+**Bekannte Einschränkung**: Nach Abschluss des Homings kann der arm_controller versuchen, die Achse auf eine vorherige Zielposition zurückzufahren (interne Trajektorie ist nicht synchronisiert). Für jetzt akzeptiert — später durch Controller-Deaktivierung während Homing beheben.
+
+### Arduino-Firmware Details
+
+- Bibliothek: `mcp2515` (autowp)
+- CAN-Bitrate: `CAN_1000KBPS`, MCP_8MHZ
+- Hall-Sensor-Pin: Digital 3 (INPUT_PULLUP), LOW = Magnet erkannt
+- CS-Pin MCP2515: Digital 10
+- Debug-Modus über `DEBUG_MODE`-Flag in der Firmware deaktivierbar
+- Für Achsen 2–6: `MSG_SLAVE_ID` (jetzt `0x100`) auf achsenspezifische ID anpassen
+
+---
+
 ## Key Open Tasks
 
 **Aktueller Teststand (2026-05): Achsen 1 + 4 vollständig getestet — CAN-Feedback, Positions-Tracking und MoveIt-Planung funktionieren auf beiden Achsen.**
@@ -307,12 +343,20 @@ Die folgenden Topics/Services müssen noch implementiert werden — sie bilden d
 - [x] Motor-Test: Achse 4 (RS05) über MoveIt — MIT_Control, CAN-Feedback, Positions-Tracking OK
 - [x] Encoder-Homing (on_activate) validiert: Hardware Interface setzt beim Start den internen Nullpunkt
 - [x] Achsen-Erkennung per CAN-Probe: `probePresent(200ms)` in `on_configure`, automatisches Passthrough für nicht angeschlossene Achsen
-- [ ] **Next: Foxglove Tech-Pendant einrichten**
-  - [x] `foxglove_bridge` in `real_robot.launch.py` integrieren (`use_foxglove` Launch-Arg, Port 8765)
-  - [ ] ROS-Services für E-Stop, Motor-Enable, Homing implementieren
-  - [ ] Foxglove Studio auf MacBook konfigurieren (3D-Panel, Publish-Panel für Buttons)
-- [ ] Echte Homing-Sequenz mit TLE4935L Hall-Sensoren als Absolutreferenz
-- [ ] Notaus-Implementierung (global software E-Stop) — Backend für Foxglove-Button
+- [x] `foxglove_bridge` in `real_robot.launch.py` integriert (nur als Debug-Tool, `use_foxglove` Launch-Arg, Port 8765)
+
+**Next: Homing-System (Arduino-basiert)**
+- [x] Arduino-Firmware für Achse 1 implementiert (`microcontroller/r0192_homing.ino`)
+- [x] ROS 2 Homing-Service `/homing` implementiert (eingebettet in `r0192_hardware`, `std_srvs/Trigger`)
+- [x] Zweiseitiger Bisektions-Algorithmus implementiert (P1 + P2 → Mittelpunkt → Zero setzen)
+- [x] `write()` wird während Homing gesperrt (`homing_active_` Flag), kein CAN-Konflikt mit ros2_control
+- [ ] Hardware-Test: Arduino-Homing auf Achse 1 end-to-end validieren (benötigt Arduino + Magnet an Achse)
+- [ ] Arduino-Firmware auf Achsen 2–6 erweitern (achsenspezifische `MSG_SLAVE_ID`)
+
+**Next: Web-Interface (r0192_remote)**
+- [ ] r0192_remote Paket aufbauen: Web-basiertes Bedienpanel als Operator-Interface
+- [ ] ROS-Services für E-Stop, Motor-Enable, Homing implementieren (Backend für Web-Interface)
+- [ ] Notaus-Implementierung (global software E-Stop)
 
 **Wenn weitere Motoren gekauft sind (Achsen 2, 3, 5, 6, Greifer):**
 - [ ] Passthrough durch echte Treiber-Instanzen ersetzen (GDS68 für 2+3, RS05 für 5+6)
@@ -322,7 +366,6 @@ Die folgenden Topics/Services müssen noch implementiert werden — sie bilden d
 **Später / System-Ebene:**
 - [ ] RT-Kernel / CPU-Shielding auf RPi 5 evaluieren
 - [x] CAN-Bitrate auf 1 Mbit/s erhöhen (beide Treiber konfigurieren)
-- [ ] r0192_remote: Web-basierte Fernsteuerung (MoveIt Action-Server aus Webbrowser ansprechen)
 - [ ] `on_init` Deprecation-Warnung: Migration auf `HardwareComponentInterfaceParams` API
 
 ---

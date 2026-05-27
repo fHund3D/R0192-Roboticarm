@@ -6,11 +6,14 @@
 #include <vector>
 #include <thread>
 #include <atomic>
+#include <limits>
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/executors/single_threaded_executor.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 // Treiber
 #include "r0192_canbus/CanCommunication.hpp"
@@ -73,6 +76,34 @@ private:
   // Diagnostic: log commanded vs actual position every ~5 s at 100 Hz loop rate.
   int diag_counter_ = 0;
   static constexpr int diag_interval_ = 500;
+
+  // --- Homing service (axis 1 only) ---
+  // Lives in its own node + executor thread so the service handler can block
+  // without interfering with the ros2_control real-time loop.
+  // While homing_active_ is true, write() skips axis-1 MIT_Control commands.
+  std::shared_ptr<rclcpp::Node>                               homing_node_;
+  rclcpp::executors::SingleThreadedExecutor::SharedPtr         homing_executor_;
+  std::thread                                                  homing_executor_thread_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr           homing_service_;
+  std::atomic<bool> homing_active_{false};
+  std::atomic<bool> arduino_ack_{false};
+
+  // Homing tuning — changeable at runtime via `ros2 param set /r0192_homing ...`
+  float  homing_vel_{0.15f};   // joint sweep speed (rad/s), KP=0 velocity mode
+  float  homing_kd_{2.0f};     // velocity gain in MIT_Control during sweep
+  float  hold_kp_{30.0f};      // position-hold KP after edge detection
+  float  hold_kd_{1.0f};       // position-hold KD after edge detection
+  float  zero_offset_{0.0f};   // offset from magnet midpoint to desired zero (rad)
+  double homing_timeout_{60.0}; // max seconds per sweep direction
+
+  // CAN IDs for the Arduino homing protocol
+  static constexpr uint32_t HOMING_ARM_CAN_ID = 0x100; // Pi → Arduino: arm sensor
+  static constexpr uint32_t HOMING_ACK_CAN_ID = 0x000; // Arduino → Pi: magnet detected
+  static constexpr uint8_t  HOMING_ACK_VAL    = 0xFF;
+
+  void runHomingSequence(std::shared_ptr<std_srvs::srv::Trigger::Response> resp);
+  float findHomingEdge(float direction);   // returns edge position or NaN on timeout
+  void  driveAxis1ToPosition(float target);
 };
 
 }  // namespace r0192_hardware

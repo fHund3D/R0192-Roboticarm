@@ -10,6 +10,7 @@ find_package(rclcpp REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(r0192_canbus REQUIRED)
+find_package(std_srvs REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/r0192_hardware_interface.cpp
@@ -25,6 +26,7 @@ ament_target_dependencies(${PROJECT_NAME}
   hardware_interface
   pluginlib
   r0192_canbus
+  std_srvs
 )
 
 pluginlib_export_plugin_description_file(hardware_interface r0192_hardware_plugin.xml)
