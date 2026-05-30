@@ -46,6 +46,9 @@ bool GDS68Driver::Set_Axis_State(uint32_t Axis_Requested_State) {
 
 // CMD 0x008 – MIT impedance control
 bool GDS68Driver::MIT_Control(float Position, float Speed, float KP_Value, float KD_Value, float Torque) {
+    // Command in homed joint coordinates → shift back into raw encoder frame.
+    { std::lock_guard<std::mutex> lock(data_mutex_); Position += home_offset_; }
+
     // 16-bit position, 12-bit vel/kp/kd/torque per GDS68 protocol
     uint16_t pos_int = static_cast<uint16_t>((std::clamp(Position, -12.5f, 12.5f) + 12.5f) * 65535.0f / 25.0f);
     uint16_t vel_int = static_cast<uint16_t>((std::clamp(Speed,    -65.0f,  65.0f) + 65.0f) * 4095.0f / 130.0f);
@@ -121,6 +124,17 @@ bool GDS68Driver::Set_Linear_Count(int32_t linear_count) {
     std::memcpy(&data[0], &linear_count, 4);
     RCLCPP_INFO(logger_, "Axis %d: Set_Linear_Count → %d (encoder zeroed at current position)", node_id_, linear_count);
     return comm_->sendFrame(createId(0x019), 4, data);
+}
+
+// Set the raw encoder position (rad) that should read as joint 0. After this,
+// get_current_position() returns (raw - offset) and MIT_Control() targets are
+// shifted by +offset. Works for the absolute encoder where Set_Linear_Count
+// has no lasting effect.
+void GDS68Driver::set_home_offset(float offset_rad) {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    home_offset_ = offset_rad;
+    RCLCPP_INFO(logger_, "Axis %d: home_offset set to %.4f rad (raw) → that position now reads 0",
+                node_id_, offset_rad);
 }
 
 // CMD 0x01C – Request torque feedback

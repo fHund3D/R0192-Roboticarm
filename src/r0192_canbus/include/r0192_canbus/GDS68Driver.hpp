@@ -21,7 +21,18 @@ public:
     bool Set_Input_Pos(float Input_Pos, uint32_t Duration_ms, float Vel_FF, float Torque_FF); // CMD 0x00C
     bool Set_Limits(float Velocity_Limit, float Current_Limit); // CMD 0x00F
     bool Clear_Errors(); // CMD 0x018
-    bool Set_Linear_Count(int32_t linear_count); // CMD 0x019 — zero encoder at current position
+    bool Set_Linear_Count(int32_t linear_count); // CMD 0x019 — zero encoder (incremental only; see set_home_offset)
+
+    // --- Software home offset ---
+    // The GDS68 uses an ODrive-style absolute encoder, so Set_Linear_Count(0)
+    // does NOT persist (the absolute reading overwrites it every cycle). Instead
+    // we apply a software offset: get_current_position() reports (raw - offset)
+    // and MIT_Control() commands (target + offset), so the rest of the stack can
+    // work in homed joint coordinates with 0 = home.
+    void  set_home_offset(float offset_rad);                       // raw pos that maps to joint 0
+    void  set_home_here() { set_home_offset(get_raw_position()); } // zero at current raw pos
+    float get_home_offset() { std::lock_guard<std::mutex> lock(data_mutex_); return home_offset_; }
+    float get_raw_position() { std::lock_guard<std::mutex> lock(data_mutex_); return current_pos_; }
     bool Get_Torques(); // CMD 0x01C
     bool Get_Powers(); // CMD 0x01D
     bool Save_Configuration(); // CMD 0x01F
@@ -33,7 +44,7 @@ public:
     void processFeedbackFrame(const struct can_frame &frame);
 
     // --- Standardisierte Getter für ROS 2 hardware_interface ---
-    float get_current_position() { std::lock_guard<std::mutex> lock(data_mutex_); return current_pos_; }
+    float get_current_position() { std::lock_guard<std::mutex> lock(data_mutex_); return current_pos_ - home_offset_; }
     float get_current_velocity() { std::lock_guard<std::mutex> lock(data_mutex_); return current_vel_; }
     float get_current_torque()   { std::lock_guard<std::mutex> lock(data_mutex_); return current_torque_; }
     float get_current_temp()     { std::lock_guard<std::mutex> lock(data_mutex_); return current_temp_; }
@@ -52,6 +63,7 @@ private:
 
     // --- Variablen zum Speichern der Ist-Werte aus processFeedbackFrame ---
     float current_pos_ = 0.0f;
+    float home_offset_ = 0.0f;   // raw encoder position (rad) that maps to joint 0
     float current_vel_ = 0.0f;
     float current_torque_ = 0.0f;
     float current_temp_ = 0.0f;  // Beim GDS68 ggf. über SDO auszulesen, bleibt ansonsten 0.0f

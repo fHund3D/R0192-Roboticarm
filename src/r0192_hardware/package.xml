@@ -14,6 +14,7 @@
   <depend>pluginlib</depend>
   <depend>r0192_canbus</depend>
   <depend>std_srvs</depend>
+  <depend>controller_manager_msgs</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

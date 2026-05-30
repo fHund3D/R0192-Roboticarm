@@ -282,47 +282,64 @@ Verbindung in Foxglove Studio: **Foxglove WebSocket** → `ws://<rpi-ip>:8765`
 
 ### Konzept
 
-Jede Achse hat einen **eigenen Arduino Uno R3** als dedizierter Homing-Node. Der Arduino verbindet sich über einen **MCP2515 SPI-CAN-Transceiver** mit dem CAN-Bus (1 Mbit/s, 8 MHz Quarz am MCP2515). Ein **TLE4905L** Hall-Effekt-Sensor detektiert einen an der rotierenden Achse befestigten Magneten.
+Jede Achse hat einen **eigenen Arduino Uno R3 (später den Seeed Studio XIAO ESP32-S3)** als dedizierter Homing-Node. Der Arduino verbindet sich über einen **MCP2515 SPI-CAN-Transceiver** mit dem CAN-Bus (1 Mbit/s, 8 MHz Quarz am MCP2515). Ein **TLE4905L** Hall-Effekt-Sensor detektiert einen an der rotierenden Achse befestigten Magneten.
 
 Aktueller Stand: **Achse 1 vollständig implementiert** — Arduino-Firmware (`microcontroller/r0192_homing.ino`) und ROS-seitiger Service (in `r0192_hardware`). Achsen 2–6 folgen mit identischer Firmware (nur CAN-IDs anpassen).
 
 ### CAN-Protokoll (Pi ↔ Arduino)
 
-| Richtung | CAN-ID | DLC | Data | Bedeutung |
-|----------|--------|-----|------|-----------|
-| Pi → Arduino | `0x100` | 1 | axis_id | Homing-Befehl: Sensor scharf stellen |
-| Arduino → Pi | `0x000` | 1 | `0xFF` | Magnet erkannt: Achse stoppen |
+Beide Richtungen nutzen **dieselbe achsenspezifische CAN-ID** (Achse 1 = `0x100`, Achse 2 = `0x101`, … Achse 6 = `0x105`). Die Bedeutung steckt im **Daten-Byte `Data[0]`** (Message-Code), nicht in der ID. So spart man eine zweite ID pro Achse und der Bus bleibt übersichtlich. Da der Bus pro Achse nur zwei Teilnehmer hat (Pi + ein Arduino) und der Arduino seine eigenen TX-Frames nicht zurückliest, gibt es keine Verwechslung.
 
-Arduino geht nach Senden der Bestätigung in **Standby** zurück (wartet auf nächsten `0x100`).
+| Richtung | CAN-ID | DLC | `Data[0]` | Code | Bedeutung |
+|----------|--------|-----|-----------|------|-----------|
+| Pi → Arduino   | `0x100` | 1 | `0x01` | `CMD_ARM`     | Sensor scharf stellen (Überwachung starten) |
+| Arduino → Pi   | `0x100` | 1 | `0xFF` | `RSP_DETECTED`| Magnet erkannt → Pi stoppt Achse |
+| Arduino → Pi   | `0x100` | 1 | `0xEE` | `RSP_ERROR`   | Fehler/Timeout: kein Magnet innerhalb der Zeit gefunden |
 
-### Homing-Ablauf (zweiseitiger Bisektionsalgorithmus)
+Der Arduino reagiert **nur** auf Frames mit korrekter ID **und** `Data[0] == CMD_ARM`; alle anderen Frames (inkl. eventueller Antwort-Frames) werden ignoriert. Nach Senden von `RSP_DETECTED` oder `RSP_ERROR` geht der Arduino in **Standby** zurück (wartet auf nächstes `CMD_ARM`).
 
-1. **Pass 1 (vorwärts)**: Pi aktiviert Homing-Modus (`0x100` → Arduino), sendet dann kontinuierlich Bewegungsbefehl in eine Richtung. Arduino überwacht TLE4905L (LOW = Magnet). Bei Detektion: Arduino sendet `0x00 / 0xFF` → Pi stoppt Achse. Position P1 merken.
-2. **Pass 2 (rückwärts)**: Gleicher Ablauf in Gegenrichtung. Pi schickt erneut `0x100`, bewegt Achse zurück bis Magnet wieder detektiert. Position P2 merken.
-3. **Mitte berechnen**: Magnet-Mittelpunkt = `(P1 + P2) / 2` → Achse auf Mittelpunkt fahren.
-4. **Zero setzen**: Achse auf gewünschte Nullposition fahren (ggf. mit konfiguriertem Offset zum Magnetmittelpunkt) und Encoder-Nullpunkt im Hardware Interface setzen.
+### Homing-Ablauf (zweiseitiger Kantenanlauf)
 
-### ROS-seitiger Homing-Service (in `r0192_hardware`)
+Der Magnet hat eine endliche Breite — der TLE4905L löst je nach Anfahrtrichtung an einer anderen Kante aus. Der wahre Mittelpunkt liegt zwischen beiden Schaltkanten. Statt nach der ersten Detektion in die Gegenrichtung zu sweepen, bis der Sensor _irgendwo_ wieder auslöst, wird gezielt nur ein kleines Stück über die erste Kante hinausgefahren und dann von der anderen Seite zurück angefahren. Da die ungefähre Lage nach Pass 1 bekannt ist, ist das deutlich schneller und genauer.
 
-Der `/homing`-Service ist **direkt im Hardware-Interface-Plugin** eingebettet, nicht als separater Node. Beim `on_activate()` wird automatisch ein Sub-Node `r0192_homing` mit dem Service erstellt.
+- **Vorbedingungen**: Zu Beginn wird `home_offset_` auf 0 zurückgesetzt (Sequenz läuft komplett in Roh-Koordinaten — sonst korrumpiert ein zweiter Homing-Lauf den Offset). Danach **Range-Check**: liegt die rohe Encoder-Position außerhalb `±max_start_angle` (Default ±π ≈ ±180°), bricht der Service mit Fehler ab. ±180° ist wichtig, weil der GDS68 eine **kontinuierliche Mehrumdrehungs-Position** liefert (siehe Gotchas) — der Magnet erscheint sonst alle 2π erneut (mehrere Lösungen). Pass 1 muss daher **in Richtung des Magneten** sweepen (`search_dir`), damit er innerhalb ±180° gefunden wird.
+0. **Vorab-Check (schon auf Magnet?)**: Pi schickt `CMD_ARM` und hält die Achse ~500 ms still. Meldet der Arduino sofort `RSP_DETECTED`, sitzt die Achse bereits auf dem Magneten — dann wird **entgegen der Pass-1-Richtung** (`−search_dir`) um `overshoot_angle` zurückgefahren, um den Magneten zu verlassen. Sonst wäre die erste Kantenerkennung mitten im Magneten und damit undefiniert.
+1. **Pass 1 (Kante A)**: Pi schickt `CMD_ARM` an den Arduino, fährt die Achse dann **langsam** (`homing_vel`, klein für hohe Positionsgenauigkeit) in `search_dir`-Richtung. Arduino überwacht TLE4905L (LOW = Magnet). Bei Detektion sendet er `RSP_DETECTED` → Pi stoppt sofort. Position **P1** merken.
+2. **Überfahren**: Pi fährt in **gleicher Richtung** noch ~25° (`overshoot_angle`) weiter, bis der Magnet sicher verlassen ist (Sensor wieder HIGH). Damit ist der Anlauf für Pass 2 von der Gegenseite frei.
+3. **Pass 2 (Kante B)**: Pi schickt erneut `CMD_ARM`, fährt die Achse jetzt **in Gegenrichtung** langsam zurück, bis der Arduino den Magneten erneut detektiert (`RSP_DETECTED`). Position **P2** merken — dies ist die gegenüberliegende Schaltkante.
+4. **Mitte berechnen**: Magnet-Mittelpunkt = `(P1 + P2) / 2` → Achse auf Mittelpunkt fahren.
+5. **Zero setzen**: Achse auf gewünschte Nullposition fahren (`zero_target = Mitte + zero_offset`) und **Software-Home-Offset** im GDS68-Treiber setzen (`set_home_offset(zero_target)`). **Nicht** `Set_Linear_Count(0)`: der GDS68 nutzt einen ODrive-artigen **Absolut-Encoder**, dessen Position jeden Zyklus aus dem Absolutwert neu abgeleitet wird — `Set_Linear_Count` hält also nicht. Der Offset ist encoder-unabhängig (siehe CAN-Protokoll-Abschnitt).
 
-- Service: `/homing` (`std_srvs/Trigger`) — verfügbar solange das Hardware-Interface aktiviert ist
-- Während Homing: `homing_active_`-Flag sperrt `write()` für Achse 1 → kein Konflikt mit arm_controller
-- Arduino-ACK wird vom bestehenden `canRxThread()` erkannt und per `arduino_ack_`-Atomic weitergegeben
-- Nach Homing: `hw_positions_[joint_1]` und `hw_cmd_positions_[joint_1]` werden auf 0 synchronisiert
+Antwortet der Arduino in Pass 1 oder Pass 2 mit `RSP_ERROR` (oder kommt innerhalb `homing_timeout` gar keine Antwort), bricht der Service mit `success=false` ab und die Achse bleibt unkalibriert.
+
+### ROS-seitiger Homing-Service (`HomingController` in `r0192_hardware`)
+
+Die Homing-Logik ist in eine **eigene Klasse `HomingController`** ausgelagert ([homing_controller.hpp](src/r0192_hardware/include/r0192_hardware/homing_controller.hpp) / [homing_controller.cpp](src/r0192_hardware/src/homing_controller.cpp)), damit das Hardware-Interface auf die Echtzeit-`read()`/`write()`-Schleife fokussiert bleibt. Das Hardware-Interface erstellt im `on_activate()` (nur wenn Achse 1 vorhanden) eine Instanz und ruft `start()`; im `on_deactivate()` `stop()`.
+
+- Der `HomingController` besitzt einen **eigenen Node `r0192_homing`** + `/homing`-Service (`std_srvs/Trigger`) + Executor-Thread → blockierende Sequenz stört die 100-Hz-Schleife nicht.
+- Während Homing: `homing_->isActive()` sperrt `write()` für Achse 1 → kein Konflikt mit arm_controller.
+- Arduino-Antworten werden vom bestehenden `canRxThread()` erkannt und per `homing_->notifyArduinoFrame(data[0])` weitergegeben (filtert auf `RSP_DETECTED`/`RSP_ERROR`).
+- Nach dem Re-Zeroing ruft der Controller den `on_zeroed`-Callback des Hardware-Interfaces → **alle Achsen** werden auf die Home-Pose (0) gesetzt (State + Command), damit RViz/MoveIt nach dem Homing einen sauberen Nullzustand ohne Phantom-Offsets zeigen. Ausnahme: eine *echte*, nicht gehomte Achse (nur joint_4 möglich) wird übersprungen — ihr State kommt aus dem CAN-Feedback, ein erzwungenes 0-Kommando würde sie real fahren. Aktuell ist außer Achse 1 nichts eingesteckt, d. h. alle übrigen Achsen sind virtuell und werden sauber auf 0 gesetzt.
+- Protokoll-Konstanten (`AXIS_CAN_ID`, `CMD_ARM`, `RSP_DETECTED`, `RSP_ERROR`) sind im `HomingController` definiert und mit der Arduino-Firmware konsistent zu halten.
 
 Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value>`:
 
 | Parameter | Default | Bedeutung |
 |-----------|---------|-----------|
-| `homing_vel` | 0.15 | Suchgeschwindigkeit (rad/s) |
-| `homing_kd` | 2.0 | Velocity-Gain in MIT_Control (KD, KP=0) |
-| `hold_kp` | 30.0 | Positions-Gain nach Kantenerkennung |
-| `hold_kd` | 1.0 | Dämpfungs-Gain nach Kantenerkennung |
+| `homing_vel` | 0.3 | Suchgeschwindigkeit (rad/s) — Rampenrate des Positions-Sollwerts beim Sweep |
+| `search_kp` | 20.0 | Positions-Gain (KP) während des Sweeps — gibt dem Motor genug Moment, um dem rampenden Sollwert zu folgen |
+| `homing_kd` | 1.0 | Velocity-Gain (KD) während des Sweeps |
+| `move_vel` | 0.5 | Geschwindigkeit (rad/s) für Überfahrt (25°) und Anfahrt der Mitte — Rampenrate, damit nicht zu schnell angefahren wird |
+| `hold_kp` | 50.0 | Positions-Gain (KP) für Moves / Halten nach Kantenerkennung |
+| `hold_kd` | 1.0 | Dämpfungs-Gain (KD) für Moves / Halten nach Kantenerkennung |
+| `overshoot_angle` | 0.436 | Weiterfahrt in gleicher Richtung nach Kante A, bevor Pass 2 startet (rad, ≈ 25°) |
 | `zero_offset` | 0.0 | Offset vom Magnetmittelpunkt zur Nullposition (rad) |
-| `homing_timeout` | 60.0 | Max. Sekunden pro Sweep-Richtung |
+| `search_dir` | −1.0 | Sweep-Richtung von Pass 1 (+1/−1) — **zum Magneten hin** wählen, damit er innerhalb ±180° gefunden wird (Achse 1: Magnet bei ≈ −1.87 rad → −1.0) |
+| `max_start_angle` | 3.1416 | Range-Check beim Start: Abbruch wenn \|rohe Position\| > diesem Wert (rad, ≈ ±180°). ±180° macht den Magneten eindeutig (sonst mehrere Lösungen pro Umdrehung) |
+| `homing_timeout` | 60.0 | Max. Sekunden pro Anlauf-Richtung (Pi-seitig); zusätzlich eigener Timeout im Arduino |
+| `managed_controller` | `arm_controller` | Controller, der während des Homings deaktiviert und danach reaktiviert wird |
 
-**Bekannte Einschränkung**: Nach Abschluss des Homings kann der arm_controller versuchen, die Achse auf eine vorherige Zielposition zurückzufahren (interne Trajektorie ist nicht synchronisiert). Für jetzt akzeptiert — später durch Controller-Deaktivierung während Homing beheben.
+**Controller-Handling während Homing**: Zu Beginn der Sequenz wird `managed_controller` (Default `arm_controller`) über `/controller_manager/switch_controller` **deaktiviert** und am Ende wieder **aktiviert**. Sonst würde der JointTrajectoryController nach dem Re-Zeroing die Achse sofort auf seinen alten (vor dem Homing gesetzten) Sollwert zurückfahren — bei Reaktivierung liest der JTC stattdessen den aktuellen Zustand (joint_1 = 0) ein und hält dort. Der Service-Call läuft auf einem separaten Client-Node (`r0192_homing_client`), damit er aus dem blockierenden `/homing`-Callback heraus gespint werden kann. Ist der Controller-Manager nicht erreichbar, wird nur gewarnt und das Homing läuft trotzdem durch.
 
 ### Arduino-Firmware Details
 
@@ -330,8 +347,10 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - CAN-Bitrate: `CAN_1000KBPS`, MCP_8MHZ
 - Hall-Sensor-Pin: Digital 3 (INPUT_PULLUP), LOW = Magnet erkannt
 - CS-Pin MCP2515: Digital 10
-- Debug-Modus über `DEBUG_MODE`-Flag in der Firmware deaktivierbar
-- Für Achsen 2–6: `MSG_SLAVE_ID` (jetzt `0x100`) auf achsenspezifische ID anpassen
+- **CAN-ID**: eine einzige achsenspezifische ID (`AXIS_CAN_ID`, Achse 1 = `0x100`) für RX **und** TX; Unterscheidung über `Data[0]`-Code (`CMD_ARM` / `RSP_DETECTED` / `RSP_ERROR`). Für Achsen 2–6 nur `AXIS_CAN_ID` anpassen (`0x101`…`0x105`).
+- **Arming-Bedingung**: Arduino wird nur scharf, wenn `can_id == AXIS_CAN_ID` **und** `Data[0] == CMD_ARM` (`0x01`). Andere Frames werden ignoriert.
+- **Timeout im Arduino**: Nach Empfang von `CMD_ARM` läuft ein Timeout (`HOMING_TIMEOUT_MS`, z. B. 30000 ms). Wird der Magnet bis dahin nicht erkannt, sendet der Arduino `RSP_ERROR` (`0xEE`) und geht in Standby — er hängt **nicht** mehr in der Schleife fest. (Vorher: kein Timeout → Endlosschleife bei fehlendem Hall-Signal.)
+- **Debug-Modus**: `DEBUG_MODE`-Flag schaltet serielle Ausgaben global ab. Im aktivierten Zustand wird **nur** geloggt, was die eigene `AXIS_CAN_ID` betrifft (gefiltert in `printCanFrame` / Empfangslogik) — Frames anderer Achsen werden nicht ausgegeben, damit der Monitor bei mehreren Arduinos am selben Bus lesbar bleibt.
 
 ---
 
@@ -348,9 +367,23 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 **Next: Homing-System (Arduino-basiert)**
 - [x] Arduino-Firmware für Achse 1 implementiert (`microcontroller/r0192_homing.ino`)
 - [x] ROS 2 Homing-Service `/homing` implementiert (eingebettet in `r0192_hardware`, `std_srvs/Trigger`)
-- [x] Zweiseitiger Bisektions-Algorithmus implementiert (P1 + P2 → Mittelpunkt → Zero setzen)
-- [x] `write()` wird während Homing gesperrt (`homing_active_` Flag), kein CAN-Konflikt mit ros2_control
-- [ ] Hardware-Test: Arduino-Homing auf Achse 1 end-to-end validieren (benötigt Arduino + Magnet an Achse)
+- [x] `write()` wird während Homing gesperrt (`homing_->isActive()`), kein CAN-Konflikt mit ros2_control
+- [x] Homing-Logik in eigene Klasse `HomingController` ausgelagert (`homing_controller.hpp`/`.cpp`)
+- [x] Protokoll auf einheitliche ID + Daten-Codes umgestellt (eine `AXIS_CAN_ID` für RX/TX, `CMD_ARM`/`RSP_DETECTED`/`RSP_ERROR` in `Data[0]`) — Firmware **und** `r0192_hardware`
+- [x] Arduino-Timeout ergänzt (`HOMING_TIMEOUT_MS` → `RSP_ERROR`), kein Hängenbleiben bei fehlendem Hall-Signal
+- [x] Debug-Filter in Firmware: nur Frames der eigenen `AXIS_CAN_ID` werden geloggt
+- [x] Algorithmus auf Kantenanlauf umgestellt (Kante A → `overshoot_angle` überfahren → Kante B → Mitte)
+- [x] Sweep + Moves auf gerampten Positions-Sollwert umgestellt (`search_kp`/`move_vel`) — Motor fährt selbst, keine Snaps mehr
+- [x] `arm_controller` wird während Homing via `switch_controller` deaktiviert/reaktiviert (kein Zurückfahren auf alten Sollwert nach dem Homing)
+- [x] Nullsetzen über Software-Home-Offset im GDS68-Treiber statt `Set_Linear_Count(0)` (Absolut-Encoder → 0x019 hält nicht)
+- [x] Nach Homing wird die komplette Home-Pose (alle Achsen 0) gesetzt — Achse 1 + virtuelle Achsen, echte Nicht-Home-Achse (joint_4) ausgenommen
+- [x] Doppel-Homing-Bug behoben: `home_offset_` wird zu Beginn jeder Sequenz auf 0 zurückgesetzt (Sequenz arbeitet in Roh-Koordinaten)
+- [x] Vorab-Check „schon auf Magnet?" + Zurückfahren entgegen Pass-1-Richtung
+- [x] Range-Check beim Start (`max_start_angle`, Default ±π = ±180°) — eindeutiger Magnet trotz kontinuierlicher Mehrumdrehungs-Position
+- [x] Sweep-Richtung konfigurierbar (`search_dir`, Default −1.0 für Achse 1) — Magnet wird innerhalb ±180° gefunden
+- [x] joint_1 Drehrichtung korrigiert (URDF-Achse `0 0 -1`) — Modell dreht wie echter Motor
+- [ ] Hardware-Test: Nach Homing meldet joint_1 ≈ 0 (≈ −1.87 roh) und hält die Magnet-Mitte; Re-Homing klappt; Richtung in RViz korrekt
+- [ ] Optional: Start-Zeroing in `on_activate()` ebenfalls auf `set_home_here()` umstellen (0x008/0x009-Skala beachten)
 - [ ] Arduino-Firmware auf Achsen 2–6 erweitern (achsenspezifische `MSG_SLAVE_ID`)
 
 **Next: Web-Interface (r0192_remote)**
@@ -375,6 +408,9 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - **joint_7 URDF-Limit falsch**: `lower="0.15" upper="0.0"` — lower > upper ist ungültig. MoveIt kann Greifer-Planung ablehnen. Korrigieren auf `lower="0.0" upper="0.025"` (oder echte CAD-Werte).
 - **MIT Control KP/KD**: Werden jetzt aus `<param name="kp">` / `<param name="kd">` in `r0192_ros2_control.xacro` geladen (joint_1: KP=50/KD=1, joint_4: KP=30/KD=0.5). Werte dort anpassen — kein Rebuild nötig (symlink-install), nur neu starten.
 - **GDS68 Feedback-Routing in canRxThread**: `(std_id >> 5) == 0x01` matched nur Achse 1. Wenn Achsen 2 und 3 später hinzukommen, Routing erweitern.
+- **GDS68 kontinuierliche Mehrumdrehungs-Position / `Set_Linear_Count` hält nicht**: Der GDS68 (ODrive-Protokoll) liefert eine **kontinuierliche Position über mehrere Umdrehungen** (kein Single-Turn-Absolutwert). Folgen: (1) Der Magnet erscheint je nach Umdrehungszahl bei `magnet ± k·2π` (im Test bei −1.87 / +4.43 / +10.71 rad). Deshalb Range-Check `±max_start_angle` (±180°) beim Homing-Start → eindeutige Lösung. (2) `Set_Linear_Count(0)` (CMD 0x019) wird vom kontinuierlichen Positionswert sofort überschrieben. Nullsetzen erfolgt daher über einen **Software-Offset** im Treiber: `set_home_offset(raw)` / `set_home_here()`; `get_current_position()` liefert `raw − offset`, `MIT_Control()` addiert den Offset wieder auf. Das Homing nutzt das (setzt Offset zu Beginn auf 0, rechnet in Roh-Koordinaten, am Ende `set_home_offset(zero_target)`). **Achtung**: `on_activate()` ruft beim Start noch `Set_Linear_Count(0)` auf (Altlast, wirkungslos) und setzt `hw_cmd` auf die rohe Startposition — bis ein Homing gelaufen ist, meldet joint_1 den Rohwert (ggf. außerhalb der URDF-Limits). Später ggf. Start-Zeroing auf `set_home_here()` umstellen.
+- **joint_1 Drehrichtung / URDF-Achse**: Der reale Motor dreht entgegen der Modell-Default-Richtung. Korrigiert über `<axis xyz="0 0 -1"/>` für joint_1 in `r0192.urdf.xacro` (statt `0 0 1`) — sonst dreht das RViz-Modell spiegelverkehrt zum echten Motor. Der Regelkreis selbst ist korrekt (Encoder-/Command-Vorzeichen konsistent, Ziele werden erreicht); es war rein eine Modell-Konvention.
+- **GDS68 Positions-Skala 0x008 vs 0x009**: MIT-Feedback (0x008) liefert Position im ±12.5-rad-Feld, Encoder-Estimates (0x009) in Umdrehungen mit Getriebefaktor (`revToRad`, 8:1). `current_pos_` wird von beiden Frames gefüllt — im MIT-Betrieb kommen nur 0x008-Frames, daher konsistent. Wird zur Laufzeit `Get_Encoder_Estimates()` aufgerufen, mischt sich die Skala. Home-Offset wird im Homing in 0x008-Skala gesetzt (Sweep nutzt MIT_Control) und ist damit konsistent zum Laufzeitbetrieb.
 - **Deprecation-Warnung**: `on_init(const HardwareInfo&)` ist in Jazzy deprecated. Funktioniert noch, Migration auf `HardwareComponentInterfaceParams` ist ausstehend.
 - **Simulation Launch**: `simulated_robot.launch.py` referenziert `r0192_remote` (noch nicht vorhanden) — beim Simulationsstart auskommentiert lassen.
 - **KDL IK**: Kann an Singularitäten scheitern. Alternativ: TRAC-IK oder pick_ik.

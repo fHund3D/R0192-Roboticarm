@@ -11,9 +11,11 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(r0192_canbus REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(controller_manager_msgs REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/r0192_hardware_interface.cpp
+  src/homing_controller.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -27,6 +29,7 @@ ament_target_dependencies(${PROJECT_NAME}
   pluginlib
   r0192_canbus
   std_srvs
+  controller_manager_msgs
 )
 
 pluginlib_export_plugin_description_file(hardware_interface r0192_hardware_plugin.xml)

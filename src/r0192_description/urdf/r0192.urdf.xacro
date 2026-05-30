@@ -221,7 +221,9 @@
         <parent link="base_link" />
         <child link="link_1" />
         <origin xyz="0 0 1.751" />
-        <axis xyz="0 0 1" />
+        <!-- -Z: motor's positive rotation is opposite the model's default +Z,
+             so the RViz model turns the same way as the physical axis 1. -->
+        <axis xyz="0 0 -1" />
         <limit lower="-${PI}" upper="${PI}"
             effort="${effort}" velocity="${velocity}" />
     </joint>

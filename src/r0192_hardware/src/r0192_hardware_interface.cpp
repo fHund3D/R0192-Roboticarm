@@ -119,30 +119,25 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
       RCLCPP_WARN(logger, "Activated in virtual mode — no CAN frames will be sent or received");
     }
 
-    // --- Homing service (axis 1) ---
+    // --- Homing (axis 1) ---
     if (axis1_present_) {
-      homing_node_ = std::make_shared<rclcpp::Node>("r0192_homing");
-
-      // Allow overriding tuning params at runtime:  ros2 param set /r0192_homing homing_vel 0.1
-      homing_vel_     = static_cast<float>(homing_node_->declare_parameter("homing_vel",     0.15));
-      homing_kd_      = static_cast<float>(homing_node_->declare_parameter("homing_kd",      2.0));
-      hold_kp_        = static_cast<float>(homing_node_->declare_parameter("hold_kp",        30.0));
-      hold_kd_        = static_cast<float>(homing_node_->declare_parameter("hold_kd",        1.0));
-      zero_offset_    = static_cast<float>(homing_node_->declare_parameter("zero_offset",    0.0));
-      homing_timeout_ = homing_node_->declare_parameter("homing_timeout", 60.0);
-
-      homing_service_ = homing_node_->create_service<std_srvs::srv::Trigger>(
-        "/homing",
-        [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
-               std::shared_ptr<std_srvs::srv::Trigger::Response> resp) {
-          runHomingSequence(resp);
-        });
-
-      homing_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
-      homing_executor_->add_node(homing_node_);
-      homing_executor_thread_ = std::thread([this]() { homing_executor_->spin(); });
-
-      RCLCPP_INFO(logger, "Homing service ready at /homing");
+      // on_zeroed callback: after axis 1 is re-zeroed, snap the whole arm to the
+      // home pose (all joints 0) so RViz/MoveIt show a clean zero and no phantom
+      // offsets appear when the controller resumes. State+command are forced to
+      // 0 for the homed axis and all virtual/passthrough joints. A REAL,
+      // non-homed axis (only joint_4 can be one) is skipped: its state comes
+      // from CAN feedback and forcing a 0 command would physically drive it.
+      auto on_zeroed = [this]() {
+        for (size_t i = 0; i < info_.joints.size(); ++i) {
+          if (info_.joints[i].name == "joint_4" && axis4_present_) continue;
+          hw_positions_[i]      = 0.0;
+          hw_velocities_[i]     = 0.0;
+          hw_cmd_positions_[i]  = 0.0;
+          hw_cmd_velocities_[i] = 0.0;  // also clears stale velocity feed-forward
+        }
+      };
+      homing_ = std::make_shared<HomingController>(axis1_, can_comm_, on_zeroed);
+      homing_->start();
     }
   } else {
     RCLCPP_WARN(logger, "Activated in virtual mode — no CAN frames will be sent or received");
@@ -156,13 +151,11 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclc
 {
   auto logger = rclcpp::get_logger("R0192Hardware");
 
-  // Homing service teardown (before stopping motors so homing_active_ check in write() still works)
-  if (homing_executor_) {
-    homing_executor_->cancel();
-    if (homing_executor_thread_.joinable()) homing_executor_thread_.join();
-    homing_executor_.reset();
-    homing_service_.reset();
-    homing_node_.reset();
+  // Homing teardown (before stopping motors so the isActive() gate in write()
+  // still behaves while the service thread winds down).
+  if (homing_) {
+    homing_->stop();
+    homing_.reset();
   }
 
   if (can_available_) {
@@ -272,7 +265,7 @@ hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /
 // ==============================================================================
 hardware_interface::return_type R0192SystemHardware::write(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  if (axis1_present_ && joint_index_.count("joint_1") && !homing_active_.load()) {
+  if (axis1_present_ && joint_index_.count("joint_1") && !(homing_ && homing_->isActive())) {
     const size_t i = joint_index_.at("joint_1");
     axis1_->MIT_Control(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
   }
@@ -301,10 +294,10 @@ void R0192SystemHardware::canRxThread()
         // Standard Frame (11-Bit)
         uint16_t std_id = frame.can_id & CAN_SFF_MASK;
 
-        // Arduino homing ACK: ID 0x000, data[0] == 0xFF → magnet detected
-        if (std_id == HOMING_ACK_CAN_ID && frame.can_dlc >= 1 && frame.data[0] == HOMING_ACK_VAL) {
-          RCLCPP_INFO(rclcpp::get_logger("R0192Hardware"), "Homing: Arduino ACK received — magnet detected");
-          arduino_ack_.store(true);
+        // Arduino homing response: shares AXIS_CAN_ID with the arm command,
+        // distinguished by data[0] (RSP_DETECTED / RSP_ERROR).
+        if (homing_ && std_id == HomingController::AXIS_CAN_ID && frame.can_dlc >= 1) {
+          homing_->notifyArduinoFrame(frame.data[0]);
         }
 
         // GDS68 feedback: can_id = (node_id << 5) | cmd  → node_id == 0x01
@@ -314,141 +307,6 @@ void R0192SystemHardware::canRxThread()
       }
     }
   }
-}
-
-// ==============================================================================
-// Homing sequence — runs in the homing executor thread (blocking service cb)
-// ==============================================================================
-
-// Arm the Arduino and drive axis 1 at homing_vel_ until the Hall sensor fires.
-// Returns the joint position at detection, or NaN on timeout.
-float R0192SystemHardware::findHomingEdge(float direction)
-{
-  using namespace std::chrono_literals;
-  auto logger = rclcpp::get_logger("R0192Hardware");
-
-  arduino_ack_.store(false);
-
-  // Arm the Arduino homing sensor node for axis 1
-  uint8_t arm_data[1] = {0x01};
-  can_comm_->sendFrame(HOMING_ARM_CAN_ID, 1, arm_data);
-  RCLCPP_INFO(logger, "Homing: Arduino armed — sweeping axis 1 in %+.0f direction", (double)direction);
-  std::this_thread::sleep_for(100ms);
-
-  auto deadline = std::chrono::steady_clock::now() +
-                  std::chrono::duration<double>(homing_timeout_);
-
-  float vel = direction * homing_vel_;
-  while (!arduino_ack_.load()) {
-    if (std::chrono::steady_clock::now() >= deadline) {
-      RCLCPP_ERROR(logger, "Homing: timeout (%.0f s) — no Hall signal received", homing_timeout_);
-      float pos = axis1_->get_current_position();
-      axis1_->MIT_Control(pos, 0.0f, hold_kp_, hold_kd_, 0.0f);
-      return std::numeric_limits<float>::quiet_NaN();
-    }
-    // Velocity-mode MIT: KP=0, vel_ref=vel, KD=velocity_gain
-    float pos = axis1_->get_current_position();
-    axis1_->MIT_Control(pos, vel, 0.0f, homing_kd_, 0.0f);    //Anpassen!!!!!!!!!!!!!!!
-    std::this_thread::sleep_for(20ms);
-  }
-
-  float edge = axis1_->get_current_position();
-  axis1_->MIT_Control(edge, 0.0f, hold_kp_, hold_kd_, 0.0f);
-  RCLCPP_INFO(logger, "Homing: edge detected at %.4f rad", (double)edge);
-  return edge;
-}
-
-// Drive axis 1 to target and wait until it arrives (tolerance 0.02 rad ≈ 1°).
-void R0192SystemHardware::driveAxis1ToPosition(float target)
-{
-  using namespace std::chrono_literals;
-  auto logger  = rclcpp::get_logger("R0192Hardware");
-  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-
-  RCLCPP_INFO(logger, "Homing: driving to zero target %.4f rad", (double)target);
-  while (std::chrono::steady_clock::now() < deadline) {
-    float pos = axis1_->get_current_position();
-    axis1_->MIT_Control(target, 0.0f, hold_kp_, hold_kd_, 0.0f);
-    if (std::abs(pos - target) < 0.02f) break;
-    std::this_thread::sleep_for(20ms);
-  }
-  RCLCPP_INFO(logger, "Homing: arrived at zero target");
-}
-
-// Full bisection homing sequence (called from the /homing service callback).
-void R0192SystemHardware::runHomingSequence(
-  std::shared_ptr<std_srvs::srv::Trigger::Response> resp)
-{
-  using namespace std::chrono_literals;
-  auto logger = rclcpp::get_logger("R0192Hardware");
-
-  if (!axis1_present_) {
-    resp->success = false;
-    resp->message = "Axis 1 not present — homing aborted";
-    RCLCPP_ERROR(logger, "%s", resp->message.c_str());
-    return;
-  }
-
-  RCLCPP_INFO(logger, "===== HOMING SEQUENCE START =====");
-
-  // Gate ros2_control write() for axis 1 while homing
-  homing_active_.store(true);
-
-  // Ensure motor is enabled in position-control mode
-  axis1_->Set_Axis_State(8);
-  axis1_->Set_Controller_Mode(3, 1);
-  std::this_thread::sleep_for(300ms);
-
-  // Pass 1: sweep in positive direction → P1
-  float p1 = findHomingEdge(+1.0f);
-  if (std::isnan(p1)) {
-    homing_active_.store(false);
-    resp->success = false;
-    resp->message = "Homing failed: timeout on forward sweep";
-    RCLCPP_ERROR(logger, "%s", resp->message.c_str());
-    return;
-  }
-  std::this_thread::sleep_for(500ms);
-
-  // Pass 2: sweep in negative direction → P2
-  float p2 = findHomingEdge(-1.0f);
-  if (std::isnan(p2)) {
-    homing_active_.store(false);
-    resp->success = false;
-    resp->message = "Homing failed: timeout on reverse sweep";
-    RCLCPP_ERROR(logger, "%s", resp->message.c_str());
-    return;
-  }
-  std::this_thread::sleep_for(500ms);
-
-  // Bisect: magnet midpoint + optional offset = desired zero
-  float center      = (p1 + p2) / 2.0f;
-  float zero_target = center + zero_offset_;
-  RCLCPP_INFO(logger,
-    "Homing: P1=%.4f  P2=%.4f  center=%.4f  offset=%.4f  → zero_target=%.4f",
-    (double)p1, (double)p2, (double)center, (double)zero_offset_, (double)zero_target);
-
-  driveAxis1ToPosition(zero_target);
-  std::this_thread::sleep_for(300ms);
-
-  // Zero the encoder at the current (physical zero) position
-  axis1_->Set_Linear_Count(0);
-  RCLCPP_INFO(logger, "Homing: encoder zeroed via Set_Linear_Count(0)");
-  std::this_thread::sleep_for(100ms);
-
-  // Sync the ros2_control state: report position 0 so joint_state_broadcaster
-  // reflects the new zero immediately when write() resumes.
-  if (joint_index_.count("joint_1")) {
-    const size_t i = joint_index_.at("joint_1");
-    hw_positions_[i]     = 0.0;
-    hw_cmd_positions_[i] = 0.0;  // prevent arm_controller from driving back to pre-homing pos
-  }
-
-  homing_active_.store(false);  // re-enable write() for axis 1
-
-  resp->success = true;
-  resp->message = "Homing complete — axis 1 at zero";
-  RCLCPP_INFO(logger, "===== HOMING COMPLETE =====");
 }
 
 }  // namespace r0192_hardware
