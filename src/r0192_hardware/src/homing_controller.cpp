@@ -30,13 +30,13 @@ void HomingController::start()
 
   // Allow overriding tuning params at runtime, e.g.
   //   ros2 param set /r0192_homing homing_vel 0.1
-  homing_vel_      = static_cast<float>(node_->declare_parameter("homing_vel",      0.3));
-  search_kp_       = static_cast<float>(node_->declare_parameter("search_kp",       20.0));
+  homing_vel_      = static_cast<float>(node_->declare_parameter("homing_vel",      0.2));
+  search_kp_       = static_cast<float>(node_->declare_parameter("search_kp",       35.0));
   homing_kd_       = static_cast<float>(node_->declare_parameter("homing_kd",       1.0));
   move_vel_        = static_cast<float>(node_->declare_parameter("move_vel",        0.5));
   hold_kp_         = static_cast<float>(node_->declare_parameter("hold_kp",         50.0));
   hold_kd_         = static_cast<float>(node_->declare_parameter("hold_kd",         1.0));
-  overshoot_angle_ = static_cast<float>(node_->declare_parameter("overshoot_angle", 0.436));  //größer anpassen!!!
+  overshoot_angle_ = static_cast<float>(node_->declare_parameter("overshoot_angle", 0.75));
   zero_offset_     = static_cast<float>(node_->declare_parameter("zero_offset",     0.0));
   search_dir_      = static_cast<float>(node_->declare_parameter("search_dir",      -1.0));
   max_start_angle_ = static_cast<float>(node_->declare_parameter("max_start_angle", M_PI));

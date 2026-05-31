@@ -1,14 +1,16 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 78
+    Help Height: 0
     Name: Displays
     Property Tree Widget:
       Expanded:
         - /Global Options1
         - /Status1
         - /MotionPlanning1
+        - /MotionPlanning1/Scene Robot1
+        - /MotionPlanning1/Planning Request1
       Splitter Ratio: 0.5
-    Tree Height: 177
+    Tree Height: 439
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -27,6 +29,8 @@ Panels:
     Name: Time
     SyncMode: 0
     SyncSource: ""
+  - Class: r0192_rviz_plugins::OperatorPanel
+    Name: OperatorPanel
 Visualization Manager:
   Class: ""
   Displays:
@@ -59,8 +63,6 @@ Visualization Manager:
       MoveIt_Planning_Attempts: 10
       MoveIt_Planning_Time: 5
       MoveIt_Use_Cartesian_Path: false
-      Planning_Pipeline: ompl
-      Planner_ID: RRTConnect
       MoveIt_Use_Constraint_Aware_IK: false
       MoveIt_Workspace:
         Center:
@@ -86,17 +88,7 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
             Value: true
-          base_plate:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          claw_support:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          forward_drive_arm:
+          gripper_base:
             Alpha: 1
             Show Axes: false
             Show Trail: false
@@ -111,15 +103,36 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
             Value: true
-          horizontal_arm:
+          link_1:
             Alpha: 1
             Show Axes: false
             Show Trail: false
             Value: true
-          tool_link:
+          link_2:
             Alpha: 1
             Show Axes: false
             Show Trail: false
+            Value: true
+          link_3:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          link_4:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          link_5:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          link_6:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
           world:
             Alpha: 1
             Show Axes: false
@@ -149,7 +162,7 @@ Visualization Manager:
         Joint Violation Color: 255; 0; 255
         Planning Group: r0192_arm
         Query Goal State: true
-        Query Start State: true
+        Query Start State: false
         Show Workspace: false
         Start State Alpha: 1
         Start State Color: 0; 255; 0
@@ -175,17 +188,7 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
             Value: true
-          base_plate:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          claw_support:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          forward_drive_arm:
+          gripper_base:
             Alpha: 1
             Show Axes: false
             Show Trail: false
@@ -200,15 +203,36 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
             Value: true
-          horizontal_arm:
+          link_1:
             Alpha: 1
             Show Axes: false
             Show Trail: false
             Value: true
-          tool_link:
+          link_2:
             Alpha: 1
             Show Axes: false
             Show Trail: false
+            Value: true
+          link_3:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          link_4:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          link_5:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          link_6:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
           world:
             Alpha: 1
             Show Axes: false
@@ -264,37 +288,41 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 10
+      Distance: 17.421106338500977
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: -2.283102512359619
+        Y: 1.752939224243164
+        Z: 1.8329273462295532
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.785398006439209
+      Pitch: 0.6303979754447937
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.785398006439209
+      Yaw: 0.6253972053527832
     Saved: ~
 Window Geometry:
-  "":
-    collapsed: false
-  " - Trajectory Slider":
-    collapsed: false
   Displays:
     collapsed: false
   Height: 846
   Hide Left Dock: false
-  Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001c9000002b4fc020000000afb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b0000013a000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000280020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000003f00fffffffbffffffff010000017b000001740000016900ffffff000000010000010f000002b4fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003b000002b4000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004b00000003efc0100000002fb0000000800540069006d00650100000000000004b00000025300fffffffb0000000800540069006d00650100000000000004500000000000000000000001cc000002b400000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Hide Right Dock: true
+  MotionPlanning:
+    collapsed: false
+  MotionPlanning - Trajectory Slider:
+    collapsed: false
+  OperatorPanel:
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd0000000400000000000001ee000002f0fc020000000dfb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e0067010000003f0000024b0000019600fffffffb0000001200530065006c0065006300740069006f006e00000002000000005d0000005d00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730000000244000000eb000000cc00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000280020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000000000000000fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c006900640065007200000002eb000000440000004400fffffffb0000001c005200300031003900320020004f00700065007200610074006f0072000000027f000000b00000006f00fffffffb0000001a004f00700065007200610074006f007200500061006e0065006c01000002900000009f0000009f00ffffff000000010000010f000002acfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003f000002ac000000a900fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000005420000003efc0100000002fb0000000800540069006d00650000000000000005420000026f00fffffffb0000000800540069006d006501000000000000045000000000000000000000034e000002f000000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  R0192 Operator:
+    collapsed: false
   Selection:
     collapsed: false
   Time:
@@ -303,6 +331,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1200
-  X: 2417
-  Y: 58
+  Width: 1346
+  X: 898
+  Y: 263

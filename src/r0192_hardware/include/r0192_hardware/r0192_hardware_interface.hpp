@@ -11,7 +11,9 @@
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/executors/single_threaded_executor.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
+#include "std_srvs/srv/set_bool.hpp"
 
 // Treiber
 #include "r0192_canbus/CanCommunication.hpp"
@@ -57,6 +59,30 @@ private:
   std::thread rx_thread_;
   std::atomic<bool> rx_thread_running_;
   void canRxThread();
+
+  // --- Sicherheits-Check beim Start ---
+  // Prüft, ob jede physisch vorhandene Achse (axis1/axis4) laut RAW-Encoder
+  // innerhalb ihrer URDF-Positionslimits (info_.limits) steht. Liefert false
+  // und füllt `reason`, wenn eine Achse außerhalb liegt. Virtuelle Achsen haben
+  // keinen Encoder und werden übersprungen.
+  bool encodersWithinLimits(std::string & reason);
+
+  // Motoren stoppen und CAN-RX-Thread beenden — gemeinsam genutzt von
+  // on_deactivate() und dem Fehlerpfad bei abgebrochener Aktivierung.
+  void stopMotorsAndRx();
+
+  // --- Motor enable/disable (/robot_enable, std_srvs/SetBool) ---
+  // Operator-Schnittstelle (RViz-Panel / CLI), um das Motor-Drehmoment zur
+  // Laufzeit zu kappen bzw. wiederherzustellen, ohne den Lifecycle zu wechseln.
+  // write() sendet MIT_Control nur, solange motors_enabled_ true ist.
+  // Eigener Node + Executor-Thread, damit der Service-Callback die 100-Hz-
+  // read()/write()-Schleife nicht stört (CAN-Sends sind via send_mutex_ safe).
+  void setMotorsEnabled(bool enable);
+  std::atomic<bool> motors_enabled_{true};
+  std::shared_ptr<rclcpp::Node>                        enable_node_;
+  rclcpp::executors::SingleThreadedExecutor::SharedPtr enable_executor_;
+  std::thread                                          enable_executor_thread_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr   enable_service_;
 
   // --- Speicher für ros2_control ---
   // Vektoren für die Ist-Werte (werden in read() gefüllt)

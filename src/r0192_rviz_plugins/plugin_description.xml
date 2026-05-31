@@ -1,0 +1,9 @@
+<library path="r0192_rviz_plugins">
+  <class type="r0192_rviz_plugins::OperatorPanel"
+         base_class_type="rviz_common::Panel">
+    <description>
+      R0192 Operator-Panel: Buttons für Homing (/homing) und Motoren EIN/AUS
+      (/robot_enable), plus Status-Anzeige.
+    </description>
+  </class>
+</library>

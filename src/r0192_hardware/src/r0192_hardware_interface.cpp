@@ -3,6 +3,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <vector>
 
 namespace r0192_hardware
 {
@@ -69,50 +71,68 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_configure(const rclcp
 hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp_lifecycle::State & /*previous_state*/)
 {
   auto logger = rclcpp::get_logger("R0192Hardware");
+  motors_enabled_ = true;  // reset in case a previous cycle left motors disabled
 
   if (can_available_) {
     rx_thread_running_ = true;
     rx_thread_ = std::thread(&R0192SystemHardware::canRxThread, this);
 
-    // GDS68 (axis 1)
+    // --- Enable motors and request encoder feedback ---
+    // (Done before the safety check below so the raw encoder readings are valid;
+    //  actual zeroing happens only after the limit check passes.)
     if (axis1_present_) {
       axis1_->Set_Axis_State(8);
       // Position Control (3) + Passthrough (1) to prevent drift.
       axis1_->Set_Controller_Mode(3, 1);
-
-      if (joint_index_.count("joint_1")) {
-        const size_t i = joint_index_.at("joint_1");
-        axis1_->Get_Encoder_Estimates();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        RCLCPP_INFO(logger, "Axis 1 raw encoder: %.3f rad — zeroing at current position",
-                    axis1_->get_current_position());
-        axis1_->Set_Linear_Count(0);
-        RCLCPP_INFO(logger, "Axis 1 mechanical zero set");
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        axis1_->Get_Encoder_Estimates();
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        double pos = axis1_->get_current_position();
-        RCLCPP_INFO(logger, "Axis 1 after zero: %.3f rad", pos);
-        hw_cmd_positions_[i] = pos;
-      }
+      axis1_->Get_Encoder_Estimates();
     }
-
-    // RS05 (axis 4)
     if (axis4_present_) {
       axis4_->Motor_Enabled_To_Run();
+    }
+    // Let the first feedback frame stream back before reading the encoders.
+    if (axis1_present_ || axis4_present_) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
-      if (joint_index_.count("joint_4")) {
-        const size_t i = joint_index_.at("joint_4");
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        RCLCPP_INFO(logger, "Axis 4 raw encoder: %.3f rad — zeroing at current position",
-                    axis4_->get_current_position());
-        axis4_->Set_Motor_Mechanical_Zero();
-        RCLCPP_INFO(logger, "Axis 4 mechanical zero set");
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        double pos = axis4_->get_current_position();
-        RCLCPP_INFO(logger, "Axis 4 after zero: %.3f rad", pos);
-        hw_cmd_positions_[i] = pos;
-      }
+    // --- Safety check: refuse to activate if any physical axis is parked
+    //     outside its URDF position limits (checked on the RAW encoder reading,
+    //     i.e. before any zeroing). Returning ERROR keeps the component out of
+    //     the active state — the motors are stopped and the RX thread joined. ---
+    std::string limit_violation;
+    if (!encodersWithinLimits(limit_violation)) {
+      RCLCPP_ERROR(logger,
+        "Activation aborted — %s. Move the axis within its joint limits and retry.",
+        limit_violation.c_str());
+      stopMotorsAndRx();
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+
+    // --- Zeroing (axis 1, GDS68) ---
+    if (axis1_present_ && joint_index_.count("joint_1")) {
+      const size_t i = joint_index_.at("joint_1");
+      RCLCPP_INFO(logger, "Axis 1 raw encoder: %.3f rad — zeroing at current position",
+                  axis1_->get_current_position());
+      axis1_->Set_Linear_Count(0);
+      RCLCPP_INFO(logger, "Axis 1 mechanical zero set");
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      axis1_->Get_Encoder_Estimates();
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      double pos = axis1_->get_current_position();
+      RCLCPP_INFO(logger, "Axis 1 after zero: %.3f rad", pos);
+      hw_cmd_positions_[i] = pos;
+    }
+
+    // --- Zeroing (axis 4, RS05) ---
+    if (axis4_present_ && joint_index_.count("joint_4")) {
+      const size_t i = joint_index_.at("joint_4");
+      RCLCPP_INFO(logger, "Axis 4 raw encoder: %.3f rad — zeroing at current position",
+                  axis4_->get_current_position());
+      axis4_->Set_Motor_Mechanical_Zero();
+      RCLCPP_INFO(logger, "Axis 4 mechanical zero set");
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      double pos = axis4_->get_current_position();
+      RCLCPP_INFO(logger, "Axis 4 after zero: %.3f rad", pos);
+      hw_cmd_positions_[i] = pos;
     }
 
     if (!axis1_present_ && !axis4_present_) {
@@ -143,6 +163,21 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
     RCLCPP_WARN(logger, "Activated in virtual mode — no CAN frames will be sent or received");
   }
 
+  // --- /robot_enable service (motor torque on/off for the operator panel) ---
+  enable_node_ = std::make_shared<rclcpp::Node>("r0192_robot_enable");
+  enable_service_ = enable_node_->create_service<std_srvs::srv::SetBool>(
+    "/robot_enable",
+    [this](const std::shared_ptr<std_srvs::srv::SetBool::Request> req,
+           std::shared_ptr<std_srvs::srv::SetBool::Response> resp) {
+      setMotorsEnabled(req->data);
+      resp->success = true;
+      resp->message = req->data ? "Motoren aktiviert" : "Motoren deaktiviert";
+    });
+  enable_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  enable_executor_->add_node(enable_node_);
+  enable_executor_thread_ = std::thread([this]() { enable_executor_->spin(); });
+  RCLCPP_INFO(logger, "Motor enable service ready at /robot_enable");
+
   RCLCPP_INFO(logger, "R0192 hardware activated");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -150,6 +185,15 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
 hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclcpp_lifecycle::State & /*previous_state*/)
 {
   auto logger = rclcpp::get_logger("R0192Hardware");
+
+  // Motor-enable service teardown.
+  if (enable_executor_) {
+    enable_executor_->cancel();
+    if (enable_executor_thread_.joinable()) enable_executor_thread_.join();
+    enable_executor_.reset();
+  }
+  enable_service_.reset();
+  enable_node_.reset();
 
   // Homing teardown (before stopping motors so the isActive() gate in write()
   // still behaves while the service thread winds down).
@@ -159,13 +203,7 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclc
   }
 
   if (can_available_) {
-    if (axis1_present_) axis1_->Set_Axis_State(1);
-    if (axis4_present_) axis4_->Motor_Stop_Running();
-
-    rx_thread_running_ = false;
-    if (rx_thread_.joinable()) {
-      rx_thread_.join();
-    }
+    stopMotorsAndRx();
   }
 
   RCLCPP_INFO(logger, "R0192 hardware deactivated");
@@ -265,6 +303,10 @@ hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /
 // ==============================================================================
 hardware_interface::return_type R0192SystemHardware::write(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+  if (!motors_enabled_) {
+    // Torque cut via /robot_enable — send no MIT_Control until re-enabled.
+    return hardware_interface::return_type::OK;
+  }
   if (axis1_present_ && joint_index_.count("joint_1") && !(homing_ && homing_->isActive())) {
     const size_t i = joint_index_.at("joint_1");
     axis1_->MIT_Control(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
@@ -274,6 +316,98 @@ hardware_interface::return_type R0192SystemHardware::write(const rclcpp::Time & 
     axis4_->MIT_Control(hw_cmd_positions_[i], hw_cmd_velocities_[i], hw_cmd_kp_[i], hw_cmd_kd_[i], hw_cmd_efforts_[i]);
   }
   return hardware_interface::return_type::OK;
+}
+
+// ==============================================================================
+// setMotorsEnabled(): /robot_enable callback — Motor-Drehmoment an/aus
+//   true  → Achsen scharf schalten (Closed-Loop) und Soll = aktuelle Ist-Pos
+//           setzen (kein Snap im selben Zyklus); write() sendet wieder.
+//   false → write() gibt nichts mehr aus und die Achsen werden in Idle/Stop
+//           geschaltet (Drehmoment weg).
+//   ACHTUNG: Bei aktivem JointTrajectoryController überschreibt dieser das
+//   Soll im nächsten Zyklus wieder. Driftet eine Achse im deaktivierten
+//   Zustand (Schwerkraft), kann es beim Re-Enable einen Ruck geben. Achse 1
+//   (vertikale Drehachse) ist davon praktisch nicht betroffen.
+// ==============================================================================
+void R0192SystemHardware::setMotorsEnabled(bool enable)
+{
+  auto logger = rclcpp::get_logger("R0192Hardware");
+  if (!can_available_) {
+    RCLCPP_WARN(logger, "/robot_enable ignored — running in virtual mode (no CAN)");
+    return;
+  }
+
+  if (enable) {
+    if (axis1_present_) {
+      axis1_->Set_Axis_State(8);
+      axis1_->Set_Controller_Mode(3, 1);
+      if (joint_index_.count("joint_1"))
+        hw_cmd_positions_[joint_index_.at("joint_1")] = axis1_->get_current_position();
+    }
+    if (axis4_present_) {
+      axis4_->Motor_Enabled_To_Run();
+      if (joint_index_.count("joint_4"))
+        hw_cmd_positions_[joint_index_.at("joint_4")] = axis4_->get_current_position();
+    }
+    motors_enabled_ = true;
+    RCLCPP_INFO(logger, "Motors ENABLED via /robot_enable");
+  } else {
+    motors_enabled_ = false;  // stop write() before cutting torque
+    if (axis1_present_) axis1_->Set_Axis_State(1);
+    if (axis4_present_) axis4_->Motor_Stop_Running();
+    RCLCPP_WARN(logger, "Motors DISABLED via /robot_enable");
+  }
+}
+
+// ==============================================================================
+// encodersWithinLimits(): Start-Sicherheits-Check
+//   Jede physisch vorhandene Achse muss laut RAW-Encoder innerhalb ihrer
+//   URDF-Positionslimits stehen. Virtuelle Achsen haben keinen Encoder und
+//   werden übersprungen. Bei Verletzung → reason gesetzt, false zurück.
+// ==============================================================================
+bool R0192SystemHardware::encodersWithinLimits(std::string & reason)
+{
+  struct PhysAxis { const char * joint; double pos; };
+  std::vector<PhysAxis> axes;
+  if (axis1_present_ && joint_index_.count("joint_1")) {
+    axes.push_back({"joint_1", axis1_->get_current_position()});
+  }
+  if (axis4_present_ && joint_index_.count("joint_4")) {
+    axes.push_back({"joint_4", axis4_->get_current_position()});
+  }
+
+  for (const auto & a : axes) {
+    const auto it = info_.limits.find(a.joint);
+    if (it == info_.limits.end() || !it->second.has_position_limits) {
+      continue;  // no URDF position limit declared → nothing to enforce
+    }
+    const double lo = it->second.min_position;
+    const double hi = it->second.max_position;
+    if (a.pos < lo || a.pos > hi) {
+      char buf[192];
+      std::snprintf(buf, sizeof(buf),
+        "%s encoder at %.3f rad is outside its URDF limits [%.3f, %.3f] rad",
+        a.joint, a.pos, lo, hi);
+      reason = buf;
+      return false;
+    }
+  }
+  return true;
+}
+
+// ==============================================================================
+// stopMotorsAndRx(): Motoren stoppen + CAN-RX-Thread beenden
+//   Gemeinsam genutzt von on_deactivate() und dem Fehlerpfad in on_activate().
+// ==============================================================================
+void R0192SystemHardware::stopMotorsAndRx()
+{
+  if (axis1_present_) axis1_->Set_Axis_State(1);
+  if (axis4_present_) axis4_->Motor_Stop_Running();
+
+  rx_thread_running_ = false;
+  if (rx_thread_.joinable()) {
+    rx_thread_.join();
+  }
 }
 
 // ==============================================================================

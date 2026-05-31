@@ -65,6 +65,7 @@ src/
 ├── r0192_description/   # URDF/xacro, STL meshes, Gazebo/Rviz configs
 ├── r0192_hardware/      # ros2_control hardware interface (SystemInterface plugin)
 ├── r0192_moveit/        # MoveIt 2 config: SRDF, kinematics, joint limits, launch
+├── r0192_rviz_plugins/  # RViz operator panel (Homing- + Motoren-EIN/AUS-Buttons)
 └── r0192_remote/        # (Planned) Web-based remote control interface
 ```
 
@@ -149,6 +150,14 @@ Each joint exposes:
 The background thread `canRxThread()` receives CAN frames asynchronously without blocking the 100 Hz read/write cycle. CAN init failure (e.g. `can0` not up) causes `on_configure` to log a warning and continue in full virtual mode (no error return).
 
 Per-axis presence flags (`axis1_present_`, `axis4_present_`) are set during `on_configure` via `probePresent(200)` — see "Axis presence detection" in Architecture Overview. All motor operations (enable, write, stop) are gated on these flags; unplugged axes automatically fall back to passthrough.
+
+### Start-Sicherheits-Check: Encoder innerhalb der Achsenlimits
+
+In `on_activate()` werden die Motoren zuerst aktiviert und Encoder-Feedback angefordert; **bevor** die Achsen genullt werden, prüft `encodersWithinLimits()`, ob jede **physisch vorhandene** Achse laut **RAW-Encoder** (vor jeglichem Nullen, `home_offset_`/Mechanical-Zero noch nicht gesetzt) innerhalb ihrer URDF-Positionslimits steht. Die Limits kommen aus `info_.limits` (von ros2_control aus den `<limit lower/upper>`-Tags in [r0192.urdf.xacro](src/r0192_description/urdf/r0192.urdf.xacro) geparst, keyed nach Joint-Name). Virtuelle/passthrough-Achsen haben keinen Encoder und werden übersprungen (starten ohnehin bei 0).
+
+Liegt eine Achse außerhalb `[min_position, max_position]`, loggt der Check einen `RCLCPP_ERROR` mit Joint-Name, Ist-Position und Limits, stoppt Motoren + RX-Thread (`stopMotorsAndRx()`) und gibt `CallbackReturn::ERROR` zurück → die Komponente erreicht **nicht** den Active-State, der Arm startet nicht. `stopMotorsAndRx()` wird von `on_deactivate()` und diesem Fehlerpfad gemeinsam genutzt.
+
+**Hinweis (GDS68 Mehrumdrehungs-Position)**: joint_1 liefert eine kontinuierliche Position (Magnet bei `≈ −1.87 ± k·2π`). Steht die Achse in einer höheren Umdrehung (z. B. +4.43 rad), schlägt der Check gegen das ±π-Limit zu Recht an — die Achse ist physisch außerhalb des erlaubten Single-Turn-Bereichs.
 
 ---
 
@@ -237,13 +246,24 @@ Das zukünftige **Bedienpanel** ist ein eigenes Web-Interface / Programm, das au
 
 Geplante Bedienfunktionen und ihr ROS-Interface:
 
-| Funktion | ROS-Interface | Typ |
-|----------|--------------|-----|
-| Notaus | `/e_stop` | `std_msgs/Bool` (Topic, latched) |
-| Motoren aktivieren | `/robot_enable` | `std_srvs/SetBool` (Service) |
-| Homing auslösen | `/homing` | `std_srvs/Trigger` (Service) |
-| Arm-Status | `/diagnostics` | `diagnostic_msgs/DiagnosticArray` |
-| Trajektorie visualisieren | `/display_planned_path` | `moveit_msgs/DisplayTrajectory` |
+| Funktion | ROS-Interface | Typ | Status |
+|----------|--------------|-----|--------|
+| Notaus | `/e_stop` | `std_msgs/Bool` (Topic, latched) | geplant |
+| Motoren aktivieren | `/robot_enable` | `std_srvs/SetBool` (Service) | **implementiert** (in `r0192_hardware`) |
+| Homing auslösen | `/homing` | `std_srvs/Trigger` (Service) | **implementiert** (in `r0192_hardware`) |
+| Arm-Status | `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | geplant |
+| Trajektorie visualisieren | `/display_planned_path` | `moveit_msgs/DisplayTrajectory` | vorhanden (MoveIt) |
+
+### RViz Operator-Panel (`r0192_rviz_plugins`)
+
+Debug-/Bequemlichkeits-Panel direkt in RViz (kein Ersatz für das geplante `r0192_remote`-Web-Interface). Das Plugin `r0192_rviz_plugins/OperatorPanel` ([operator_panel.cpp](src/r0192_rviz_plugins/src/operator_panel.cpp)) bietet einen Button, einen Toggle + Status-Label:
+
+- **Homing starten** → ruft `/homing` (`std_srvs/Trigger`) asynchron auf.
+- **Enable-Toggle** (checkable Button) → ruft `/robot_enable` (`std_srvs/SetBool`): aktiviert = Motoren an (`data=true`, grün), deaktiviert = Motoren aus (`data=false`, rot). Ist der Service nicht erreichbar, springt der Toggle in den vorherigen Zustand zurück.
+
+Das Panel ist in [moveit.rviz](src/r0192_moveit/config/moveit.rviz) registriert und erscheint daher beim `real_robot.launch.py`-Start automatisch (sonst manuell via **Panels → Add New Panel → r0192_rviz_plugins/OperatorPanel**). Die Service-Clients hängen am RViz-Node; Aufrufe sind asynchron (GUI blockiert nie). Sind die Services nicht da (Hardware nicht aktiv / Achse 1 fehlt für `/homing`), zeigt das Status-Label das rot an.
+
+**`/robot_enable`-Semantik** (siehe `setMotorsEnabled()` in [r0192_hardware_interface.cpp](src/r0192_hardware/src/r0192_hardware_interface.cpp)): `false` setzt `motors_enabled_` und schaltet die vorhandenen Achsen in Idle/Stop → `write()` sendet kein MIT_Control mehr (Drehmoment weg). `true` schaltet wieder Closed-Loop und setzt das Soll auf die aktuelle Ist-Position. **Caveat**: Bei aktivem `arm_controller` überschreibt der JTC das Soll im nächsten Zyklus; driftet eine Achse im deaktivierten Zustand (Schwerkraft), kann es beim Re-Enable einen Ruck geben — Achse 1 (vertikale Drehachse) ist praktisch nicht betroffen. `motors_enabled_` wird in `on_activate()` auf `true` zurückgesetzt.
 
 ### Foxglove Studio (Debug-Tool)
 
@@ -363,6 +383,8 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - [x] Encoder-Homing (on_activate) validiert: Hardware Interface setzt beim Start den internen Nullpunkt
 - [x] Achsen-Erkennung per CAN-Probe: `probePresent(200ms)` in `on_configure`, automatisches Passthrough für nicht angeschlossene Achsen
 - [x] `foxglove_bridge` in `real_robot.launch.py` integriert (nur als Debug-Tool, `use_foxglove` Launch-Arg, Port 8765)
+- [x] Start-Sicherheits-Check `encodersWithinLimits()` in `on_activate()`: physische Achsen müssen laut RAW-Encoder innerhalb der URDF-Limits liegen, sonst `CallbackReturn::ERROR` (Arm startet nicht)
+- [ ] Hardware-Test: Achse außerhalb der Limits parken → `on_activate` bricht mit Fehler ab; innerhalb der Limits → normaler Start
 
 **Next: Homing-System (Arduino-basiert)**
 - [x] Arduino-Firmware für Achse 1 implementiert (`microcontroller/r0192_homing.ino`)
@@ -386,9 +408,15 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - [ ] Optional: Start-Zeroing in `on_activate()` ebenfalls auf `set_home_here()` umstellen (0x008/0x009-Skala beachten)
 - [ ] Arduino-Firmware auf Achsen 2–6 erweitern (achsenspezifische `MSG_SLAVE_ID`)
 
+**Operator-Bedienung**
+- [x] RViz Operator-Panel (`r0192_rviz_plugins`): Buttons für Homing + Motoren EIN/AUS, in `moveit.rviz` registriert
+- [x] `/robot_enable` (`std_srvs/SetBool`) im Hardware-Interface implementiert (Motor-Drehmoment an/aus, `write()`-Gate)
+- [ ] Hardware-Test: Panel-Buttons gegen echte Hardware (Homing-Trigger, Motoren EIN/AUS, Drift-/Ruck-Verhalten beim Re-Enable prüfen)
+
 **Next: Web-Interface (r0192_remote)**
 - [ ] r0192_remote Paket aufbauen: Web-basiertes Bedienpanel als Operator-Interface
-- [ ] ROS-Services für E-Stop, Motor-Enable, Homing implementieren (Backend für Web-Interface)
+- [x] ROS-Services für Motor-Enable (`/robot_enable`) und Homing (`/homing`) implementiert (Backend, auch vom RViz-Panel genutzt)
+- [ ] E-Stop-Service/-Topic implementieren (Backend für Web-Interface)
 - [ ] Notaus-Implementierung (global software E-Stop)
 
 **Wenn weitere Motoren gekauft sind (Achsen 2, 3, 5, 6, Greifer):**
