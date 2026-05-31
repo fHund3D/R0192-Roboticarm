@@ -1,9 +1,11 @@
 #include "r0192_rviz_plugins/operator_panel.hpp"
 
 #include <rviz_common/display_context.hpp>
+#include <rviz_common/display_group.hpp>
 
 #include <QVBoxLayout>
 #include <QFont>
+#include <QTimer>
 
 namespace r0192_rviz_plugins
 {
@@ -61,7 +63,28 @@ void OperatorPanel::onHomingClicked()
       const std::string prefix = resp->success ? "Homing OK: " : "Homing ERROR: ";
       setStatus(QString::fromStdString(prefix + resp->message), resp->success);
       homing_btn_->setEnabled(true);
+
+      // After a successful homing the arm was re-zeroed (all joints 0). Reset
+      // the RViz displays — same effect as the "Reset" button — so MoveIt's
+      // MotionPlanning start state re-syncs to the homed pose instead of
+      // keeping the stale pre-homing query state. Delayed slightly so the
+      // zeroed /joint_states first reach MoveIt's planning-scene monitor.
+      if (resp->success) {
+        QTimer::singleShot(500, this, [this]() { resetDisplays(); });
+      }
     });
+}
+
+void OperatorPanel::resetDisplays()
+{
+  auto * ctx = getDisplayContext();
+  if (!ctx) {
+    return;
+  }
+  // Recursively reset every display (incl. moveit MotionPlanning), mirroring
+  // what VisualizationManager::resetTime() does for the Reset button.
+  ctx->getRootDisplayGroup()->reset();
+  ctx->queueRender();
 }
 
 void OperatorPanel::onEnableToggled(bool checked)

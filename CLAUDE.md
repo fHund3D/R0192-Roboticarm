@@ -258,8 +258,10 @@ Geplante Bedienfunktionen und ihr ROS-Interface:
 
 Debug-/Bequemlichkeits-Panel direkt in RViz (kein Ersatz für das geplante `r0192_remote`-Web-Interface). Das Plugin `r0192_rviz_plugins/OperatorPanel` ([operator_panel.cpp](src/r0192_rviz_plugins/src/operator_panel.cpp)) bietet einen Button, einen Toggle + Status-Label:
 
-- **Homing starten** → ruft `/homing` (`std_srvs/Trigger`) asynchron auf.
+- **Homing** → ruft `/homing` (`std_srvs/Trigger`) asynchron auf. **Nach Erfolg** löst das Panel automatisch einen RViz-Display-Reset aus (siehe unten), damit MoveIts Planungs-Startzustand auf die frisch gehomte Pose nachzieht.
 - **Enable-Toggle** (checkable Button) → ruft `/robot_enable` (`std_srvs/SetBool`): aktiviert = Motoren an (`data=true`, grün), deaktiviert = Motoren aus (`data=false`, rot). Ist der Service nicht erreichbar, springt der Toggle in den vorherigen Zustand zurück.
+
+**Auto-Reset nach Homing**: Nach dem Re-Zeroing zeigt MoveIts MotionPlanning-Display sonst noch den alten (vor dem Homing gesetzten) Query-/Startzustand, was zu ungewollten Planungszuständen führt. Manuell behebt das der **Reset**-Button in RViz. Das Panel macht das jetzt automatisch: ~500 ms nach erfolgreichem `/homing` (Zeit, damit die genullten `/joint_states` MoveIts Planning-Scene-Monitor erreichen) ruft `resetDisplays()` `getDisplayContext()->getRootDisplayGroup()->reset()` auf — derselbe rekursive Display-Reset, den `VisualizationManager::resetTime()` (der Reset-Button) auslöst. Läuft auf dem RViz-GUI-Thread (Service-Callback), daher Qt/Ogre-sicher.
 
 Das Panel ist in [moveit.rviz](src/r0192_moveit/config/moveit.rviz) registriert und erscheint daher beim `real_robot.launch.py`-Start automatisch (sonst manuell via **Panels → Add New Panel → r0192_rviz_plugins/OperatorPanel**). Die Service-Clients hängen am RViz-Node; Aufrufe sind asynchron (GUI blockiert nie). Sind die Services nicht da (Hardware nicht aktiv / Achse 1 fehlt für `/homing`), zeigt das Status-Label das rot an.
 

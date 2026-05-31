@@ -44,6 +44,10 @@ private:
   void updateEnableButton(bool enabled);
   void setStatus(const QString & text, bool ok);
 
+  // Reset all RViz displays (equivalent to the "Reset" button) so MoveIt's
+  // planning state re-syncs to the robot's current (homed) pose.
+  void resetDisplays();
+
   QPushButton * homing_btn_{nullptr};
   QPushButton * enable_btn_{nullptr};
   QLabel *      status_label_{nullptr};
