@@ -9,12 +9,18 @@
 #include <QTimer>
 
 #include <array>
+#include <map>
+#include <memory>
+#include <string>
 
 #include <rclcpp/rclcpp.hpp>
 #include <control_msgs/msg/joint_jog.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <moveit_msgs/srv/servo_command_type.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 namespace r0192_rviz_plugins
 {
@@ -56,6 +62,7 @@ private Q_SLOTS:
   void onAxisPressed(int dof, double sign);
   void onAxisReleased();
   void onPublishTick();
+  void onValueTick();   // refresh the live joint-angle / TCP-pose readout
 
 private:
   enum class Mode { Joint, CartesianBase, Tool };
@@ -75,12 +82,14 @@ private:
   std::array<QPushButton *, 6> minus_btn_{};
   std::array<QPushButton *, 6> plus_btn_{};
   std::array<QLabel *, 6>      dof_label_{};
+  std::array<QLabel *, 6>      value_label_{};   // live readout per DOF
   QSlider *      speed_slider_{nullptr};
   QLabel *       speed_value_{nullptr};
   QPushButton *  jog_active_btn_{nullptr};
   QLabel *       status_label_{nullptr};
 
   QTimer * pub_timer_{nullptr};
+  QTimer * value_timer_{nullptr};
 
   // --- Jog state ---
   Mode mode_{Mode::Joint};
@@ -93,6 +102,12 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_pub_;
   rclcpp::Client<moveit_msgs::srv::ServoCommandType>::SharedPtr  switch_type_client_;
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr              pause_client_;
+
+  // --- Live readout sources ---
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr  joint_state_sub_;
+  std::map<std::string, double> joint_pos_;   // latest /joint_states positions
+  std::shared_ptr<tf2_ros::Buffer>            tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };
 
 }  // namespace r0192_rviz_plugins

@@ -172,10 +172,12 @@ Liegt eine Achse außerhalb `[min_position, max_position]`, loggt der Check eine
 | joint_4 | revolute  | X    | [−π, +π]             | 30 N·m  | 10 rad/s  |
 | joint_5 | revolute  | Y    | [−π, +π]             | 30 N·m  | 10 rad/s  |
 | joint_6 | revolute  | X    | [−π, +π]             | 30 N·m  | 10 rad/s  |
-| joint_7 | prismatic | Y    | [0, 0.025 m]         | 30 N    | 10 m/s    |
+| joint_7 | prismatic | Y    | [0, 0.0025 m]        | 30 N    | 10 m/s    |
 | joint_8 | prismatic | Y    | mimic joint_7 (×−1)  | —       | —         |
 
 **All values above are placeholders.** Real joint ranges, effort limits, velocity limits, inertias, and center-of-mass positions will be replaced with CAD-derived values later.
+
+**Geometrie ist 1:1 (real skaliert)**: Die URDF-Geometrie wurde von der ~10× zu großen Platzhalter-Skala auf reale Größe gebracht — Mesh-`scale` über die Property `mesh_scale="0.001 0.001 0.001"` (STL in mm → m), alle Gelenkursprünge in echten Metern (joint_1 @ 0.1751 m usw.), Greifer-Hub `[0, 0.0025 m]`. Dadurch zeigen RViz/Jog-Panel reale mm und die MoveIt-Servo-Singularitätsschwellen passen mit den Defaults. **Gelenk-Winkel-Limits, Effort, Trägheit, CoM bleiben Platzhalter.**
 
 ---
 
@@ -280,12 +282,16 @@ Teach-Pendant-artiges Verfahr-Panel ([jog_panel.cpp](src/r0192_rviz_plugins/src/
 | **Cartesian (Base)** | X, Y, Z, RX, RY, RZ im `base_link`-Frame | `geometry_msgs/TwistStamped` (`frame_id=base_link`) auf `/servo_node/delta_twist_cmds` |
 | **Tool** | X, Y, Z, RX, RY, RZ im TCP-Frame | `TwistStamped` (`frame_id=tcp`) auf demselben Topic |
 
+Layout pro Zeile: **[−][+]** links (beide Tasten auf einer Seite), Name mittig, **Live-Wert** rechts. Die Live-Spalte (10-Hz-Timer `onValueTick()`) zeigt im Joints-Modus die aktuellen Gelenkwinkel in **°** (3 Nachkommastellen, aus `/joint_states`), im Cartesian/Tool-Modus die aktuelle **TCP-Pose im Basis-Frame** (X/Y/Z in **mm** mit 1 Nachkommastelle, RPY in °, via TF `base_link`→`tcp`). Das Panel hält dafür ein eigenes `/joint_states`-Abo und einen `tf2_ros::TransformListener`.
+
+**Positions-Anzeige-Skalierung** (`kModelToRealScale = 1.0` in [jog_panel.cpp](src/r0192_rviz_plugins/src/jog_panel.cpp)): Die URDF ist jetzt **1:1** (Mesh-`scale="0.001"`, Gelenkursprünge in echten Metern), daher zeigt die mm-Anzeige direkt reale Werte. Der Faktor bleibt als benannte Konstante für den Fall einer künftigen Skalen-Diskrepanz erhalten.
+
 Bedienelemente:
 - **Modus-Radios** (Joints / Cartesian / Tool) → setzen den Servo-Command-Type via `/servo_node/switch_command_type` (`moveit_msgs/ServoCommandType`: `JOINT_JOG`/`TWIST`).
 - **Geschwindigkeits-Slider** (1–100 %) → skaliert die Befehlsmagnitude. Servo läuft mit `command_in_type: "unitless"`, d. h. das Panel sendet Werte in [−1, 1]; die Max-Geschwindigkeit setzen `scale.linear/rotational/joint` in [servo.yaml](src/r0192_moveit/config/servo.yaml). Effektive Geschwindigkeit = Slider-% × scale. (Dies ist der „Schritt"-/Speed-Regler.)
 - **Master-Toggle „Enable Jog"**: schaltet Servo via `/servo_node/pause_servo` (`std_srvs/SetBool`) scharf (`data=false`) bzw. pausiert (`data=true`). **Nur** im aktivierten Zustand sind die ±-Tasten freigegeben.
 
-**Dauer-Singularität in Cartesian/Tool (Platzhalter-Geometrie)**: Servo bricht Cartesian/Tool-Jogging in **nahezu jeder Pose** mit `Very close to a singularity, emergency stop` ab. Ursache ist **nicht** eine echte Pose-Singularität, sondern die **Skala der Platzhalter-Geometrie**: Servos Check ist die **Konditionszahl der Jacobi-Matrix** (σ_max/σ_min). Die URDF nutzt noch große Platzhalter-Gliedlängen (joint_1 @ 1.751 m usw.); der Translations-Anteil der Jacobi-Matrix skaliert damit hoch, sodass die Konditionszahl überall die Default-Schwelle (für ~0,3-m-Glieder wie Panda getunt) überschreitet. **Joints-Modus ist nicht betroffen** (invertiert die Jacobi-Matrix nicht). Fix: `lower_singularity_threshold`/`hard_stop_singularity_threshold` in [servo.yaml](src/r0192_moveit/config/servo.yaml) angehoben (200 / 400). Beide sind **live tunebar**: `ros2 param set /servo_node hard_stop_singularity_threshold <x>`. Mit echten CAD-Gliedlängen wieder absenken. (Zusätzlich gibt es bei joint_5 = 0 die echte Handgelenk-Singularität, da joint_4 und joint_6 dann achsparallel um X stehen — die bleibt unabhängig von den Schwellen bestehen.)
+**Singularität in Cartesian/Tool**: Servo bremst/stoppt bei echten Singularitäten mit `Very close to a singularity, emergency stop`. Schwellen in [servo.yaml](src/r0192_moveit/config/servo.yaml) stehen auf Default (`lower_singularity_threshold: 17`, `hard_stop_singularity_threshold: 30`) — passend, seit das Modell **real-skaliert** ist (~0,18 m Glieder; vorher waren sie wegen der 10× zu großen Platzhalter-Geometrie temporär auf 200/400 angehoben). **Joints-Modus ist nicht betroffen** (invertiert die Jacobi-Matrix nicht). Eine echte Handgelenk-Singularität bleibt bei joint_5 = 0 (joint_4 und joint_6 dann achsparallel um X) — dort vor Cartesian/Tool-Jogging joint_5 ein paar Grad wegfahren. Schwellen live tunebar: `ros2 param set /servo_node hard_stop_singularity_threshold <x>`.
 
 **TCP-/Tool-Frame**: Der Tool-Modus verfährt im Frame `tcp` (in [r0192.urdf.xacro](src/r0192_description/urdf/r0192.urdf.xacro) als fester Kind-Frame von `gripper_base`, rpy `0 π/2 0`). Damit folgt er der ROS-Industrial-`tool0`-Konvention: **+Z = Anflug-/Stoßrichtung**, +Y = Greifer-Öffnungsachse. `gripper_base` selbst hat die Anflugrichtung auf **X** (deshalb der +90°-Dreh um Y, der Z auf X abbildet). `tcp` ist ein reiner TF-Frame (keine Visual/Collision) und nicht Teil der IK-Kette (Gruppe `r0192_arm` endet an `gripper_base`). Position sitzt vorerst auf `gripper_base` — mit echten CAD-Werten an den realen Fingerspitzen-TCP verschieben.
 
@@ -457,7 +463,8 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 **Wenn weitere Motoren gekauft sind (Achsen 2, 3, 5, 6, Greifer):**
 - [ ] Passthrough durch echte Treiber-Instanzen ersetzen (GDS68 für 2+3, RS05 für 5+6)
 - [ ] Greifer-Controller mit physischer Hardware verbinden
-- [ ] URDF-Platzhalter durch CAD-Werte ersetzen (Limits, Trägheit, CoM)
+- [x] URDF-Geometrie auf 1:1 real skaliert (Mesh `mesh_scale=0.001`, Gelenkursprünge in echten Metern, Greifer-Hub 2,5 mm)
+- [ ] URDF-Platzhalter durch CAD-Werte ersetzen (Winkel-Limits, Trägheit, CoM; reale Maße verifizieren)
 
 **Später / System-Ebene:**
 - [ ] RT-Kernel / CPU-Shielding auf RPi 5 evaluieren
@@ -468,7 +475,7 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 
 ## Known Issues & Gotchas
 
-- **joint_7 URDF-Limit falsch**: `lower="0.15" upper="0.0"` — lower > upper ist ungültig. MoveIt kann Greifer-Planung ablehnen. Korrigieren auf `lower="0.0" upper="0.025"` (oder echte CAD-Werte).
+- **joint_7 Greifer-Limit**: aktuell `lower="0.0" upper="0.0025"` (gültig, real-skaliert). Realer Hub mit CAD-Werten verifizieren — 2,5 mm ist nur der skalierte Platzhalter.
 - **MIT Control KP/KD**: Werden jetzt aus `<param name="kp">` / `<param name="kd">` in `r0192_ros2_control.xacro` geladen (joint_1: KP=50/KD=1, joint_4: KP=30/KD=0.5). Werte dort anpassen — kein Rebuild nötig (symlink-install), nur neu starten.
 - **GDS68 Feedback-Routing in canRxThread**: `(std_id >> 5) == 0x01` matched nur Achse 1. Wenn Achsen 2 und 3 später hinzukommen, Routing erweitern.
 - **GDS68 kontinuierliche Mehrumdrehungs-Position / `Set_Linear_Count` hält nicht**: Der GDS68 (ODrive-Protokoll) liefert eine **kontinuierliche Position über mehrere Umdrehungen** (kein Single-Turn-Absolutwert). Folgen: (1) Der Magnet erscheint je nach Umdrehungszahl bei `magnet ± k·2π` (im Test bei −1.87 / +4.43 / +10.71 rad). Deshalb Range-Check `±max_start_angle` (±180°) beim Homing-Start → eindeutige Lösung. (2) `Set_Linear_Count(0)` (CMD 0x019) wird vom kontinuierlichen Positionswert sofort überschrieben. Nullsetzen erfolgt daher über einen **Software-Offset** im Treiber: `set_home_offset(raw)` / `set_home_here()`; `get_current_position()` liefert `raw − offset`, `MIT_Control()` addiert den Offset wieder auf. Das Homing nutzt das (setzt Offset zu Beginn auf 0, rechnet in Roh-Koordinaten, am Ende `set_home_offset(zero_target)`). **Achtung**: `on_activate()` ruft beim Start noch `Set_Linear_Count(0)` auf (Altlast, wirkungslos) und setzt `hw_cmd` auf die rohe Startposition — bis ein Homing gelaufen ist, meldet joint_1 den Rohwert (ggf. außerhalb der URDF-Limits). Später ggf. Start-Zeroing auf `set_home_here()` umstellen.

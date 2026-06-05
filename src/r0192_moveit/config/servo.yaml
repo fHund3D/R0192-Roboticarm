@@ -65,15 +65,13 @@ scene_collision_proximity_threshold: 0.02
 
 ## Singularity handling (decelerate / stop near singular configurations).
 # Servo's check is the Jacobian condition number (sigma_max / sigma_min). The
-# defaults (17 / 30) are tuned for ~0.3 m links (Panda). The R0192 URDF still
-# uses LARGE placeholder link lengths (joint_1 @ 1.751 m, etc.), which inflate
-# the translational Jacobian terms and push the condition number high in nearly
-# every pose -> Servo would emergency-stop constantly in Cartesian/Tool mode.
-# These thresholds are raised so jogging works with the placeholder geometry;
-# revisit (lower again) once real CAD-derived link lengths are in the URDF.
+# URDF is now real-scale (~0.18 m links), so the standard defaults apply again
+# (they were temporarily raised while the geometry was 10x too large). A genuine
+# singularity (e.g. wrist with joint_5 = 0, where joint_4 and joint_6 axes align)
+# still stops here as intended.
 # Tunable live: ros2 param set /servo_node hard_stop_singularity_threshold <x>
-lower_singularity_threshold: 200.0
-hard_stop_singularity_threshold: 400.0
+lower_singularity_threshold: 17.0
+hard_stop_singularity_threshold: 30.0
 leaving_singularity_threshold_multiplier: 2.0
 
 ## Joint-limit safety buffer [rad]

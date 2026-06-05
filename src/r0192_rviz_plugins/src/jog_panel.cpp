@@ -8,6 +8,13 @@
 #include <QGroupBox>
 #include <QFont>
 
+#include <cmath>
+
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/time.h>
+
 namespace r0192_rviz_plugins
 {
 
@@ -23,6 +30,11 @@ constexpr const char * kPauseSrv     = "/servo_node/pause_servo";
 constexpr const char * kBaseFrame = "base_link";
 // Dedicated TCP frame (tool0 convention): +Z = gripper approach direction.
 constexpr const char * kToolFrame = "tcp";
+
+// Scales the position readout from model units to the real arm. The URDF is now
+// 1:1 (mesh scale 0.001 mapping STL-mm to metres), so this is 1.0. Kept as a
+// named constant in case a future scale mismatch needs correcting.
+constexpr double kModelToRealScale = 1.0;
 
 constexpr int kPublishPeriodMs = 20;   // 50 Hz command stream while held
 
@@ -52,7 +64,7 @@ JogPanel::JogPanel(QWidget * parent)
   mode_box->setLayout(mode_layout);
   root->addWidget(mode_box);
 
-  // --- 6 x (- / +) jog rows ---
+  // --- 6 jog rows: [−][+] on the left, name in the middle, live value right ---
   auto * grid = new QGridLayout;
   for (int dof = 0; dof < 6; ++dof) {
     minus_btn_[dof] = new QPushButton("−");
@@ -62,13 +74,17 @@ JogPanel::JogPanel(QWidget * parent)
     QFont f = dof_label_[dof]->font();
     f.setBold(true);
     dof_label_[dof]->setFont(f);
-    minus_btn_[dof]->setMinimumWidth(48);
-    plus_btn_[dof]->setMinimumWidth(48);
-    grid->addWidget(minus_btn_[dof], dof, 0);
-    grid->addWidget(dof_label_[dof], dof, 1);
-    grid->addWidget(plus_btn_[dof],  dof, 2);
+    value_label_[dof] = new QLabel("—");
+    value_label_[dof]->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    value_label_[dof]->setStyleSheet("font-family: monospace;");
+    minus_btn_[dof]->setMinimumWidth(40);
+    plus_btn_[dof]->setMinimumWidth(40);
+    grid->addWidget(minus_btn_[dof],  dof, 0);
+    grid->addWidget(plus_btn_[dof],   dof, 1);
+    grid->addWidget(dof_label_[dof],  dof, 2);
+    grid->addWidget(value_label_[dof], dof, 3);
   }
-  grid->setColumnStretch(1, 1);
+  grid->setColumnStretch(3, 1);   // live-value column takes the extra width
   root->addLayout(grid);
 
   // --- Speed slider ---
@@ -124,10 +140,28 @@ void JogPanel::onInitialize()
   switch_type_client_ = node_->create_client<moveit_msgs::srv::ServoCommandType>(kSwitchTypeSrv);
   pause_client_ = node_->create_client<std_srvs::srv::SetBool>(kPauseSrv);
 
+  // Live readout sources: joint angles from /joint_states, TCP pose from TF.
+  joint_state_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
+    "/joint_states", rclcpp::QoS(10),
+    [this](const sensor_msgs::msg::JointState::ConstSharedPtr msg) {
+      const size_t n = std::min(msg->name.size(), msg->position.size());
+      for (size_t i = 0; i < n; ++i) {
+        joint_pos_[msg->name[i]] = msg->position[i];
+      }
+    });
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, node_);
+
   // Timer drives the press-and-hold command stream; only runs while jog active.
   pub_timer_ = new QTimer(this);
   pub_timer_->setInterval(kPublishPeriodMs);
   connect(pub_timer_, &QTimer::timeout, this, &JogPanel::onPublishTick);
+
+  // Timer refreshes the live readout column (always running).
+  value_timer_ = new QTimer(this);
+  value_timer_->setInterval(100);   // 10 Hz
+  connect(value_timer_, &QTimer::timeout, this, &JogPanel::onValueTick);
+  value_timer_->start();
 }
 
 void JogPanel::onModeChanged()
@@ -257,6 +291,47 @@ void JogPanel::onPublishTick()
     }
     twist_pub_->publish(msg);
   }
+}
+
+void JogPanel::onValueTick()
+{
+  if (mode_ == Mode::Joint) {
+    // Live joint angles from /joint_states, in degrees.
+    for (int dof = 0; dof < 6; ++dof) {
+      auto it = joint_pos_.find(jointName(dof));
+      if (it == joint_pos_.end()) {
+        value_label_[dof]->setText("—");
+      } else {
+        value_label_[dof]->setText(
+          QString::asprintf("%+.3f°", it->second * 180.0 / M_PI));
+      }
+    }
+    return;
+  }
+
+  // Cartesian / Tool: live TCP pose in the base frame (position [mm] + RPY [°]).
+  geometry_msgs::msg::TransformStamped tf;
+  try {
+    tf = tf_buffer_->lookupTransform(kBaseFrame, kToolFrame, tf2::TimePointZero);
+  } catch (const tf2::TransformException &) {
+    for (int dof = 0; dof < 6; ++dof) {
+      value_label_[dof]->setText("—");
+    }
+    return;
+  }
+  const auto & t = tf.transform.translation;
+  tf2::Quaternion q(tf.transform.rotation.x, tf.transform.rotation.y,
+                    tf.transform.rotation.z, tf.transform.rotation.w);
+  double roll, pitch, yaw;
+  tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+  const double r2d = 180.0 / M_PI;
+  const double m2mm = 1000.0 * kModelToRealScale;   // model metres -> real mm
+  value_label_[0]->setText(QString::asprintf("%+.1f mm", t.x * m2mm));
+  value_label_[1]->setText(QString::asprintf("%+.1f mm", t.y * m2mm));
+  value_label_[2]->setText(QString::asprintf("%+.1f mm", t.z * m2mm));
+  value_label_[3]->setText(QString::asprintf("%+.1f°", roll  * r2d));
+  value_label_[4]->setText(QString::asprintf("%+.1f°", pitch * r2d));
+  value_label_[5]->setText(QString::asprintf("%+.1f°", yaw   * r2d));
 }
 
 void JogPanel::applyCommandType()

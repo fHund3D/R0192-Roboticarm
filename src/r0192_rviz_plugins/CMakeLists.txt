@@ -13,6 +13,9 @@ find_package(std_srvs REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 # RViz panels are Qt widgets → let CMake run the meta-object compiler.
@@ -36,6 +39,9 @@ ament_target_dependencies(${PROJECT_NAME}
   control_msgs
   geometry_msgs
   moveit_msgs
+  sensor_msgs
+  tf2
+  tf2_ros
 )
 target_link_libraries(${PROJECT_NAME} Qt5::Widgets)
 

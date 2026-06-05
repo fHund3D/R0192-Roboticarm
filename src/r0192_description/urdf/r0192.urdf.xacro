@@ -17,6 +17,9 @@
     <xacro:property name="PI" value="3.14159265359" />
     <xacro:property name="effort" value="30.0" />        <!-- später noch mit echten Werten anpassen! -->
     <xacro:property name="velocity" value="10.0" />      <!-- später noch mit echten Werten anpassen! -->
+    <!-- STL meshes are exported in mm → 0.001 maps them to metres (1:1 real
+         size). Joint origins below are likewise in metres at real scale. -->
+    <xacro:property name="mesh_scale" value="0.001 0.001 0.001" />
 
     <!-- Useful Macros -->
     <xacro:macro name="default_inertial" params="mass">
@@ -39,14 +42,14 @@
             <origin rpy="${PI / 2} 0 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/visual/axis_1.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </visual>
         <collision>
             <origin rpy="${PI / 2} 0 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/collision/axis_1_collision.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </collision>
     </link>
@@ -58,14 +61,14 @@
             <origin rpy="0 ${PI / 2} ${PI / 2}" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/visual/axis_2.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </visual>
         <collision>
             <origin rpy="0 ${PI / 2} ${PI / 2}" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/collision/axis_2_collision.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </collision>
     </link>
@@ -76,14 +79,14 @@
             <origin rpy="0 ${PI}  ${PI}" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/visual/axis_3.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </visual>
         <collision>
             <origin rpy="0 ${PI}  ${PI}" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/collision/axis_3_collision.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </collision>
     </link>
@@ -94,14 +97,14 @@
             <origin rpy="-${PI / 2} ${PI} 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/visual/axis_4.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </visual>
         <collision>
             <origin rpy="-${PI / 2} ${PI} 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/collision/axis_4_collision.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </collision>
     </link>
@@ -112,14 +115,14 @@
             <origin rpy="${PI / 2} 0 ${PI / 2}" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/visual/axis_5.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </visual>
         <collision>
             <origin rpy="${PI / 2} 0 ${PI / 2}" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/collision/axis_5_collision.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </collision>
     </link>
@@ -130,14 +133,14 @@
             <origin rpy="-${PI / 2} ${PI} 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/visual/axis_6.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </visual>
         <collision>
             <origin rpy="-${PI / 2} ${PI} 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/collision/axis_6_collision.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </collision>
     </link>
@@ -148,14 +151,14 @@
             <origin rpy="-${PI / 2} ${PI} 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/visual/flansch.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </visual>
         <collision>
             <origin rpy="-${PI / 2} ${PI} 0" xyz="0 0 0" />
             <geometry>
                 <mesh filename="package://r0192_description/meshes/collision/flansch_collision.stl"
-                    scale="0.01 0.01 0.01" />
+                    scale="${mesh_scale}" />
             </geometry>
         </collision>
     </link>
@@ -166,13 +169,13 @@
         <visual>
             <origin rpy="0 ${PI} ${PI / 2}" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://r0192_description/meshes/gripper/gripper_base.stl" scale="0.01 0.01 0.01"/>
+                <mesh filename="package://r0192_description/meshes/gripper/gripper_base.stl" scale="${mesh_scale}"/>
             </geometry>
         </visual>
         <collision>
             <origin rpy="0 ${PI} ${PI / 2}" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://r0192_description/meshes/gripper/gripper_base.stl" scale="0.01 0.01 0.01"/>
+                <mesh filename="package://r0192_description/meshes/gripper/gripper_base.stl" scale="${mesh_scale}"/>
             </geometry>
         </collision>
     </link>
@@ -182,13 +185,13 @@
         <visual>
             <origin rpy="0 ${PI} ${PI / 2}" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://r0192_description/meshes/gripper/gripper_right.stl" scale="0.01 0.01 0.01"/>
+                <mesh filename="package://r0192_description/meshes/gripper/gripper_right.stl" scale="${mesh_scale}"/>
             </geometry>
         </visual>
         <collision>
             <origin rpy="0 ${PI} ${PI / 2}" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://r0192_description/meshes/gripper/gripper_right.stl" scale="0.01 0.01 0.01"/>
+                <mesh filename="package://r0192_description/meshes/gripper/gripper_right.stl" scale="${mesh_scale}"/>
             </geometry>
         </collision>
     </link>
@@ -198,13 +201,13 @@
         <visual>
             <origin rpy="0 ${PI} ${PI / 2}" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://r0192_description/meshes/gripper/gripper_left.stl" scale="0.01 0.01 0.01"/>
+                <mesh filename="package://r0192_description/meshes/gripper/gripper_left.stl" scale="${mesh_scale}"/>
             </geometry>
         </visual>
         <collision>
             <origin rpy="0 ${PI} ${PI / 2}" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://r0192_description/meshes/gripper/gripper_left.stl" scale="0.01 0.01 0.01"/>
+                <mesh filename="package://r0192_description/meshes/gripper/gripper_left.stl" scale="${mesh_scale}"/>
             </geometry>
         </collision>
     </link>
@@ -220,7 +223,7 @@
     <joint name="joint_1" type="revolute">
         <parent link="base_link" />
         <child link="link_1" />
-        <origin xyz="0 0 1.751" />
+        <origin xyz="0 0 0.1751" />
         <!-- -Z: motor's positive rotation is opposite the model's default +Z,
              so the RViz model turns the same way as the physical axis 1. -->
         <axis xyz="0 0 -1" />
@@ -231,7 +234,7 @@
     <joint name="joint_2" type="revolute">
         <parent link="link_1" />
         <child link="link_2" />
-        <origin xyz="0 1.4 0" />
+        <origin xyz="0 0.14 0" />
         <axis xyz="0 1 0" />
         <limit lower="-${PI / 2}" upper="${PI / 2}"
             effort="${effort}" velocity="${velocity}" />
@@ -240,7 +243,7 @@
     <joint name="joint_3" type="revolute">
         <parent link="link_2" />
         <child link="link_3" />
-        <origin xyz="0 -1.252 1.85" />
+        <origin xyz="0 -0.1252 0.185" />
         <axis xyz="0 1 0" />
         <limit lower="-${PI / 4}" upper="${5 * PI / 4}"
             effort="${effort}" velocity="${velocity}" />
@@ -249,7 +252,7 @@
     <joint name="joint_4" type="revolute">
         <parent link="link_3" />
         <child link="link_4" />
-        <origin xyz="-1.25 0 0" />
+        <origin xyz="-0.125 0 0" />
         <axis xyz="1 0 0" />
         <limit lower="-${PI}" upper="${PI}"
             effort="${effort}" velocity="${velocity}" />
@@ -258,7 +261,7 @@
     <joint name="joint_5" type="revolute">
         <parent link="link_4" />
         <child link="link_5" />
-        <origin xyz="-1.4 0 0" />
+        <origin xyz="-0.14 0 0" />
         <axis xyz="0 1 0" />
         <limit lower="-${PI}" upper="${PI}"
             effort="${effort}" velocity="${velocity}" />
@@ -277,7 +280,7 @@
     <joint name ="horizontal_arm_to_claw_support" type="fixed">
         <parent link="link_6"/>
         <child link = "gripper_base"/>
-        <origin xyz="-1.19143 0 0.12234"/>
+        <origin xyz="-0.119143 0 0.012234"/>
     </joint>
 
     <joint name ="joint_7" type="prismatic">
@@ -285,7 +288,7 @@
         <child link = "gripper_right"/>
         <origin xyz="0 0 0"/>
         <axis xyz="0 1 0"/>
-        <limit lower="0.0" upper="0.025"
+        <limit lower="0.0" upper="0.0025"
                effort="${effort}" velocity="${velocity}"/>
     </joint>
 
@@ -294,7 +297,7 @@
         <child link = "gripper_left"/>
         <origin xyz="0 0 0"/>
         <axis xyz="0 1 0"/>
-        <limit lower="-0.025" upper="0.0"
+        <limit lower="-0.0025" upper="0.0"
                effort="${effort}" velocity="${velocity}"/>
         <mimic joint="joint_7" multiplier="-1"/>
     </joint>
