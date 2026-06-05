@@ -1,0 +1,80 @@
+###############################################################################
+# MoveIt Servo configuration for the R0192 arm (teach-pendant jogging).
+#
+# Used by the servo_node started in moveit.launch.py (use_servo:=true). The
+# r0192_rviz_plugins/JogPanel drives it via:
+#   - ~/delta_joint_cmds   (control_msgs/JointJog)        -> joint jogging
+#   - ~/delta_twist_cmds   (geometry_msgs/TwistStamped)   -> Cartesian / tool jog
+#   - ~/switch_command_type (moveit_msgs/ServoCommandType) -> pick the mode
+#   - ~/pause_servo        (std_srvs/SetBool)             -> hand control back to
+#                                                            move_group when idle
+#
+# Servo starts with command type INVALID (processes nothing) and only grabs the
+# arm_controller once the panel selects a command type, so it coexists safely
+# with MoveIt motion planning/execution.
+###############################################################################
+
+## Outgoing command timing
+publish_period: 0.01          # 1 / nominal publish rate [s] -> 100 Hz
+max_expected_latency: 0.1     # command-to-execution delay [s]
+
+## Incoming command scaling.
+# command_in_type "unitless": the panel sends values in [-1, 1] (like a
+# joystick); the scale factors below are the resulting MAX velocities. The
+# panel's speed slider scales the [-1, 1] magnitude, so effective speed =
+# slider% * scale.
+command_in_type: "unitless"
+scale:
+  linear: 0.10        # max Cartesian linear velocity [m/s]
+  rotational: 0.50    # max Cartesian angular velocity [rad/s]
+  joint: 0.50         # max joint velocity [rad/s]
+incoming_command_timeout: 0.15   # discard commands older than this [s]
+
+# Angular part of a twist is applied about the end-effector (TCP) point. This
+# matches teach-pendant behaviour: in tool mode you rotate about the tool, in
+# base mode you rotate about the tool using base-frame axes. Tune on hardware.
+apply_twist_commands_about_ee_frame: true
+
+## Outgoing command interface -> arm_controller (JointTrajectoryController)
+command_out_type: trajectory_msgs/JointTrajectory
+command_out_topic: /arm_controller/joint_trajectory
+publish_joint_positions: true
+publish_joint_velocities: false
+publish_joint_accelerations: false
+
+## Smoothing — Butterworth needs no acceleration limits (safe default).
+use_smoothing: true
+smoothing_filter_plugin_name: "online_signal_smoothing::ButterworthFilterPlugin"
+
+## Planning scene — move_group owns the primary scene; Servo only monitors it.
+is_primary_planning_scene_monitor: false
+check_octomap_collisions: false
+
+## Robot / topics
+move_group_name: r0192_arm
+joint_topic: /joint_states
+status_topic: ~/status
+cartesian_command_in_topic: ~/delta_twist_cmds
+joint_command_in_topic: ~/delta_joint_cmds
+
+## Collision checking (decelerate as the arm approaches a collision)
+check_collisions: true
+collision_check_rate: 10.0
+self_collision_proximity_threshold: 0.01
+scene_collision_proximity_threshold: 0.02
+
+## Singularity handling (decelerate / stop near singular configurations).
+# Servo's check is the Jacobian condition number (sigma_max / sigma_min). The
+# defaults (17 / 30) are tuned for ~0.3 m links (Panda). The R0192 URDF still
+# uses LARGE placeholder link lengths (joint_1 @ 1.751 m, etc.), which inflate
+# the translational Jacobian terms and push the condition number high in nearly
+# every pose -> Servo would emergency-stop constantly in Cartesian/Tool mode.
+# These thresholds are raised so jogging works with the placeholder geometry;
+# revisit (lower again) once real CAD-derived link lengths are in the URDF.
+# Tunable live: ros2 param set /servo_node hard_stop_singularity_threshold <x>
+lower_singularity_threshold: 200.0
+hard_stop_singularity_threshold: 400.0
+leaving_singularity_threshold_multiplier: 2.0
+
+## Joint-limit safety buffer [rad]
+joint_limit_margins: [0.1]

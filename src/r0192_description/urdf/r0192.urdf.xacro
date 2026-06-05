@@ -297,5 +297,19 @@
         <limit lower="-0.025" upper="0.0"
                effort="${effort}" velocity="${velocity}"/>
         <mimic joint="joint_7" multiplier="-1"/>
-    </joint>    
+    </joint>
+
+    <!-- TCP / tool frame (ROS-Industrial tool0 convention): +Z points along the
+         gripper approach (thrust) direction so Tool-mode jogging treats +Z as
+         approach, +Y as the finger open/close axis. gripper_base's own X is the
+         approach axis, so rotate +90° about Y to map the new Z onto X. Pure TF
+         frame (no visual/collision); not part of the r0192_arm IK chain, used
+         by MoveIt Servo as the Tool jog frame. Position sits at gripper_base;
+         move it to the real fingertip TCP once CAD values are available. -->
+    <link name="tcp"/>
+    <joint name="gripper_base_to_tcp" type="fixed">
+        <parent link="gripper_base"/>
+        <child link="tcp"/>
+        <origin xyz="0 0 0" rpy="0 ${PI / 2} 0"/>
+    </joint>
 </robot>

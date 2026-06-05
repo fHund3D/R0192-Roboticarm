@@ -159,6 +159,19 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
       homing_ = std::make_shared<HomingController>(axis1_, can_comm_, on_zeroed);
       homing_->start();
     }
+
+    // --- Start de-energized ---
+    // Activation only powered the axes long enough for the safety check + zeroing
+    // above. Leave the motors idle/torque-free now; the operator turns them on
+    // deliberately via /robot_enable (RViz operator panel). Until then write()
+    // sends no MIT_Control (gated on motors_enabled_).
+    if (axis1_present_ || axis4_present_) {
+      motors_enabled_ = false;
+      if (axis1_present_) axis1_->Set_Axis_State(1);
+      if (axis4_present_) axis4_->Motor_Stop_Running();
+      RCLCPP_INFO(logger,
+        "Motors start DISABLED — enable via /robot_enable (RViz operator panel)");
+    }
   } else {
     RCLCPP_WARN(logger, "Activated in virtual mode — no CAN frames will be sent or received");
   }

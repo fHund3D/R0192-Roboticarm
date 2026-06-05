@@ -10,6 +10,9 @@ find_package(rclcpp REQUIRED)
 find_package(rviz_common REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(control_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(moveit_msgs REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 # RViz panels are Qt widgets → let CMake run the meta-object compiler.
@@ -17,7 +20,9 @@ set(CMAKE_AUTOMOC ON)
 
 add_library(${PROJECT_NAME} SHARED
   src/operator_panel.cpp
+  src/jog_panel.cpp
   include/r0192_rviz_plugins/operator_panel.hpp
+  include/r0192_rviz_plugins/jog_panel.hpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -28,6 +33,9 @@ ament_target_dependencies(${PROJECT_NAME}
   rviz_common
   pluginlib
   std_srvs
+  control_msgs
+  geometry_msgs
+  moveit_msgs
 )
 target_link_libraries(${PROJECT_NAME} Qt5::Widgets)
 

@@ -1,3 +1,4 @@
+
 # R0192 Robotic Arm – ROS 2 Jazzy Workspace
 
 ## Claude Maintenance Instructions
@@ -265,7 +266,34 @@ Debug-/Bequemlichkeits-Panel direkt in RViz (kein Ersatz für das geplante `r019
 
 Das Panel ist in [moveit.rviz](src/r0192_moveit/config/moveit.rviz) registriert und erscheint daher beim `real_robot.launch.py`-Start automatisch (sonst manuell via **Panels → Add New Panel → r0192_rviz_plugins/OperatorPanel**). Die Service-Clients hängen am RViz-Node; Aufrufe sind asynchron (GUI blockiert nie). Sind die Services nicht da (Hardware nicht aktiv / Achse 1 fehlt für `/homing`), zeigt das Status-Label das rot an.
 
-**`/robot_enable`-Semantik** (siehe `setMotorsEnabled()` in [r0192_hardware_interface.cpp](src/r0192_hardware/src/r0192_hardware_interface.cpp)): `false` setzt `motors_enabled_` und schaltet die vorhandenen Achsen in Idle/Stop → `write()` sendet kein MIT_Control mehr (Drehmoment weg). `true` schaltet wieder Closed-Loop und setzt das Soll auf die aktuelle Ist-Position. **Caveat**: Bei aktivem `arm_controller` überschreibt der JTC das Soll im nächsten Zyklus; driftet eine Achse im deaktivierten Zustand (Schwerkraft), kann es beim Re-Enable einen Ruck geben — Achse 1 (vertikale Drehachse) ist praktisch nicht betroffen. `motors_enabled_` wird in `on_activate()` auf `true` zurückgesetzt.
+**`/robot_enable`-Semantik** (siehe `setMotorsEnabled()` in [r0192_hardware_interface.cpp](src/r0192_hardware/src/r0192_hardware_interface.cpp)): `false` setzt `motors_enabled_` und schaltet die vorhandenen Achsen in Idle/Stop → `write()` sendet kein MIT_Control mehr (Drehmoment weg). `true` schaltet wieder Closed-Loop und setzt das Soll auf die aktuelle Ist-Position. **Caveat**: Bei aktivem `arm_controller` überschreibt der JTC das Soll im nächsten Zyklus; driftet eine Achse im deaktivierten Zustand (Schwerkraft), kann es beim Re-Enable einen Ruck geben — Achse 1 (vertikale Drehachse) ist praktisch nicht betroffen.
+
+**Start drehmomentfrei**: Beim Hochfahren bestromt `on_activate()` die physischen Achsen nur kurz für den Safety-Check (`encodersWithinLimits()`) und das Zeroing; **danach** werden die Achsen wieder in Idle/Stop geschaltet und `motors_enabled_ = false` gesetzt. Der Arm startet also **drehmomentfrei** — der Operator schaltet die Motoren bewusst über den Enable-Toggle im RViz-Operator-Panel (`/robot_enable` mit `data=true`) scharf. Bis dahin sendet `write()` kein MIT_Control. (Virtueller Modus ohne CAN bleibt unberührt: dort ist `motors_enabled_` egal, da nichts gesendet wird.) Der Enable-Toggle im Panel startet daher auf „aus" (rot).
+
+### RViz Jog-Panel / Teach-Pendant (`r0192_rviz_plugins/JogPanel`)
+
+Teach-Pendant-artiges Verfahr-Panel ([jog_panel.cpp](src/r0192_rviz_plugins/src/jog_panel.cpp)), das den Arm in **drei Modi** über **MoveIt Servo** verfährt. Die UI ist **englisch** (einheitlich mit RViz). Dieselben **6× (− / +)-Tasten** werden je Modus umbeschriftet:
+
+| Modus (UI-Label) | Tasten-Bedeutung | Servo-Schnittstelle |
+|------------------|------------------|---------------------|
+| **Joints** | Joint 1 … 6 direkt | `control_msgs/JointJog` auf `/servo_node/delta_joint_cmds` |
+| **Cartesian (Base)** | X, Y, Z, RX, RY, RZ im `base_link`-Frame | `geometry_msgs/TwistStamped` (`frame_id=base_link`) auf `/servo_node/delta_twist_cmds` |
+| **Tool** | X, Y, Z, RX, RY, RZ im TCP-Frame | `TwistStamped` (`frame_id=tcp`) auf demselben Topic |
+
+Bedienelemente:
+- **Modus-Radios** (Joints / Cartesian / Tool) → setzen den Servo-Command-Type via `/servo_node/switch_command_type` (`moveit_msgs/ServoCommandType`: `JOINT_JOG`/`TWIST`).
+- **Geschwindigkeits-Slider** (1–100 %) → skaliert die Befehlsmagnitude. Servo läuft mit `command_in_type: "unitless"`, d. h. das Panel sendet Werte in [−1, 1]; die Max-Geschwindigkeit setzen `scale.linear/rotational/joint` in [servo.yaml](src/r0192_moveit/config/servo.yaml). Effektive Geschwindigkeit = Slider-% × scale. (Dies ist der „Schritt"-/Speed-Regler.)
+- **Master-Toggle „Enable Jog"**: schaltet Servo via `/servo_node/pause_servo` (`std_srvs/SetBool`) scharf (`data=false`) bzw. pausiert (`data=true`). **Nur** im aktivierten Zustand sind die ±-Tasten freigegeben.
+
+**Dauer-Singularität in Cartesian/Tool (Platzhalter-Geometrie)**: Servo bricht Cartesian/Tool-Jogging in **nahezu jeder Pose** mit `Very close to a singularity, emergency stop` ab. Ursache ist **nicht** eine echte Pose-Singularität, sondern die **Skala der Platzhalter-Geometrie**: Servos Check ist die **Konditionszahl der Jacobi-Matrix** (σ_max/σ_min). Die URDF nutzt noch große Platzhalter-Gliedlängen (joint_1 @ 1.751 m usw.); der Translations-Anteil der Jacobi-Matrix skaliert damit hoch, sodass die Konditionszahl überall die Default-Schwelle (für ~0,3-m-Glieder wie Panda getunt) überschreitet. **Joints-Modus ist nicht betroffen** (invertiert die Jacobi-Matrix nicht). Fix: `lower_singularity_threshold`/`hard_stop_singularity_threshold` in [servo.yaml](src/r0192_moveit/config/servo.yaml) angehoben (200 / 400). Beide sind **live tunebar**: `ros2 param set /servo_node hard_stop_singularity_threshold <x>`. Mit echten CAD-Gliedlängen wieder absenken. (Zusätzlich gibt es bei joint_5 = 0 die echte Handgelenk-Singularität, da joint_4 und joint_6 dann achsparallel um X stehen — die bleibt unabhängig von den Schwellen bestehen.)
+
+**TCP-/Tool-Frame**: Der Tool-Modus verfährt im Frame `tcp` (in [r0192.urdf.xacro](src/r0192_description/urdf/r0192.urdf.xacro) als fester Kind-Frame von `gripper_base`, rpy `0 π/2 0`). Damit folgt er der ROS-Industrial-`tool0`-Konvention: **+Z = Anflug-/Stoßrichtung**, +Y = Greifer-Öffnungsachse. `gripper_base` selbst hat die Anflugrichtung auf **X** (deshalb der +90°-Dreh um Y, der Z auf X abbildet). `tcp` ist ein reiner TF-Frame (keine Visual/Collision) und nicht Teil der IK-Kette (Gruppe `r0192_arm` endet an `gripper_base`). Position sitzt vorerst auf `gripper_base` — mit echten CAD-Werten an den realen Fingerspitzen-TCP verschieben.
+
+**Press-and-Hold**: Solange eine ±-Taste gedrückt ist, streamt ein QTimer (50 Hz) den Befehl; beim Loslassen wird ein Null-Befehl gesendet (sofortiger Stopp). 
+
+**Koexistenz mit MoveIt**: Servo startet mit Command-Type `INVALID` und greift erst nach `switch_command_type` in `arm_controller` ein. Das Master-Toggle übernimmt beim Aktivieren die Kontrolle über den Controller; beim Deaktivieren (`pause_servo(true)`) gibt es ihn an `move_group` zurück. **Im Jog-Modus also nicht gleichzeitig MoveIt-Trajektorien ausführen.** Jogging erfordert eingeschaltete Motoren (Enable-Toggle), da Servo über den JTC → `write()` → `MIT_Control` läuft.
+
+MoveIt Servo wird vom `servo_node` in [moveit.launch.py](src/r0192_moveit/launch/moveit.launch.py) gestartet (Launch-Arg `use_servo:=true`, Default an). Konfig in [servo.yaml](src/r0192_moveit/config/servo.yaml): Gruppe `r0192_arm`, Ausgabe als `trajectory_msgs/JointTrajectory` auf `/arm_controller/joint_trajectory`, Butterworth-Smoothing, Kollisions- + Singularitätsbremsung aktiv, `is_primary_planning_scene_monitor: false` (move_group besitzt die Primär-Scene). Das Panel ist in [moveit.rviz](src/r0192_moveit/config/moveit.rviz) registriert und erscheint beim Start automatisch.
 
 ### Foxglove Studio (Debug-Tool)
 
@@ -413,7 +441,12 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 **Operator-Bedienung**
 - [x] RViz Operator-Panel (`r0192_rviz_plugins`): Buttons für Homing + Motoren EIN/AUS, in `moveit.rviz` registriert
 - [x] `/robot_enable` (`std_srvs/SetBool`) im Hardware-Interface implementiert (Motor-Drehmoment an/aus, `write()`-Gate)
+- [x] Arm startet drehmomentfrei (`on_activate` setzt `motors_enabled_=false` nach Safety-Check/Zeroing) — Operator schaltet bewusst via Enable-Toggle
+- [x] RViz Jog-Panel (`JogPanel`): Teach-Pendant mit 3 Modi (Achsen / Kartesisch-Basis / Werkzeug-Tool), 6×(−/+)-Tasten, Speed-Slider, über MoveIt Servo
+- [x] MoveIt Servo integriert (`servo_node` in `moveit.launch.py`, `use_servo` Launch-Arg, `servo.yaml`) — Ausgabe an `arm_controller`
 - [ ] Hardware-Test: Panel-Buttons gegen echte Hardware (Homing-Trigger, Motoren EIN/AUS, Drift-/Ruck-Verhalten beim Re-Enable prüfen)
+- [ ] Hardware-Test Jog-Panel: alle 3 Modi gegen Achse 1/4 verfahren; Twist-Frame-/Rotationsverhalten (`apply_twist_commands_about_ee_frame`) auf Hardware tunen; Speed-Slider-Bereich kalibrieren
+- [ ] Optional Jog-Panel: echter Inkrement-/Schritt-Modus (fixer Weg pro Klick) zusätzlich zum Press-and-Hold
 
 **Next: Web-Interface (r0192_remote)**
 - [ ] r0192_remote Paket aufbauen: Web-basiertes Bedienpanel als Operator-Interface

@@ -16,10 +16,12 @@ OperatorPanel::OperatorPanel(QWidget * parent)
   homing_btn_ = new QPushButton("Homing");
 
   // Single checkable toggle: checked = motors enabled, unchecked = disabled.
+  // The hardware starts de-energized (on_activate leaves motors_enabled_=false),
+  // so the toggle reflects that until the operator turns the motors on.
   enable_btn_ = new QPushButton;
   enable_btn_->setCheckable(true);
-  enable_btn_->setChecked(true);    // hardware default after activation
-  updateEnableButton(true);         // initial label/colour (no signal yet)
+  enable_btn_->setChecked(false);   // hardware starts disabled
+  updateEnableButton(false);        // initial label/colour (no signal yet)
 
   status_label_ = new QLabel("Ready.");
   status_label_->setWordWrap(true);

@@ -6,4 +6,11 @@
       (/robot_enable), plus Status-Anzeige.
     </description>
   </class>
+  <class type="r0192_rviz_plugins::JogPanel"
+         base_class_type="rviz_common::Panel">
+    <description>
+      R0192 Jog Panel (teach pendant): 6x (- / +) buttons to jog in three modes
+      (Joints, Cartesian-Base, Tool) via MoveIt Servo, with a speed slider.
+    </description>
+  </class>
 </library>

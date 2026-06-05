@@ -18,6 +18,9 @@
   <depend>rviz_common</depend>
   <depend>pluginlib</depend>
   <depend>std_srvs</depend>
+  <depend>control_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>moveit_msgs</depend>
   <depend>qtbase5-dev</depend>
 
   <export>

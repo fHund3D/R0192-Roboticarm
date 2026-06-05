@@ -1,6 +1,7 @@
 import os
 from launch import LaunchDescription
 from moveit_configs_utils import MoveItConfigsBuilder
+from launch_param_builder import ParameterBuilder
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
@@ -12,6 +13,7 @@ def generate_launch_description():
 
     is_sim = LaunchConfiguration("is_sim")
     use_rviz = LaunchConfiguration("use_rviz")
+    use_servo = LaunchConfiguration("use_servo")
 
     is_sim_arg = DeclareLaunchArgument(
         "is_sim",
@@ -22,6 +24,12 @@ def generate_launch_description():
         "use_rviz",
         default_value="true",
         description="Launch RViz with MoveIt plugin"
+    )
+
+    use_servo_arg = DeclareLaunchArgument(
+        "use_servo",
+        default_value="true",
+        description="Launch MoveIt Servo node for teach-pendant jogging (JogPanel)"
     )
 
     moveit_config = (
@@ -75,9 +83,35 @@ def generate_launch_description():
         condition=IfCondition(use_rviz),
     )
 
+    # MoveIt Servo node — teach-pendant jogging backend for r0192_rviz_plugins/
+    # JogPanel. Starts idle (command type INVALID + paused by the panel) so it
+    # does not interfere with move_group planning until the operator jogs.
+    servo_params = {
+        "moveit_servo": ParameterBuilder("r0192_moveit")
+        .yaml("config/servo.yaml")
+        .to_dict()
+    }
+    servo_node = Node(
+        package="moveit_servo",
+        executable="servo_node",
+        name="servo_node",
+        output="screen",
+        parameters=[
+            servo_params,
+            moveit_config.robot_description,
+            moveit_config.robot_description_semantic,
+            moveit_config.robot_description_kinematics,
+            moveit_config.joint_limits,
+            {"use_sim_time": is_sim},
+        ],
+        condition=IfCondition(use_servo),
+    )
+
     return LaunchDescription([
         is_sim_arg,
         use_rviz_arg,
+        use_servo_arg,
         move_group_node,
         rviz_node,
+        servo_node,
     ])
