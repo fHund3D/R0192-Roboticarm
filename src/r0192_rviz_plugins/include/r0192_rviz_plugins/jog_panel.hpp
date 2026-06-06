@@ -19,8 +19,11 @@
 #include <moveit_msgs/srv/servo_command_type.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
+
+namespace rviz_common { class Display; }
 
 namespace r0192_rviz_plugins
 {
@@ -63,6 +66,9 @@ private Q_SLOTS:
   void onAxisReleased();
   void onPublishTick();
   void onValueTick();   // refresh the live joint-angle / TCP-pose readout
+  void onHomingClicked();
+  void onEnableToggled(bool checked);
+  void onQueryGoalToggled(bool show);
 
 private:
   enum class Mode { Joint, CartesianBase, Tool };
@@ -74,6 +80,9 @@ private:
   void setJogButtonsEnabled(bool enabled);
   void setStatus(const QString & text, bool ok);
   double speedFactor() const;       // slider -> [0, 1] unitless magnitude
+  void updateEnableButton(bool enabled);  // label/colour of the servo toggle
+  void resetDisplays();             // reset all RViz displays (post-homing)
+  rviz_common::Display * findMotionPlanningDisplay();  // MoveIt display lookup
 
   // --- Widgets ---
   QRadioButton * mode_joint_{nullptr};
@@ -86,6 +95,9 @@ private:
   QSlider *      speed_slider_{nullptr};
   QLabel *       speed_value_{nullptr};
   QPushButton *  jog_active_btn_{nullptr};
+  QPushButton *  homing_btn_{nullptr};
+  QPushButton *  enable_btn_{nullptr};
+  QPushButton *  query_goal_btn_{nullptr};
   QLabel *       status_label_{nullptr};
 
   QTimer * pub_timer_{nullptr};
@@ -102,6 +114,8 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_pub_;
   rclcpp::Client<moveit_msgs::srv::ServoCommandType>::SharedPtr  switch_type_client_;
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr              pause_client_;
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr             homing_client_;
+  rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr             enable_client_;
 
   // --- Live readout sources ---
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr  joint_state_sub_;

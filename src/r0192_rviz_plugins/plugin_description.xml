@@ -9,8 +9,9 @@
   <class type="r0192_rviz_plugins::JogPanel"
          base_class_type="rviz_common::Panel">
     <description>
-      R0192 Jog Panel (teach pendant): 6x (- / +) buttons to jog in three modes
-      (Joints, Cartesian-Base, Tool) via MoveIt Servo, with a speed slider.
+      R0192 control panel: teach-pendant jogging (6x -/+ buttons, 3 modes via
+      MoveIt Servo, speed slider, live readout) plus operator controls (Homing,
+      Servo enable, MoveIt goal-marker visibility toggle).
     </description>
   </class>
 </library>

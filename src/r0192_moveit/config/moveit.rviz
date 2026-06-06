@@ -30,10 +30,8 @@ Panels:
     Name: Time
     SyncMode: 0
     SyncSource: ""
-  - Class: r0192_rviz_plugins::OperatorPanel
-    Name: OperatorPanel
   - Class: r0192_rviz_plugins::JogPanel
-    Name: JogPanel
+    Name: R0192 Control
 Visualization Manager:
   Class: ""
   Displays:

@@ -259,6 +259,8 @@ Geplante Bedienfunktionen und ihr ROS-Interface:
 
 ### RViz Operator-Panel (`r0192_rviz_plugins`)
 
+> **Hinweis (2026-06):** Die Bedienelemente des `OperatorPanel` (Homing, Servo-Enable) sind in das kombinierte **`JogPanel`** gewandert (siehe unten) und in [moveit.rviz](src/r0192_moveit/config/moveit.rviz) zeigt nur noch das JogPanel („R0192 Control"). Die `OperatorPanel`-Klasse bleibt registriert (manuell via **Panels → Add New Panel** ladbar), wird aber nicht mehr im Default-Layout angezeigt. Der folgende Abschnitt beschreibt weiterhin die identische Service-Semantik.
+
 Debug-/Bequemlichkeits-Panel direkt in RViz (kein Ersatz für das geplante `r0192_remote`-Web-Interface). Das Plugin `r0192_rviz_plugins/OperatorPanel` ([operator_panel.cpp](src/r0192_rviz_plugins/src/operator_panel.cpp)) bietet einen Button, einen Toggle + Status-Label:
 
 - **Homing** → ruft `/homing` (`std_srvs/Trigger`) asynchron auf. **Nach Erfolg** löst das Panel automatisch einen RViz-Display-Reset aus (siehe unten), damit MoveIts Planungs-Startzustand auf die frisch gehomte Pose nachzieht.
@@ -290,6 +292,11 @@ Bedienelemente:
 - **Modus-Radios** (Joints / Cartesian / Tool) → setzen den Servo-Command-Type via `/servo_node/switch_command_type` (`moveit_msgs/ServoCommandType`: `JOINT_JOG`/`TWIST`).
 - **Geschwindigkeits-Slider** (1–100 %) → skaliert die Befehlsmagnitude. Servo läuft mit `command_in_type: "unitless"`, d. h. das Panel sendet Werte in [−1, 1]; die Max-Geschwindigkeit setzen `scale.linear/rotational/joint` in [servo.yaml](src/r0192_moveit/config/servo.yaml). Effektive Geschwindigkeit = Slider-% × scale. (Dies ist der „Schritt"-/Speed-Regler.)
 - **Master-Toggle „Enable Jog"**: schaltet Servo via `/servo_node/pause_servo` (`std_srvs/SetBool`) scharf (`data=false`) bzw. pausiert (`data=true`). **Nur** im aktivierten Zustand sind die ±-Tasten freigegeben.
+
+**Kombinierte Operator-Bedienelemente** (unter „Enable Jog", aus dem früheren OperatorPanel übernommen):
+- **Homing** → `/homing` (`std_srvs/Trigger`), inkl. Auto-Display-Reset ~500 ms nach Erfolg (`resetDisplays()`).
+- **Servo-Enable-Toggle** → `/robot_enable` (`std_srvs/SetBool`), grün = an / rot = aus; startet auf „aus" (Arm startet drehmomentfrei).
+- **„Goal Marker"-Toggle** → blendet MoveIts Query-Goal-State aus/ein, indem das Panel die Property `Planning Request → Query Goal State` des MotionPlanning-Displays setzt (`findMotionPlanningDisplay()` → `subProp(...)->setValue(...)`). Praktisch beim Jogging: der orange Ziel-Marker liegt sonst über dem realen Arm-Modell und stört die Sicht auf die Ist-Pose. Default „shown" (wie in moveit.rviz).
 
 **Singularität in Cartesian/Tool**: Servo bremst/stoppt bei echten Singularitäten mit `Very close to a singularity, emergency stop`. Schwellen in [servo.yaml](src/r0192_moveit/config/servo.yaml) stehen auf Default (`lower_singularity_threshold: 17`, `hard_stop_singularity_threshold: 30`) — passend, seit das Modell **real-skaliert** ist (~0,18 m Glieder; vorher waren sie wegen der 10× zu großen Platzhalter-Geometrie temporär auf 200/400 angehoben). **Joints-Modus ist nicht betroffen** (invertiert die Jacobi-Matrix nicht). Eine echte Handgelenk-Singularität bleibt bei joint_5 = 0 (joint_4 und joint_6 dann achsparallel um X) — dort vor Cartesian/Tool-Jogging joint_5 ein paar Grad wegfahren. Schwellen live tunebar: `ros2 param set /servo_node hard_stop_singularity_threshold <x>`.
 

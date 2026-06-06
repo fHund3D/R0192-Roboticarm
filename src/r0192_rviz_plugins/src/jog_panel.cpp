@@ -1,11 +1,15 @@
 #include "r0192_rviz_plugins/jog_panel.hpp"
 
 #include <rviz_common/display_context.hpp>
+#include <rviz_common/display.hpp>
+#include <rviz_common/display_group.hpp>
+#include <rviz_common/properties/property.hpp>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QFrame>
 #include <QFont>
 
 #include <cmath>
@@ -105,6 +109,29 @@ JogPanel::JogPanel(QWidget * parent)
   jog_active_btn_->setChecked(false);
   root->addWidget(jog_active_btn_);
 
+  // --- Operator controls (merged from the former OperatorPanel) ---
+  auto * sep = new QFrame;
+  sep->setFrameShape(QFrame::HLine);
+  sep->setFrameShadow(QFrame::Sunken);
+  root->addWidget(sep);
+
+  homing_btn_ = new QPushButton("Homing");
+  root->addWidget(homing_btn_);
+
+  enable_btn_ = new QPushButton;
+  enable_btn_->setCheckable(true);
+  enable_btn_->setChecked(false);   // hardware starts de-energized
+  updateEnableButton(false);
+  root->addWidget(enable_btn_);
+
+  // Goal-marker visibility: hide MoveIt's interactive goal state while jogging
+  // so the orange query robot doesn't obscure the live arm pose.
+  query_goal_btn_ = new QPushButton;
+  query_goal_btn_->setCheckable(true);
+  query_goal_btn_->setChecked(true);   // goal shown by default (matches rviz cfg)
+  query_goal_btn_->setText("Goal Marker: shown");
+  root->addWidget(query_goal_btn_);
+
   status_label_ = new QLabel("Jog inactive — MoveIt has control.");
   status_label_->setWordWrap(true);
   root->addWidget(status_label_);
@@ -129,6 +156,9 @@ JogPanel::JogPanel(QWidget * parent)
   connect(speed_slider_, &QSlider::valueChanged, this,
           [this](int v) { speed_value_->setText(QString::number(v) + " %"); });
   connect(jog_active_btn_, &QPushButton::toggled, this, &JogPanel::onJogActiveToggled);
+  connect(homing_btn_, &QPushButton::clicked, this, &JogPanel::onHomingClicked);
+  connect(enable_btn_, &QPushButton::toggled, this, &JogPanel::onEnableToggled);
+  connect(query_goal_btn_, &QPushButton::toggled, this, &JogPanel::onQueryGoalToggled);
 }
 
 void JogPanel::onInitialize()
@@ -139,6 +169,8 @@ void JogPanel::onInitialize()
   twist_pub_ = node_->create_publisher<geometry_msgs::msg::TwistStamped>(kTwistTopic, rclcpp::QoS(10));
   switch_type_client_ = node_->create_client<moveit_msgs::srv::ServoCommandType>(kSwitchTypeSrv);
   pause_client_ = node_->create_client<std_srvs::srv::SetBool>(kPauseSrv);
+  homing_client_ = node_->create_client<std_srvs::srv::Trigger>("/homing");
+  enable_client_ = node_->create_client<std_srvs::srv::SetBool>("/robot_enable");
 
   // Live readout sources: joint angles from /joint_states, TCP pose from TF.
   joint_state_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
@@ -374,6 +406,112 @@ void JogPanel::setStatus(const QString & text, bool ok)
 {
   status_label_->setText(text);
   status_label_->setStyleSheet(ok ? "color: #2e7d32;" : "color: #c62828;");
+}
+
+// ----------------------------------------------------------------------------
+// Operator controls (merged from OperatorPanel)
+// ----------------------------------------------------------------------------
+void JogPanel::onHomingClicked()
+{
+  if (!homing_client_->service_is_ready()) {
+    setStatus("Service /homing not available (hardware active? axis 1 present?).", false);
+    return;
+  }
+  setStatus("Homing running …", true);
+  homing_btn_->setEnabled(false);
+
+  auto req = std::make_shared<std_srvs::srv::Trigger::Request>();
+  homing_client_->async_send_request(
+    req,
+    [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
+      auto resp = future.get();
+      const std::string prefix = resp->success ? "Homing OK: " : "Homing ERROR: ";
+      setStatus(QString::fromStdString(prefix + resp->message), resp->success);
+      homing_btn_->setEnabled(true);
+      // After a successful re-zero, reset the displays so MoveIt's start state
+      // re-syncs to the homed pose (same effect as RViz's "Reset" button).
+      if (resp->success) {
+        QTimer::singleShot(500, this, [this]() { resetDisplays(); });
+      }
+    });
+}
+
+void JogPanel::resetDisplays()
+{
+  auto * ctx = getDisplayContext();
+  if (!ctx) {
+    return;
+  }
+  ctx->getRootDisplayGroup()->reset();
+  ctx->queueRender();
+}
+
+void JogPanel::onEnableToggled(bool checked)
+{
+  if (!enable_client_->service_is_ready()) {
+    setStatus("Service /robot_enable not available (hardware active?).", false);
+    enable_btn_->blockSignals(true);
+    enable_btn_->setChecked(!checked);
+    enable_btn_->blockSignals(false);
+    updateEnableButton(!checked);
+    return;
+  }
+  updateEnableButton(checked);
+  setStatus(checked ? "Servos enabling …" : "Servos disabling …", true);
+
+  auto req = std::make_shared<std_srvs::srv::SetBool::Request>();
+  req->data = checked;
+  enable_client_->async_send_request(
+    req,
+    [this](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture future) {
+      auto resp = future.get();
+      setStatus(QString::fromStdString(resp->message), resp->success);
+    });
+}
+
+void JogPanel::updateEnableButton(bool enabled)
+{
+  if (enabled) {
+    enable_btn_->setText("Servos Enabled");
+    enable_btn_->setStyleSheet("font-weight: bold; color: #2e7d32;");
+  } else {
+    enable_btn_->setText("Servos Disabled");
+    enable_btn_->setStyleSheet("font-weight: bold; color: #c62828;");
+  }
+}
+
+// ----------------------------------------------------------------------------
+// MoveIt query-goal-state visibility toggle
+// ----------------------------------------------------------------------------
+rviz_common::Display * JogPanel::findMotionPlanningDisplay()
+{
+  auto * ctx = getDisplayContext();
+  if (!ctx) {
+    return nullptr;
+  }
+  auto * group = ctx->getRootDisplayGroup();
+  for (int i = 0; i < group->numDisplays(); ++i) {
+    auto * d = group->getDisplayAt(i);
+    if (d && (d->getClassId() == "moveit_rviz_plugin/MotionPlanning" ||
+              d->getName() == "MotionPlanning")) {
+      return d;
+    }
+  }
+  return nullptr;
+}
+
+void JogPanel::onQueryGoalToggled(bool show)
+{
+  query_goal_btn_->setText(show ? "Goal Marker: shown" : "Goal Marker: hidden");
+
+  auto * d = findMotionPlanningDisplay();
+  if (!d) {
+    setStatus("MotionPlanning display not found — cannot toggle goal marker.", false);
+    return;
+  }
+  // MotionPlanning → "Planning Request" group → "Query Goal State" bool property.
+  d->subProp("Planning Request")->subProp("Query Goal State")->setValue(show);
+  getDisplayContext()->queueRender();
 }
 
 }  // namespace r0192_rviz_plugins
