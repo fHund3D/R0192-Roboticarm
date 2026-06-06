@@ -28,7 +28,6 @@ namespace
 constexpr const char * kJointTopic   = "/servo_node/delta_joint_cmds";
 constexpr const char * kTwistTopic   = "/servo_node/delta_twist_cmds";
 constexpr const char * kSwitchTypeSrv = "/servo_node/switch_command_type";
-constexpr const char * kPauseSrv     = "/servo_node/pause_servo";
 
 // TF frames for Cartesian jogging.
 constexpr const char * kBaseFrame = "base_link";
@@ -54,6 +53,21 @@ JogPanel::JogPanel(QWidget * parent)
 : rviz_common::Panel(parent)
 {
   auto * root = new QVBoxLayout;
+
+  // --- Emergency stop (always at the top, always available) ---
+  estop_btn_ = new QPushButton("EMERGENCY STOP");
+  estop_btn_->setStyleSheet(
+    "QPushButton { background-color: #c62828; color: white; font-weight: bold; "
+    "font-size: 16px; padding: 10px; border-radius: 4px; }"
+    "QPushButton:pressed { background-color: #8e0000; }");
+  estop_btn_->setMinimumHeight(48);
+  root->addWidget(estop_btn_);
+
+  // --- Reset (clears latched driver faults after an e-stop) ---
+  reset_btn_ = new QPushButton("Reset (clear faults)");
+  reset_btn_->setToolTip("Clear latched driver faults after an emergency stop, "
+                         "then re-enable the servos.");
+  root->addWidget(reset_btn_);
 
   // --- Mode selector ---
   auto * mode_box = new QGroupBox("Mode");
@@ -115,14 +129,20 @@ JogPanel::JogPanel(QWidget * parent)
   sep->setFrameShadow(QFrame::Sunken);
   root->addWidget(sep);
 
-  homing_btn_ = new QPushButton("Homing");
-  root->addWidget(homing_btn_);
-
+  // Servos master toggle (DISABLED <-> HOLD). Hardware starts de-energized.
   enable_btn_ = new QPushButton;
   enable_btn_->setCheckable(true);
-  enable_btn_->setChecked(false);   // hardware starts de-energized
-  updateEnableButton(false);
+  enable_btn_->setChecked(false);
   root->addWidget(enable_btn_);
+
+  // MoveIt toggle (HOLD <-> MOVEIT): only when active may move_group execute.
+  moveit_btn_ = new QPushButton;
+  moveit_btn_->setCheckable(true);
+  moveit_btn_->setChecked(false);
+  root->addWidget(moveit_btn_);
+
+  homing_btn_ = new QPushButton("Homing");
+  root->addWidget(homing_btn_);
 
   // Goal-marker visibility: hide MoveIt's interactive goal state while jogging
   // so the orange query robot doesn't obscure the live arm pose.
@@ -132,14 +152,14 @@ JogPanel::JogPanel(QWidget * parent)
   query_goal_btn_->setText("Goal Marker: shown");
   root->addWidget(query_goal_btn_);
 
-  status_label_ = new QLabel("Jog inactive — MoveIt has control.");
+  status_label_ = new QLabel("Waiting for robot state …");
   status_label_->setWordWrap(true);
   root->addWidget(status_label_);
   root->addStretch();
   setLayout(root);
 
   updateDofLabels();
-  setJogButtonsEnabled(false);
+  updateUiForState();   // reflect the initial (DISABLED) state
 
   // --- Connections ---
   connect(mode_joint_, &QRadioButton::toggled, this, &JogPanel::onModeChanged);
@@ -155,7 +175,10 @@ JogPanel::JogPanel(QWidget * parent)
 
   connect(speed_slider_, &QSlider::valueChanged, this,
           [this](int v) { speed_value_->setText(QString::number(v) + " %"); });
+  connect(estop_btn_, &QPushButton::clicked, this, &JogPanel::onEStopClicked);
+  connect(reset_btn_, &QPushButton::clicked, this, &JogPanel::onResetClicked);
   connect(jog_active_btn_, &QPushButton::toggled, this, &JogPanel::onJogActiveToggled);
+  connect(moveit_btn_, &QPushButton::toggled, this, &JogPanel::onMoveItToggled);
   connect(homing_btn_, &QPushButton::clicked, this, &JogPanel::onHomingClicked);
   connect(enable_btn_, &QPushButton::toggled, this, &JogPanel::onEnableToggled);
   connect(query_goal_btn_, &QPushButton::toggled, this, &JogPanel::onQueryGoalToggled);
@@ -168,9 +191,16 @@ void JogPanel::onInitialize()
   joint_pub_ = node_->create_publisher<control_msgs::msg::JointJog>(kJointTopic, rclcpp::QoS(10));
   twist_pub_ = node_->create_publisher<geometry_msgs::msg::TwistStamped>(kTwistTopic, rclcpp::QoS(10));
   switch_type_client_ = node_->create_client<moveit_msgs::srv::ServoCommandType>(kSwitchTypeSrv);
-  pause_client_ = node_->create_client<std_srvs::srv::SetBool>(kPauseSrv);
-  homing_client_ = node_->create_client<std_srvs::srv::Trigger>("/homing");
-  enable_client_ = node_->create_client<std_srvs::srv::SetBool>("/robot_enable");
+
+  // Central state machine: request transitions + mirror the authoritative state.
+  set_state_client_ = node_->create_client<r0192_interfaces::srv::SetRobotState>("/set_robot_state");
+  estop_client_ = node_->create_client<std_srvs::srv::Trigger>("/e_stop");
+  reset_client_ = node_->create_client<std_srvs::srv::Trigger>("/robot_reset");
+  state_sub_ = node_->create_subscription<r0192_interfaces::msg::RobotState>(
+    "/robot_state", rclcpp::QoS(1).transient_local(),
+    [this](const r0192_interfaces::msg::RobotState::ConstSharedPtr msg) {
+      onRobotState(msg->state, QString::fromStdString(msg->status));
+    });
 
   // Live readout sources: joint angles from /joint_states, TCP pose from TF.
   joint_state_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
@@ -220,7 +250,7 @@ void JogPanel::setMode(Mode mode)
   active_sign_ = 0.0;
 
   // If jogging is active, retarget Servo to the new command type.
-  if (jog_active_btn_->isChecked()) {
+  if (robot_state_ == r0192_interfaces::msg::RobotState::JOG) {
     applyCommandType();
   }
 }
@@ -239,35 +269,16 @@ void JogPanel::updateDofLabels()
 
 void JogPanel::onJogActiveToggled(bool checked)
 {
-  if (checked) {
-    if (!pause_client_->service_is_ready()) {
-      setStatus("Servo unavailable (use_servo:=true? hardware active?).", false);
-      jog_active_btn_->blockSignals(true);
-      jog_active_btn_->setChecked(false);
-      jog_active_btn_->blockSignals(false);
-      return;
-    }
-    callPause(false);          // unpause -> Servo takes over arm_controller
-    applyCommandType();        // select JointJog / Twist for current mode
-    setJogButtonsEnabled(true);
-    pub_timer_->start();
-    jog_active_btn_->setText("Stop Jog");
-    setStatus("Jog active — motors must be enabled.", true);
-  } else {
-    active_dof_ = -1;
-    active_sign_ = 0.0;
-    pub_timer_->stop();
-    setJogButtonsEnabled(false);
-    callPause(true);           // pause -> hand arm_controller back to MoveIt
-    jog_active_btn_->setText("Enable Jog");
-    setStatus("Jog inactive — MoveIt has control.", true);
-  }
+  using RS = r0192_interfaces::msg::RobotState;
+  // Request the transition; the UI (and Servo command stream) follow the
+  // confirmed /robot_state, so do nothing else here.
+  requestState(checked ? RS::JOG : RS::HOLD);
 }
 
 void JogPanel::onAxisPressed(int dof, double sign)
 {
-  if (!jog_active_btn_->isChecked()) {
-    return;  // buttons are disabled in this state, but guard anyway
+  if (robot_state_ != r0192_interfaces::msg::RobotState::JOG) {
+    return;  // buttons are disabled outside JOG, but guard anyway
   }
   active_dof_ = dof;
   active_sign_ = sign;
@@ -379,16 +390,6 @@ void JogPanel::applyCommandType()
   switch_type_client_->async_send_request(req);
 }
 
-void JogPanel::callPause(bool pause)
-{
-  if (!pause_client_->service_is_ready()) {
-    return;
-  }
-  auto req = std::make_shared<std_srvs::srv::SetBool::Request>();
-  req->data = pause;
-  pause_client_->async_send_request(req);
-}
-
 void JogPanel::setJogButtonsEnabled(bool enabled)
 {
   for (int dof = 0; dof < 6; ++dof) {
@@ -409,31 +410,107 @@ void JogPanel::setStatus(const QString & text, bool ok)
 }
 
 // ----------------------------------------------------------------------------
-// Operator controls (merged from OperatorPanel)
+// State-machine client (/set_robot_state + /robot_state)
 // ----------------------------------------------------------------------------
-void JogPanel::onHomingClicked()
+void JogPanel::requestState(uint8_t target)
 {
-  if (!homing_client_->service_is_ready()) {
-    setStatus("Service /homing not available (hardware active? axis 1 present?).", false);
+  if (!set_state_client_->service_is_ready()) {
+    setStatus("State manager unavailable (/set_robot_state). Hardware active?", false);
+    updateUiForState();   // revert any optimistic button toggle
     return;
   }
-  setStatus("Homing running …", true);
-  homing_btn_->setEnabled(false);
-
-  auto req = std::make_shared<std_srvs::srv::Trigger::Request>();
-  homing_client_->async_send_request(
+  auto req = std::make_shared<r0192_interfaces::srv::SetRobotState::Request>();
+  req->requested_state = target;
+  set_state_client_->async_send_request(
     req,
-    [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
+    [this](rclcpp::Client<r0192_interfaces::srv::SetRobotState>::SharedFuture future) {
       auto resp = future.get();
-      const std::string prefix = resp->success ? "Homing OK: " : "Homing ERROR: ";
-      setStatus(QString::fromStdString(prefix + resp->message), resp->success);
-      homing_btn_->setEnabled(true);
-      // After a successful re-zero, reset the displays so MoveIt's start state
-      // re-syncs to the homed pose (same effect as RViz's "Reset" button).
-      if (resp->success) {
-        QTimer::singleShot(500, this, [this]() { resetDisplays(); });
-      }
+      robot_state_ = resp->current_state;
+      setStatus(QString::fromStdString(resp->message), resp->success);
+      updateUiForState();
     });
+}
+
+void JogPanel::onRobotState(uint8_t state, const QString & status)
+{
+  prev_robot_state_ = robot_state_;
+  robot_state_ = state;
+  updateUiForState();
+  if (!status.isEmpty()) {
+    setStatus(status, state != r0192_interfaces::msg::RobotState::DISABLED);
+  }
+
+  // After homing finishes (HOMING -> HOLD), reset the displays so MoveIt's start
+  // state re-syncs to the freshly homed pose (same effect as RViz's "Reset").
+  using RS = r0192_interfaces::msg::RobotState;
+  if (prev_robot_state_ == RS::HOMING && robot_state_ == RS::HOLD) {
+    QTimer::singleShot(500, this, [this]() { resetDisplays(); });
+  }
+}
+
+void JogPanel::updateUiForState()
+{
+  using RS = r0192_interfaces::msg::RobotState;
+  const bool disabled = (robot_state_ == RS::DISABLED);
+  const bool hold     = (robot_state_ == RS::HOLD);
+  const bool jog      = (robot_state_ == RS::JOG);
+  const bool moveit   = (robot_state_ == RS::MOVEIT);
+  const bool homing   = (robot_state_ == RS::HOMING);
+
+  // Servos toggle: checked when energised; clickable only in DISABLED/HOLD.
+  enable_btn_->blockSignals(true);
+  enable_btn_->setChecked(!disabled);
+  enable_btn_->setEnabled(disabled || hold);
+  enable_btn_->blockSignals(false);
+  if (disabled) {
+    enable_btn_->setText("Servos Disabled");
+    enable_btn_->setStyleSheet("font-weight: bold; color: #c62828;");
+  } else {
+    enable_btn_->setText("Servos Enabled");
+    enable_btn_->setStyleSheet("font-weight: bold; color: #2e7d32;");
+  }
+
+  // MoveIt toggle: only reachable from HOLD; leave back to HOLD.
+  moveit_btn_->blockSignals(true);
+  moveit_btn_->setChecked(moveit);
+  moveit_btn_->setEnabled(hold || moveit);
+  moveit_btn_->blockSignals(false);
+  moveit_btn_->setText(moveit ? "MoveIt: active" : "MoveIt: off");
+  moveit_btn_->setStyleSheet(moveit ? "font-weight: bold; color: #2e7d32;" : "");
+
+  // Jog master toggle: only reachable from HOLD; leave back to HOLD.
+  jog_active_btn_->blockSignals(true);
+  jog_active_btn_->setChecked(jog);
+  jog_active_btn_->setEnabled(hold || jog);
+  jog_active_btn_->blockSignals(false);
+  jog_active_btn_->setText(jog ? "Stop Jog" : "Enable Jog");
+
+  // Homing: only from HOLD.
+  homing_btn_->setEnabled(hold);
+
+  // Reset (clear faults) only matters after an e-stop, i.e. from DISABLED.
+  reset_btn_->setEnabled(disabled);
+
+  // Per-axis +/- buttons only live in JOG.
+  setJogButtonsEnabled(jog);
+
+  // Drive the Servo command stream from the JOG state. (pub_timer_ is created in
+  // onInitialize(); this method also runs once from the constructor before that,
+  // so guard against the null timer.)
+  if (pub_timer_) {
+    if (jog && !pub_timer_->isActive()) {
+      applyCommandType();       // select JointJog / Twist for the current mode
+      pub_timer_->start();
+    } else if (!jog && pub_timer_->isActive()) {
+      active_dof_ = -1;
+      active_sign_ = 0.0;
+      pub_timer_->stop();
+    }
+  }
+
+  if (homing) {
+    setStatus("Homing running …", true);
+  }
 }
 
 void JogPanel::resetDisplays()
@@ -448,36 +525,57 @@ void JogPanel::resetDisplays()
 
 void JogPanel::onEnableToggled(bool checked)
 {
-  if (!enable_client_->service_is_ready()) {
-    setStatus("Service /robot_enable not available (hardware active?).", false);
-    enable_btn_->blockSignals(true);
-    enable_btn_->setChecked(!checked);
-    enable_btn_->blockSignals(false);
-    updateEnableButton(!checked);
+  using RS = r0192_interfaces::msg::RobotState;
+  // Servos on = HOLD, off = DISABLED. UI follows the confirmed /robot_state.
+  requestState(checked ? RS::HOLD : RS::DISABLED);
+}
+
+void JogPanel::onMoveItToggled(bool checked)
+{
+  using RS = r0192_interfaces::msg::RobotState;
+  requestState(checked ? RS::MOVEIT : RS::HOLD);
+}
+
+void JogPanel::onHomingClicked()
+{
+  requestState(r0192_interfaces::msg::RobotState::HOMING);
+}
+
+void JogPanel::onEStopClicked()
+{
+  // E-Stop is special: it goes through the dedicated /e_stop service (not
+  // /set_robot_state) so it can force DISABLED from ANY state. The UI then
+  // follows the /robot_state update back to DISABLED.
+  if (!estop_client_->service_is_ready()) {
+    setStatus("E-STOP service /e_stop unavailable — is the state manager up?", false);
     return;
   }
-  updateEnableButton(checked);
-  setStatus(checked ? "Servos enabling …" : "Servos disabling …", true);
-
-  auto req = std::make_shared<std_srvs::srv::SetBool::Request>();
-  req->data = checked;
-  enable_client_->async_send_request(
+  setStatus("EMERGENCY STOP triggered …", false);
+  auto req = std::make_shared<std_srvs::srv::Trigger::Request>();
+  estop_client_->async_send_request(
     req,
-    [this](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture future) {
+    [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
       auto resp = future.get();
-      setStatus(QString::fromStdString(resp->message), resp->success);
+      setStatus(QString::fromStdString(resp->message), false);  // red regardless
     });
 }
 
-void JogPanel::updateEnableButton(bool enabled)
+void JogPanel::onResetClicked()
 {
-  if (enabled) {
-    enable_btn_->setText("Servos Enabled");
-    enable_btn_->setStyleSheet("font-weight: bold; color: #2e7d32;");
-  } else {
-    enable_btn_->setText("Servos Disabled");
-    enable_btn_->setStyleSheet("font-weight: bold; color: #c62828;");
+  // Reset clears the latched driver faults left by an e-stop (hardware
+  // /robot_clear_faults via the state manager), so DISABLED->HOLD works again.
+  if (!reset_client_->service_is_ready()) {
+    setStatus("Reset service /robot_reset unavailable — is the state manager up?", false);
+    return;
   }
+  setStatus("Resetting drivers …", true);
+  auto req = std::make_shared<std_srvs::srv::Trigger::Request>();
+  reset_client_->async_send_request(
+    req,
+    [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
+      auto resp = future.get();
+      setStatus(QString::fromStdString(resp->message), resp->success);
+    });
 }
 
 // ----------------------------------------------------------------------------

@@ -102,6 +102,17 @@ def generate_launch_description():
         output="screen",
     )
 
+    # 5b. Robot State Manager – zentrale Zustandsmaschine (DISABLED/HOLD/JOG/
+    #     MOVEIT/HOMING). Single source of truth; deaktiviert arm_controller beim
+    #     Start (Arm steht drehmomentfrei in DISABLED). Tolerant gegen späte
+    #     Services, daher kein TimerAction nötig.
+    robot_state_manager = Node(
+        package="r0192_hardware",
+        executable="robot_state_manager",
+        name="r0192_state_manager",
+        output="screen",
+    )
+
     # 6-7. MoveIt + RViz (mit leichter Verzögerung damit Controller erst stabil sind)
     moveit_and_rviz = TimerAction(
         period=3.0,
@@ -138,6 +149,7 @@ def generate_launch_description():
         joint_state_broadcaster_spawner,
         arm_controller_spawner,
         gripper_controller_spawner,
+        robot_state_manager,
         moveit_and_rviz,
         foxglove_bridge,
     ])

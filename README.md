@@ -5,7 +5,7 @@
 
 Der **R0192** ist ein hochpräziser 6-Achsen-Roboterarm, der auf einem hybriden System aus SteadyWin- und RobStride-Aktuatoren basiert. Dieses Repository enthält das vollständige ROS 2 Jazzy-Ökosystem für die CAN-Bus-Kommunikation, die Hardware-Abstraktion, die Bahnplanung via MoveIt 2 sowie ein Arduino-basiertes Hall-Sensor-Homing.
 
-Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf einem **Raspberry Pi 5**. Als Bedienpanel ist ein eigenes **Web-Interface** (`r0192_remote`) geplant; Foxglove Studio und RViz dienen als Debug-Werkzeuge. Achsen 1 und 4 sind vollständig in Betrieb; die restlichen Achsen werden nach und nach nachgerüstet.
+Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf einem **Raspberry Pi 5**. Eine zentrale **Betriebszustands-Maschine** (`robot_state_manager`) koordiniert Motor-Enable, Jogging, MoveIt-Ausführung, Homing und Notaus als sich gegenseitig ausschließende Zustände. Bedient wird der Arm aktuell über ein **RViz-Jog-Panel** (Teach-Pendant); als Produktiv-Bedienpanel ist ein eigenes **Web-Interface** (`r0192_remote`) geplant. Foxglove Studio und RViz dienen als Debug-Werkzeuge. Achsen 1 und 4 sind vollständig in Betrieb; die restlichen Achsen werden nach und nach nachgerüstet.
 
 ---
 
@@ -21,10 +21,13 @@ Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf ein
 - [x] MoveIt 2 Integration — Bahnplanung & Trajektorienausführung auf Achsen 1 + 4 verifiziert
 - [x] Encoder-Homing beim Start (Hardware Interface setzt internen Nullpunkt)
 - [x] `foxglove_bridge` in Bringup integriert (Debug-Tool, Port 8765, `use_foxglove:=true`)
-- [x] **Homing-Sequenz** mit TLE4905L Hall-Sensoren — Arduino-Firmware (Achse 1) + ROS-Service `/homing` in `r0192_hardware` eingebettet; zweiseitiger Bisektionsalgorithmus implementiert
+- [x] **Homing-Sequenz** mit TLE4905L Hall-Sensoren — Arduino-Firmware (Achse 1) + ROS-Service `/homing` in `r0192_hardware` eingebettet; zweiseitiger Kantenanlauf (Kante A → Überfahren → Kante B → Mitte) implementiert
+- [x] **RViz Jog-Panel / Teach-Pendant** (`r0192_rviz_plugins`) über MoveIt Servo: 3 Modi (Joints / Cartesian / Tool), Speed-Slider, Press-and-Hold
+- [x] **Zentrale Zustandsmaschine** (`robot_state_manager` + `r0192_interfaces`): 5 exklusive Zustände DISABLED / HOLD / JOG / MOVEIT / HOMING via `/set_robot_state` + `/robot_state`
+- [x] **Notaus** (`/e_stop`) — erzwingt DISABLED aus jedem Zustand, latchender Treiber-Torque-Cut (GDS68 `Estop()`, RS05 stop) + Treiber-Reset (`/robot_reset` → `Clear_Errors`) zur Wiederinbetriebnahme
 - [ ] **Aktuell: Hardware-Test Homing** — Arduino + Magnet an Achse 1 anschließen und end-to-end validieren
-- [ ] **Aktuell: Web-Interface** (`r0192_remote`) — eigenes Bedienpanel für E-Stop, Motor-Enable, Homing, Arm-Steuerung
-- [ ] Globaler Software-Notaus (E-Stop)
+- [ ] **Aktuell: Web-Interface** (`r0192_remote`) — eigenes Bedienpanel auf Basis von `/set_robot_state` + `/robot_state`
+- [ ] Echter Hardware-Notaus (laufenden Homing-Sweep abbrechen, ggf. Power-Cut/Schütz statt nur Treiber-Torque-Aus)
 - [ ] Echtzeit-Optimierung (RT-Kernel & CPU-Shielding auf RPi 5)
 
 #### Projektstruktur
@@ -36,8 +39,10 @@ roboticarm_r0192_ws/
 │   ├── r0192_canbus/          # CAN-Bus Treiber: GDS68, RS05, CanCommunication
 │   ├── r0192_controller/      # JTC-Konfiguration, manueller Slider-Node
 │   ├── r0192_description/     # URDF/XACRO, STL-Meshes, RViz-Konfiguration
-│   ├── r0192_hardware/        # ros2_control Hardware Interface (SystemInterface)
-│   ├── r0192_moveit/          # MoveIt 2: SRDF, Kinematik, Planung, Launch
+│   ├── r0192_interfaces/      # Custom msgs/srvs: RobotState, SetRobotState
+│   ├── r0192_hardware/        # ros2_control HW-Interface + robot_state_manager
+│   ├── r0192_moveit/          # MoveIt 2: SRDF, Kinematik, Planung, Servo, Launch
+│   ├── r0192_rviz_plugins/    # RViz Jog-Panel / Teach-Pendant (Operator-Panel)
 │   └── r0192_remote/          # (Geplant) Web-Interface als Operator-Pendant
 ├── doku/                      # Datenblätter & Treiber-Dokumentation
 ├── build/                     # Build-Artefakte (ignoriert)
@@ -48,15 +53,20 @@ roboticarm_r0192_ws/
 #### System-Architektur
 
 ```
-Web-Interface (Browser/MacBook)          Debug-Tools (optional)
-  │  HTTP / WebSocket                    RViz  ◄──  ROS-Topics
-  │  E-Stop, Enable, Homing, Steuerung   Foxglove ◄─ foxglove_bridge (:8765)
-r0192_remote (RPi, geplant)
-  │
-MoveIt 2 ──► ros2_control (100 Hz, Closed-Loop)
+RViz Jog-Panel  /  Web-Interface (geplant)        Debug-Tools (optional)
+  │  /set_robot_state, /e_stop                     RViz  ◄──  ROS-Topics
+  │  /robot_state (latched)                        Foxglove ◄─ foxglove_bridge (:8765)
+  ▼
+robot_state_manager  (zentrale Zustandsmaschine)
+  │  koordiniert: /robot_enable, switch_controller, pause_servo, /homing
+  ├──────────────► MoveIt 2 + Servo
+  │                     │
+  ▼                     ▼
+ros2_control (100 Hz, Closed-Loop)  ──►  arm_controller / gripper_controller
                  │
          R0192SystemHardware
-          ├─ /homing Service (eingebettet)
+          ├─ /robot_enable Service (Motor-Torque an/aus)
+          ├─ /homing Service (eingebettet, HomingController)
                  │
     ┌────────────┴────────────┐
 GDS68Driver              RS05Driver
@@ -67,8 +77,22 @@ GDS68Driver              RS05Driver
                  │
     Arduino Uno R3 (je 1 pro Achse)
     TLE4905L Hall-Sensor + MCP2515
-    Homing-Node (CAN 0x100 ↔ 0x000)
+    Homing-Node (CAN-ID 0x100, Codes in Data[0]: CMD_ARM/DETECTED/ERROR)
 ```
+
+#### Betriebszustände (Robot State Manager)
+
+Der `robot_state_manager` ist die *Single Source of Truth* für den Betriebszustand. Vorher war der Zustand implizit über drei verstreute Flags verteilt (`motors_enabled_`, Homing-aktiv, Servo-Pause) — jetzt 5 exklusive Zustände mit erzwungenen Übergängen:
+
+| Zustand | Motor-Torque | `arm_controller` | Servo | Bedeutung |
+| :--- | :--- | :--- | :--- | :--- |
+| `DISABLED` | aus | inaktiv | pausiert | Idle, drehmomentfrei (Startzustand) |
+| `HOLD` | an | inaktiv | pausiert | Servos an, Hardware hält letzte Soll-Pos |
+| `JOG` | an | aktiv | aktiv | Teach-Pendant über MoveIt Servo |
+| `MOVEIT` | an | aktiv | pausiert | move_group darf Trajektorien ausführen |
+| `HOMING` | an | (Homing managed) | pausiert | Homing-Sequenz läuft |
+
+Übergänge: `DISABLED ⇄ HOLD`, und aus `HOLD` heraus `→ JOG / MOVEIT / HOMING` (jeweils zurück nach `HOLD`). `/e_stop` erzwingt `DISABLED` aus **jedem** Zustand und kappt das Drehmoment **auf Treiber-Ebene** (GDS68 `Estop()` 0x002 latchend, RS05 stop). Die Treiber sind danach bewusst in einem Fehlerzustand „gefangen" — `/robot_reset` (→ Hardware `Clear_Errors` / RS05-Fault-Clear) löst das, erst dann ist `DISABLED→HOLD` wieder erlaubt. Clients (RViz-Panel, künftiges Web-Interface) steuern ausschließlich über `/set_robot_state` und spiegeln das latched `/robot_state` — nie direkt `/robot_enable` / `/homing` / `pause_servo`.
 
 ### Hardware & Mechanik
 - [x] Kinematische Auslegung & Motorauswahl
@@ -137,15 +161,29 @@ ros2 launch r0192_bringup real_robot.launch.py
 # 4. Optional: Foxglove-Bridge für Remote-Debug mitstarten
 ros2 launch r0192_bringup real_robot.launch.py use_rviz:=false use_foxglove:=true
 
-# 5. Homing auslösen (zu beliebigem Zeitpunkt nach Start)
-ros2 service call /homing std_srvs/srv/Trigger {}
+# 5. Bedienung über die Zustandsmaschine (oder das RViz Jog-Panel)
+#    Motoren scharf schalten (DISABLED -> HOLD):
+ros2 service call /set_robot_state r0192_interfaces/srv/SetRobotState "{requested_state: 1}"
+#    MoveIt-Ausführung freigeben (HOLD -> MOVEIT):
+ros2 service call /set_robot_state r0192_interfaces/srv/SetRobotState "{requested_state: 3}"
+#    Homing starten (HOLD -> HOMING, kehrt automatisch nach HOLD zurück):
+ros2 service call /set_robot_state r0192_interfaces/srv/SetRobotState "{requested_state: 4}"
+#    Notaus (erzwingt DISABLED aus jedem Zustand, latchender Treiber-Stop):
+ros2 service call /e_stop std_srvs/srv/Trigger {}
+#    Reset nach Notaus (löst die Treiber-Fehler, nötig vor erneutem Enable):
+ros2 service call /robot_reset std_srvs/srv/Trigger {}
+
+# Aktuellen Zustand beobachten (latched)
+ros2 topic echo /robot_state
 
 # Homing-Parameter zur Laufzeit anpassen (optional)
 ros2 param set /r0192_homing homing_vel 0.1
 ros2 param set /r0192_homing zero_offset 0.05
 ```
 
-> **Homing-Ablauf (Achse 1):** Pi sendet CAN `0x100` → Arduino scharf gestellt → Achse sweept langsam in +/– Richtung → TLE4905L erkennt Magnet → Arduino antwortet mit CAN `0x000/0xFF` → Pi stoppt, merkt Positionen P1/P2 → fährt zur Mitte → setzt Encoder auf 0.
+> **Hinweis:** `/homing` und `/robot_enable` existieren weiterhin als Low-Level-Services, sollten aber **nicht direkt** aufgerufen werden — das umgeht die zentrale Zustands-Erzwingung. Immer über `/set_robot_state` gehen.
+
+> **Homing-Ablauf (Achse 1):** Pi sendet CAN `0x100` (`CMD_ARM`) → Arduino scharf gestellt → Achse sweept langsam zum Magneten → TLE4905L erkennt Kante A → Arduino antwortet `0x100`/`Data[0]=0xFF` (`RSP_DETECTED`) → Pi überfährt ~25°, fährt von der Gegenseite zurück bis Kante B → Mitte = (P1+P2)/2 → Software-Home-Offset im GDS68-Treiber gesetzt (nicht `Set_Linear_Count`, da kontinuierlicher Mehrumdrehungs-Encoder).
 
 ---
 

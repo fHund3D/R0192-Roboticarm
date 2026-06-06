@@ -72,6 +72,7 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
 {
   auto logger = rclcpp::get_logger("R0192Hardware");
   motors_enabled_ = true;  // reset in case a previous cycle left motors disabled
+  estop_latched_ = false;  // fresh activation clears any prior e-stop latch
 
   if (can_available_) {
     rx_thread_running_ = true;
@@ -196,10 +197,32 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
       resp->success = true;
       resp->message = req->data ? "Motoren aktiviert" : "Motoren deaktiviert";
     });
+  // Hardware emergency stop: latching torque-cut at the driver level.
+  estop_service_ = enable_node_->create_service<std_srvs::srv::Trigger>(
+    "/robot_estop",
+    [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+           std::shared_ptr<std_srvs::srv::Trigger::Response> resp) {
+      triggerEstop();
+      resp->success = true;
+      resp->message = can_available_ ? "E-STOP — drivers latched, reset required"
+                                     : "E-STOP (virtual mode)";
+    });
+
+  // Driver reset: clears latched faults so the motors can be re-enabled.
+  reset_service_ = enable_node_->create_service<std_srvs::srv::Trigger>(
+    "/robot_clear_faults",
+    [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+           std::shared_ptr<std_srvs::srv::Trigger::Response> resp) {
+      resetDrivers();
+      resp->success = true;
+      resp->message = can_available_ ? "Drivers reset — faults cleared, ready to enable"
+                                     : "Reset (virtual mode)";
+    });
+
   enable_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
   enable_executor_->add_node(enable_node_);
   enable_executor_thread_ = std::thread([this]() { enable_executor_->spin(); });
-  RCLCPP_INFO(logger, "Motor enable service ready at /robot_enable");
+  RCLCPP_INFO(logger, "Motor services ready: /robot_enable, /robot_estop, /robot_clear_faults");
 
   RCLCPP_INFO(logger, "R0192 hardware activated");
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -216,6 +239,8 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_deactivate(const rclc
     enable_executor_.reset();
   }
   enable_service_.reset();
+  estop_service_.reset();
+  reset_service_.reset();
   enable_node_.reset();
 
   // Homing teardown (before stopping motors so the isActive() gate in write()
@@ -373,6 +398,13 @@ void R0192SystemHardware::setMotorsEnabled(bool enable)
   }
 
   if (enable) {
+    // Safety gate: after an emergency stop the drivers are latched in a fault
+    // state and would ignore the closed-loop request. Require an explicit
+    // /robot_reset first instead of silently re-energizing.
+    if (estop_latched_) {
+      RCLCPP_WARN(logger, "/robot_enable ignored — E-STOP latched, call /robot_reset first");
+      return;
+    }
     if (axis1_present_) {
       axis1_->Set_Axis_State(8);
       axis1_->Set_Controller_Mode(3, 1);
@@ -396,6 +428,48 @@ void R0192SystemHardware::setMotorsEnabled(bool enable)
     if (axis4_present_) axis4_->Motor_Stop_Running();
     RCLCPP_WARN(logger, "Motors DISABLED via /robot_enable");
   }
+}
+
+// ==============================================================================
+// triggerEstop(): /robot_estop — latching hardware emergency stop
+//   Cuts torque at the DRIVER level (not just by gating write()): GDS68 Estop()
+//   (CMD 0x002) latches the axis into an ESTOP error state; RS05 Motor_Stop_Running.
+//   The drivers stay trapped until resetDrivers() clears the faults. Idempotent
+//   and safe to call from any state.
+// ==============================================================================
+void R0192SystemHardware::triggerEstop()
+{
+  auto logger = rclcpp::get_logger("R0192Hardware");
+  motors_enabled_ = false;          // stop write() before/while cutting torque
+  estop_latched_ = true;
+  if (!can_available_) {
+    RCLCPP_WARN(logger, "E-STOP requested in virtual mode (no CAN) — torque gate only");
+    return;
+  }
+  if (axis1_present_) axis1_->Estop();              // ODrive E-stop, latches in error
+  if (axis4_present_) axis4_->Motor_Stop_Running(); // RS05 into Reset mode
+  RCLCPP_ERROR(logger, "E-STOP — driver torque cut, reset required before re-enable");
+}
+
+// ==============================================================================
+// resetDrivers(): /robot_reset — clear latched faults after an emergency stop
+//   GDS68 Clear_Errors() (0x018) then Set_Axis_State(Idle); RS05 stop with the
+//   clear-faults bit. Leaves the motors torque-free (DISABLED); the operator
+//   re-enables deliberately via /robot_enable afterwards.
+// ==============================================================================
+void R0192SystemHardware::resetDrivers()
+{
+  auto logger = rclcpp::get_logger("R0192Hardware");
+  motors_enabled_ = false;
+  if (can_available_) {
+    if (axis1_present_) {
+      axis1_->Clear_Errors();
+      axis1_->Set_Axis_State(1);                 // back to a clean Idle
+    }
+    if (axis4_present_) axis4_->Motor_Stop_Running(true);  // clear-faults stop
+  }
+  estop_latched_ = false;
+  RCLCPP_INFO(logger, "Drivers reset — faults cleared, motors stay disabled (enable to energize)");
 }
 
 // ==============================================================================

@@ -81,11 +81,14 @@ bool RS05Driver::Motor_Enabled_To_Run(){
     return comm_->sendFrame(ext_id, 8, data);
 }
 
-// 4.1.5. Communication Type 4: Motor stops running
-bool RS05Driver::Motor_Stop_Running(){
+// 4.1.5. Communication Type 4: Motor stops running.
+// Byte[0]=1 additionally clears latched faults (fault reset), used by the
+// driver-reset path to recover the motor after an emergency stop.
+bool RS05Driver::Motor_Stop_Running(bool clear_faults){
     uint8_t data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    uint32_t ext_id = (0x04 << 24) | node_id_; 
-    RCLCPP_DEBUG(logger_, "Axis %d: Servo off", node_id_);
+    data[0] = clear_faults ? 0x01 : 0x00;
+    uint32_t ext_id = (0x04 << 24) | node_id_;
+    RCLCPP_DEBUG(logger_, "Axis %d: Servo off%s", node_id_, clear_faults ? " (clear faults)" : "");
     return comm_->sendFrame(ext_id, 8, data);
 }
 

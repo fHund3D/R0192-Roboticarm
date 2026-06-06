@@ -12,6 +12,7 @@ find_package(pluginlib REQUIRED)
 find_package(r0192_canbus REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
+find_package(r0192_interfaces REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/r0192_hardware_interface.cpp
@@ -34,11 +35,24 @@ ament_target_dependencies(${PROJECT_NAME}
 
 pluginlib_export_plugin_description_file(hardware_interface r0192_hardware_plugin.xml)
 
+# Central robot state-machine node (standalone executable).
+add_executable(robot_state_manager src/robot_state_manager.cpp)
+ament_target_dependencies(robot_state_manager
+  rclcpp
+  std_srvs
+  controller_manager_msgs
+  r0192_interfaces
+)
+
 install(TARGETS ${PROJECT_NAME}
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(TARGETS robot_state_manager
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/

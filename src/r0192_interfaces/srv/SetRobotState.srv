@@ -1,0 +1,13 @@
+# Request a transition of the R0192 arm to one of the RobotState values.
+# Allowed transitions (everything else is rejected):
+#   DISABLED <-> HOLD
+#   HOLD -> JOG    -> HOLD
+#   HOLD -> MOVEIT -> HOLD
+#   HOLD -> HOMING -> HOLD   (HOMING->HOLD happens automatically when homing finishes)
+# requested_state == current_state is a successful no-op.
+
+uint8 requested_state   # one of RobotState.{DISABLED,HOLD,JOG,MOVEIT,HOMING}
+---
+bool success
+string message          # human-readable reason (especially on rejection)
+uint8 current_state     # state after the request (RobotState value)

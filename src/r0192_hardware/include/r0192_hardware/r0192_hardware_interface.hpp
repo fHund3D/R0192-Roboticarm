@@ -14,6 +14,7 @@
 #include "rclcpp/executors/single_threaded_executor.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "std_srvs/srv/set_bool.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 // Treiber
 #include "r0192_canbus/CanCommunication.hpp"
@@ -79,6 +80,19 @@ private:
   // read()/write()-Schleife nicht stört (CAN-Sends sind via send_mutex_ safe).
   void setMotorsEnabled(bool enable);
   std::atomic<bool> motors_enabled_{true};
+
+  // --- Hardware emergency stop + reset (/robot_estop, /robot_reset) ---
+  // /robot_estop cuts torque at the DRIVER level (GDS68 Estop() 0x002 latches the
+  // axis into an error state; RS05 stop), not just by gating write(). The drivers
+  // then stay "trapped" until /robot_reset clears the faults (GDS68 Clear_Errors()
+  // 0x018; RS05 stop with clear-faults bit). estop_latched_ records that a reset
+  // is required before the motors can be re-enabled. Both share enable_node_.
+  void triggerEstop();
+  void resetDrivers();
+  std::atomic<bool> estop_latched_{false};
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr  estop_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr  reset_service_;
+
   std::shared_ptr<rclcpp::Node>                        enable_node_;
   rclcpp::executors::SingleThreadedExecutor::SharedPtr enable_executor_;
   std::thread                                          enable_executor_thread_;

@@ -64,7 +64,8 @@ src/
 ├── r0192_canbus/        # CAN drivers: CanCommunication, GDS68Driver, RS05Driver
 ├── r0192_controller/    # JointTrajectoryController config + manual slider node
 ├── r0192_description/   # URDF/xacro, STL meshes, Gazebo/Rviz configs
-├── r0192_hardware/      # ros2_control hardware interface (SystemInterface plugin)
+├── r0192_interfaces/    # Custom msgs/srvs: RobotState, SetRobotState (state machine)
+├── r0192_hardware/      # ros2_control hardware interface + robot_state_manager node
 ├── r0192_moveit/        # MoveIt 2 config: SRDF, kinematics, joint limits, launch
 ├── r0192_rviz_plugins/  # RViz operator panel (Homing- + Motoren-EIN/AUS-Buttons)
 └── r0192_remote/        # (Planned) Web-based remote control interface
@@ -119,7 +120,7 @@ Debug (lokal):
 
 Result stored in `axis1_present_` / `axis4_present_`. Axes that don't respond are silently treated as virtual (passthrough). Initialization, CAN sends, and stop commands are gated on these flags.
 
-CAN bitrate: **500 kbit/s** (GDS68 factory default). Will be raised to 1 Mbit/s later.
+CAN bitrate: **1 Mbit/s** (bus + both drivers configured; GDS68 factory default was 500 kbit/s). Set per boot via `ip link set can0 up type can bitrate 1000000`; the Arduino homing nodes run `CAN_1000KBPS` to match.
 
 ---
 
@@ -241,6 +242,51 @@ ros2 launch r0192_moveit moveit.launch.py is_sim:=false
 
 ---
 
+## Betriebszustands-Maschine (Robot State Manager)
+
+Der **`robot_state_manager`**-Node (Executable in `r0192_hardware`, [robot_state_manager.cpp](src/r0192_hardware/src/robot_state_manager.cpp)) ist die **zentrale, autoritative Zustandsmaschine** des Arms (Single Source of Truth). Vorher war der Betriebszustand implizit über drei verstreute Flags verteilt (`motors_enabled_` im Hardware-Interface, `homing_->isActive()`, Servo-Pause im JogPanel) — ohne erzwungene gegenseitige Ausschließung. Der Manager bündelt das in **5 sich gegenseitig ausschließende Zustände** und koordiniert die bestehenden Services.
+
+| State | `/robot_enable` | `arm_controller` | Servo (`pause_servo`) | Bedeutung |
+|-------|-----------------|------------------|-----------------------|-----------|
+| `DISABLED` (0) | aus | inaktiv | pausiert | Idle, drehmomentfrei (Startzustand) |
+| `HOLD` (1) | an | **inaktiv** | pausiert | Servos an, Hardware hält letzte Soll-Pos |
+| `JOG` (2) | an | aktiv | **aktiv** | Teach-Pendant über MoveIt Servo |
+| `MOVEIT` (3) | an | aktiv | pausiert | move_group darf Trajektorien ausführen |
+| `HOMING` (4) | an | (Homing managed) | pausiert | Homing-Sequenz läuft |
+
+**Harte Gatterung über den `arm_controller`**: In `HOLD` ist der `arm_controller` **deaktiviert**. Die Hardware hält die Position trotzdem, weil `write()` bei `motors_enabled_` jeden Zyklus `MIT_Control(hw_cmd_positions_, …)` mit dem letzten Sollwert sendet — unabhängig von aktiven Controllern. Erst das Aktivieren des `arm_controller` (`MOVEIT`/`JOG`) öffnet den Pfad: in `HOLD` ist der FollowJointTrajectory-Action-Server unten, MoveIt kann **nichts** bewegen. Beim Reaktivieren liest der JTC den aktuellen Zustand und hält dort (kein Snap). Gleiches Muster wie `HomingController::setArmControllerActive()`.
+
+**Erlaubte Übergänge** (alles andere wird mit klarer Meldung abgelehnt):
+```
+DISABLED ⇄ HOLD            (Servos an/aus)
+HOLD → JOG    → HOLD
+HOLD → MOVEIT → HOLD
+HOLD → HOMING → HOLD       (HOMING→HOLD automatisch nach Service-Abschluss)
+```
+`JOG`/`MOVEIT`/`HOMING` sind **nur aus `HOLD`** erreichbar (Servos müssen an sein). Während `HOMING` (oder einem laufenden Übergang) werden neue Anfragen mit „busy" abgelehnt. `requested_state == current_state` ist ein No-op-Erfolg.
+
+**Aktionen pro Übergang** (Manager ruft die bestehenden Services): `/robot_enable` (SetBool), `/controller_manager/switch_controller` (arm_controller aktiv/inaktiv), `/servo_node/pause_servo` (SetBool), `/homing` (Trigger, **asynchron** — die Service-Antwort kehrt sofort mit `HOMING` zurück, ein Worker-Thread setzt nach Abschluss `HOLD`). Der `HomingController` reaktiviert am Ende den `arm_controller`; da `HOLD` ihn inaktiv erwartet, deaktiviert der Manager ihn danach erneut.
+
+**Startup-Reconcile**: Der Controller-Spawner startet `arm_controller` aktiv, die Hardware aber drehmomentfrei. Der Manager initialisiert auf `DISABLED` und deaktiviert `arm_controller` einmalig beim Start (tolerant, falls der Controller-Manager noch nicht hochgefahren ist).
+
+**ROS-Schnittstelle** (Custom-Interfaces im Paket [r0192_interfaces](src/r0192_interfaces)):
+- `/robot_state` — `r0192_interfaces/RobotState` (latched/`transient_local`): `uint8 state` (Konstanten `DISABLED`/`HOLD`/`JOG`/`MOVEIT`/`HOMING`) + `string status`. Publiziert bei jedem Wechsel.
+- `/set_robot_state` — `r0192_interfaces/SetRobotState`: `uint8 requested_state` → `bool success, string message, uint8 current_state`.
+- `/e_stop` — `std_srvs/Trigger`: **Notaus**, erzwingt `DISABLED` aus **jedem** Zustand (anders als der normale `DISABLED←HOLD`-Übergang). Immer verfügbar.
+- `/robot_reset` — `std_srvs/Trigger`: **Reset nach Notaus** — löst die gelatchten Treiber-Fehler (siehe unten). Nötig, bevor `DISABLED→HOLD` wieder funktioniert.
+
+**Notaus (`/e_stop`) + Treiber-Reset (`/robot_reset`)**: Der Notaus schneidet das Drehmoment **auf Treiber-Ebene** über den neuen Hardware-Service `/robot_estop` (nicht nur per `write()`-Gate): GDS68 `Estop()` (CMD 0x002) latcht die Achse in einen ESTOP-Fehlerzustand, RS05 `Motor_Stop_Running()`. Danach pausiert der Manager Servo, deaktiviert den `arm_controller` und setzt `state = DISABLED`. Das Drehmoment-Kappen läuft in `handleEStop()` **vor** dem Mutex (Sicherheit zuerst). Läuft gerade ein Homing (`busy_`), wird das Homing per `estop_`-Flag angewiesen, in `DISABLED` statt `HOLD` zu landen; das Drehmoment ist bereits weg.
+
+**Treiber sind nach dem Notaus bewusst „gefangen"** (latched fault) — ein reines Re-Enable würde von den Treibern ignoriert. Recovery erfordert einen expliziten `/robot_reset`: der Manager ruft den Hardware-Service `/robot_clear_faults` (GDS68 `Clear_Errors()` 0x018 + zurück in Idle; RS05 `Motor_Stop_Running(clear_faults=true)`), löst das Latch und bleibt in `DISABLED`. Erst danach lässt der Manager (und auch das Hardware-Interface selbst, das `estop_latched_` führt) `DISABLED→HOLD` wieder zu. `DISABLED→HOLD` bei aktivem Latch wird mit „E-STOP latched — call /robot_reset" abgelehnt.
+
+**v1-Grenze**: Ein laufender Homing-Sweep wird **nicht** physisch unterbrochen — der `HomingController` fährt Achse 1 direkt (an `motors_enabled_` vorbei). Das Drehmoment ist zwar gekappt, aber ein echter Hardware-Notaus (Homing-Abbruch-Hook + ggf. Schütz/Power-Cut) ist Folgearbeit.
+
+**Nebenläufigkeit**: Die Executor-Thread-Callbacks (`handleSetState`/`handleEStop`/`handleReset`) sind durch den Single-Threaded-Spin serialisiert und teilen sich `client_node_`. Der **Homing-Worker läuft in einem eigenen Thread** und benutzt daher eine **separate `homing_node_`** mit eigenen Clients — sonst würden bei einem `/e_stop` während des Homings zwei Executoren dieselbe Node gleichzeitig spinnen, was rclcpp verbietet (war ein latenter Crash-Bug). Nicht-Homing-Übergänge sind kurz, daher ist die Serialisierung des Notaus dahinter unkritisch.
+
+Der Node läuft in `real_robot.launch.py` mit, ist im virtuellen Modus voll testbar (fehlende Services wie `/homing` ohne Achse 1 → Übergang wird sauber abgelehnt; `/e_stop`/`/robot_reset` setzen dann nur das Torque-Gate) und ist für das geplante `r0192_remote`-Web-Interface wiederverwendbar.
+
+---
+
 ## Operator Interface
 
 ### Geplantes Web-Interface (r0192_remote — Produktivbetrieb)
@@ -251,11 +297,18 @@ Geplante Bedienfunktionen und ihr ROS-Interface:
 
 | Funktion | ROS-Interface | Typ | Status |
 |----------|--------------|-----|--------|
-| Notaus | `/e_stop` | `std_msgs/Bool` (Topic, latched) | geplant |
-| Motoren aktivieren | `/robot_enable` | `std_srvs/SetBool` (Service) | **implementiert** (in `r0192_hardware`) |
-| Homing auslösen | `/homing` | `std_srvs/Trigger` (Service) | **implementiert** (in `r0192_hardware`) |
+| Notaus | `/e_stop` | `std_srvs/Trigger` (Service) | **implementiert** (Robot State Manager → Hardware `/robot_estop`; latchender Treiber-Torque-Cut aus jedem Zustand). Echter HW-Power-Cut + Homing-Abbruch folgt |
+| Reset nach Notaus | `/robot_reset` | `std_srvs/Trigger` (Service) | **implementiert** (Robot State Manager → Hardware `/robot_clear_faults`; löst Treiber-Latch) |
+| Zustand setzen (DISABLED/HOLD/JOG/MOVEIT/HOMING) | `/set_robot_state` | `r0192_interfaces/SetRobotState` (Service) | **implementiert** (Robot State Manager) |
+| Aktueller Zustand | `/robot_state` | `r0192_interfaces/RobotState` (Topic, latched) | **implementiert** (Robot State Manager) |
+| Motoren aktivieren | `/robot_enable` | `std_srvs/SetBool` (Service) | **implementiert** (in `r0192_hardware`; vom State Manager genutzt) |
+| Notaus (Treiber-Ebene) | `/robot_estop` | `std_srvs/Trigger` (Service) | **implementiert** (in `r0192_hardware`; latchender Treiber-Stop, vom State Manager genutzt) |
+| Treiber-Fault-Reset | `/robot_clear_faults` | `std_srvs/Trigger` (Service) | **implementiert** (in `r0192_hardware`; Clear_Errors / RS05-Fault-Clear, vom State Manager genutzt) |
+| Homing auslösen | `/homing` | `std_srvs/Trigger` (Service) | **implementiert** (in `r0192_hardware`; vom State Manager genutzt) |
 | Arm-Status | `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | geplant |
 | Trajektorie visualisieren | `/display_planned_path` | `moveit_msgs/DisplayTrajectory` | vorhanden (MoveIt) |
+
+> **Empfehlung:** Neue Clients (RViz-Panel, Web-Interface) steuern Betriebszustände **ausschließlich** über `/set_robot_state` und spiegeln `/robot_state`, nicht direkt über `/robot_enable` / `/homing` / `pause_servo` — sonst wird die zentrale Zustands-Erzwingung umgangen.
 
 ### RViz Operator-Panel (`r0192_rviz_plugins`)
 
@@ -288,14 +341,21 @@ Layout pro Zeile: **[−][+]** links (beide Tasten auf einer Seite), Name mittig
 
 **Positions-Anzeige-Skalierung** (`kModelToRealScale = 1.0` in [jog_panel.cpp](src/r0192_rviz_plugins/src/jog_panel.cpp)): Die URDF ist jetzt **1:1** (Mesh-`scale="0.001"`, Gelenkursprünge in echten Metern), daher zeigt die mm-Anzeige direkt reale Werte. Der Faktor bleibt als benannte Konstante für den Fall einer künftigen Skalen-Diskrepanz erhalten.
 
+**Zustands-Maschinen-Client**: Das JogPanel ist seit der Einführung des **Robot State Manager** (siehe „Betriebszustands-Maschine" oben) ein **reiner Client** der zentralen Zustandsmaschine. Es ruft Betriebszustände **nicht mehr direkt** (`/robot_enable`, `/homing`, `pause_servo`) auf, sondern fordert Übergänge über `/set_robot_state` an und spiegelt den autoritativen `/robot_state` (latched). Die UI ist **state-getrieben** (`updateUiForState()`): nur Buttons gültiger Übergänge sind freigegeben, und die Button-Zustände folgen dem **bestätigten** `/robot_state` (kein optimistisches Umschalten). Das Servo-Command-Streaming selbst (Command-Type + Press-and-Hold-Publishing) bleibt im Panel und läuft **nur im `JOG`-Zustand**.
+
 Bedienelemente:
 - **Modus-Radios** (Joints / Cartesian / Tool) → setzen den Servo-Command-Type via `/servo_node/switch_command_type` (`moveit_msgs/ServoCommandType`: `JOINT_JOG`/`TWIST`).
 - **Geschwindigkeits-Slider** (1–100 %) → skaliert die Befehlsmagnitude. Servo läuft mit `command_in_type: "unitless"`, d. h. das Panel sendet Werte in [−1, 1]; die Max-Geschwindigkeit setzen `scale.linear/rotational/joint` in [servo.yaml](src/r0192_moveit/config/servo.yaml). Effektive Geschwindigkeit = Slider-% × scale. (Dies ist der „Schritt"-/Speed-Regler.)
-- **Master-Toggle „Enable Jog"**: schaltet Servo via `/servo_node/pause_servo` (`std_srvs/SetBool`) scharf (`data=false`) bzw. pausiert (`data=true`). **Nur** im aktivierten Zustand sind die ±-Tasten freigegeben.
+- **Master-Toggle „Enable Jog"**: fordert `JOG` (an) bzw. `HOLD` (aus) über `/set_robot_state` an (der Manager macht intern `pause_servo` + `arm_controller`). Nur aus `HOLD`/`JOG` klickbar; die ±-Tasten sind nur im `JOG`-Zustand freigegeben.
 
-**Kombinierte Operator-Bedienelemente** (unter „Enable Jog", aus dem früheren OperatorPanel übernommen):
-- **Homing** → `/homing` (`std_srvs/Trigger`), inkl. Auto-Display-Reset ~500 ms nach Erfolg (`resetDisplays()`).
-- **Servo-Enable-Toggle** → `/robot_enable` (`std_srvs/SetBool`), grün = an / rot = aus; startet auf „aus" (Arm startet drehmomentfrei).
+**Notaus-Button** (`EMERGENCY STOP`, rot, ganz oben im Panel, **immer** klickbar): ruft `/e_stop` (`std_srvs/Trigger`) — die **einzige** Ausnahme von der „alles über `/set_robot_state`"-Regel, da der Notaus aus **jedem** Zustand sofort nach `DISABLED` zwingen muss. Schneidet das Drehmoment auf Treiber-Ebene (latchend). Die UI zieht danach über `/robot_state` auf `DISABLED` nach.
+
+**Reset-Button** (`Reset (clear faults)`, direkt unter dem Notaus, **nur in `DISABLED` freigegeben**): ruft `/robot_reset` (`std_srvs/Trigger`) — löst die nach einem Notaus gelatchten Treiber-Fehler, sodass `DISABLED→HOLD` (Servos-Enable) wieder funktioniert. Ohne Reset bleiben die Treiber „gefangen" und der Enable-Toggle hat keine Wirkung.
+
+**Operator-Bedienelemente** (unter „Enable Jog", alle über `/set_robot_state` geroutet):
+- **Servos-Enable-Toggle** → `HOLD` (an, grün) / `DISABLED` (aus, rot); nur aus `DISABLED`/`HOLD` klickbar; startet auf „aus" (Arm startet drehmomentfrei).
+- **MoveIt-Toggle** → `MOVEIT` (an) / `HOLD` (aus); nur aus `HOLD`/`MOVEIT` klickbar. Aktiviert den `arm_controller`, sodass move_group Trajektorien ausführen darf — in `HOLD` ist Ausführung **gesperrt**.
+- **Homing** → fordert `HOMING` an (nur aus `HOLD`); Auto-Display-Reset (`resetDisplays()`) ~500 ms nach dem automatischen `HOMING→HOLD`-Übergang.
 - **„Goal Marker"-Toggle** → blendet MoveIts Query-Goal-State aus/ein, indem das Panel die Property `Planning Request → Query Goal State` des MotionPlanning-Displays setzt (`findMotionPlanningDisplay()` → `subProp(...)->setValue(...)`). Praktisch beim Jogging: der orange Ziel-Marker liegt sonst über dem realen Arm-Modell und stört die Sicht auf die Ist-Pose. Default „shown" (wie in moveit.rviz).
 
 **Singularität in Cartesian/Tool**: Servo bremst/stoppt bei echten Singularitäten mit `Very close to a singularity, emergency stop`. Schwellen in [servo.yaml](src/r0192_moveit/config/servo.yaml) stehen auf Default (`lower_singularity_threshold: 17`, `hard_stop_singularity_threshold: 30`) — passend, seit das Modell **real-skaliert** ist (~0,18 m Glieder; vorher waren sie wegen der 10× zu großen Platzhalter-Geometrie temporär auf 200/400 angehoben). **Joints-Modus ist nicht betroffen** (invertiert die Jacobi-Matrix nicht). Eine echte Handgelenk-Singularität bleibt bei joint_5 = 0 (joint_4 und joint_6 dann achsparallel um X) — dort vor Cartesian/Tool-Jogging joint_5 ein paar Grad wegfahren. Schwellen live tunebar: `ros2 param set /servo_node hard_stop_singularity_threshold <x>`.
@@ -460,6 +520,9 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - [x] Arm startet drehmomentfrei (`on_activate` setzt `motors_enabled_=false` nach Safety-Check/Zeroing) — Operator schaltet bewusst via Enable-Toggle
 - [x] RViz Jog-Panel (`JogPanel`): Teach-Pendant mit 3 Modi (Achsen / Kartesisch-Basis / Werkzeug-Tool), 6×(−/+)-Tasten, Speed-Slider, über MoveIt Servo
 - [x] MoveIt Servo integriert (`servo_node` in `moveit.launch.py`, `use_servo` Launch-Arg, `servo.yaml`) — Ausgabe an `arm_controller`
+- [x] Zentrale Zustandsmaschine (`robot_state_manager` + `r0192_interfaces`): 5 exklusive Zustände DISABLED/HOLD/JOG/MOVEIT/HOMING, `/set_robot_state` + `/robot_state`, in `real_robot.launch.py`; virtuell getestet (Übergänge, Rejections, Homing-Auto-Return)
+- [x] JogPanel auf State-Maschinen-Client umgebaut (state-getriebene UI, neuer MoveIt-Toggle, kein Direktzugriff mehr auf `/robot_enable`/`/homing`/`pause_servo`)
+- [ ] Hardware-Test Zustandsmaschine: DISABLED→HOLD schaltet Drehmoment scharf; in HOLD ignoriert move_group (Action-Server inaktiv); MOVEIT führt aus; JOG joggt; HOMING kehrt automatisch nach HOLD zurück
 - [ ] Hardware-Test: Panel-Buttons gegen echte Hardware (Homing-Trigger, Motoren EIN/AUS, Drift-/Ruck-Verhalten beim Re-Enable prüfen)
 - [ ] Hardware-Test Jog-Panel: alle 3 Modi gegen Achse 1/4 verfahren; Twist-Frame-/Rotationsverhalten (`apply_twist_commands_about_ee_frame`) auf Hardware tunen; Speed-Slider-Bereich kalibrieren
 - [ ] Optional Jog-Panel: echter Inkrement-/Schritt-Modus (fixer Weg pro Klick) zusätzlich zum Press-and-Hold
@@ -467,8 +530,12 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 **Next: Web-Interface (r0192_remote)**
 - [ ] r0192_remote Paket aufbauen: Web-basiertes Bedienpanel als Operator-Interface
 - [x] ROS-Services für Motor-Enable (`/robot_enable`) und Homing (`/homing`) implementiert (Backend, auch vom RViz-Panel genutzt)
-- [ ] E-Stop-Service/-Topic implementieren (Backend für Web-Interface)
-- [ ] Notaus-Implementierung (global software E-Stop)
+- [x] E-Stop `/e_stop` (`std_srvs/Trigger`) im State Manager: erzwingt `DISABLED` aus jedem Zustand; latchender **Treiber-Torque-Cut** über Hardware-`/robot_estop` (GDS68 `Estop()` 0x002, RS05 stop); Torque-Kappen vor dem Mutex; Notaus-Button im JogPanel
+- [x] Treiber-Reset nach Notaus: `/robot_reset` (State Manager) → Hardware-`/robot_clear_faults` (GDS68 `Clear_Errors()`, RS05 Fault-Clear-Stop); löst das `estop_latched_`-Gate; Reset-Button im JogPanel (nur in DISABLED)
+- [x] Nebenläufigkeits-Fix: Homing-Worker des State Managers nutzt eigene `homing_node_` (kein paralleles Spinnen derselben Node bei `/e_stop` während Homing)
+- [ ] Hardware-Test Notaus: `/e_stop` kappt Drehmoment auf Treiber-Ebene; Re-Enable ohne Reset wird abgelehnt; nach `/robot_reset` läuft `DISABLED→HOLD` wieder
+- [ ] Echter Hardware-Notaus: laufenden Homing-Sweep abbrechen (HomingController-Abort-Hook), ggf. Power-Cut/Schütz statt nur Treiber-Torque-Aus
+- [ ] Optional: `/e_stop` zusätzlich als latched Topic spiegeln, damit andere Nodes (Web-Interface) auf den Notaus-Zustand reagieren können
 
 **Wenn weitere Motoren gekauft sind (Achsen 2, 3, 5, 6, Greifer):**
 - [ ] Passthrough durch echte Treiber-Instanzen ersetzen (GDS68 für 2+3, RS05 für 5+6)

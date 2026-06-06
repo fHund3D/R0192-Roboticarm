@@ -24,8 +24,10 @@ public:
     // 4.1.4. Motor enabled to run
     bool Motor_Enabled_To_Run();
 
-    // 4.1.5. Motor stops running
-    bool Motor_Stop_Running();
+    // 4.1.5. Motor stops running (Comm Type 4). With clear_faults=true the stop
+    // frame also clears latched faults (Byte[0]=1) — used by the driver-reset
+    // path to recover the motor after an emergency stop.
+    bool Motor_Stop_Running(bool clear_faults = false);
 
     // 4.1.6. Set motor mechanical zero
     bool Set_Motor_Mechanical_Zero();
