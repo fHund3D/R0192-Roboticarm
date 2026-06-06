@@ -104,6 +104,14 @@ private:
   int diag_counter_ = 0;
   static constexpr int diag_interval_ = 500;
 
+  // RS05 (axis 4) feedback-while-disabled poll throttle. The RS05 has no
+  // ODrive-style idle: when stopped (Reset mode) it streams neither MIT
+  // responses nor Type-24 active reports. While motors are disabled, read()
+  // polls mechPos/mechVel via Type-17 reads (read-only, no torque) at
+  // ~100/rs05_poll_decim_ Hz so joint_4 still tracks when back-driven.
+  uint32_t rs05_poll_tick_ = 0;
+  static constexpr uint32_t rs05_poll_decim_ = 5;  // 100 Hz / 5 = 20 Hz
+
   // --- Homing (axis 1 only) ---
   // Created in on_activate() once axis 1 is confirmed present; owns its own
   // node + /homing service + executor thread (see homing_controller.hpp).

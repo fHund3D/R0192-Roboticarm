@@ -266,6 +266,18 @@ std::vector<hardware_interface::CommandInterface> R0192SystemHardware::export_co
 // ==============================================================================
 hardware_interface::return_type R0192SystemHardware::read(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+  // RS05 feedback while disabled: the RS05 has no ODrive-style idle, so once it
+  // is stopped (Reset mode) it streams neither MIT responses nor Type-24 active
+  // reports. Poll mechPos/mechVel via Type-17 reads (read-only — does NOT
+  // energize the motor) so joint_4 keeps tracking when back-driven by hand.
+  // Throttled to ~20 Hz; the async replies update current_pos_/vel_ in the
+  // driver (processFeedbackFrame case 0x11). When enabled, active reporting +
+  // MIT responses cover feedback, so polling is skipped.
+  if (!motors_enabled_ && axis4_present_ && (rs05_poll_tick_++ % rs05_poll_decim_ == 0)) {
+    axis4_->Single_Parameter_Read(RS05Driver::PARAM_MECH_POS);
+    axis4_->Single_Parameter_Read(RS05Driver::PARAM_MECH_VEL);
+  }
+
   // joint_1: real CAN feedback if probed present, otherwise passthrough
   if (joint_index_.count("joint_1")) {
     const size_t i = joint_index_.at("joint_1");
@@ -369,6 +381,10 @@ void R0192SystemHardware::setMotorsEnabled(bool enable)
     }
     if (axis4_present_) {
       axis4_->Motor_Enabled_To_Run();
+      // Re-arm active reporting: Reset mode (from the previous disable) stops
+      // Type-2 streaming, and re-entering Run mode may not resume it, so re-send
+      // the Type-24 enable on every enable (idempotent, cheap insurance).
+      axis4_->Actively_Reports_Frame(1.0f);
       if (joint_index_.count("joint_4"))
         hw_cmd_positions_[joint_index_.at("joint_4")] = axis4_->get_current_position();
     }

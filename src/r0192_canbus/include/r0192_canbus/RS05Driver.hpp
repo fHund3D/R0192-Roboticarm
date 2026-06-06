@@ -33,8 +33,16 @@ public:
     // Communication type 7: Set motor CAN_ID
     bool Set_Motor_CAN_ID(uint8_t new_id);
 
-    // 4.1.7. Single parameter read
-    bool Single_Parameter_Read();
+    // Readable parameter indices (Type 17 single-parameter read)
+    static constexpr uint16_t PARAM_MECH_POS = 0x7019;  // mechanical angle [rad]
+    static constexpr uint16_t PARAM_MECH_VEL = 0x701B;  // mechanical velocity [rad/s]
+
+    // 4.1.7. Single parameter read (Type 17). Read-only — does NOT energize the
+    // motor, so it works in Reset mode (motor disabled). The async reply is
+    // handled in processFeedbackFrame (case 0x11): PARAM_MECH_POS/VEL update
+    // current_pos_/current_vel_. Used to keep feedback alive while disabled,
+    // since the RS05 has no ODrive-style idle that keeps active reporting running.
+    bool Single_Parameter_Read(uint16_t index);
 
     // 4.1.8. Single parameter write (lost in power failure)
     bool Single_Parameter_Write();

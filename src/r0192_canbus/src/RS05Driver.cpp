@@ -106,9 +106,18 @@ bool RS05Driver::Set_Motor_CAN_ID(uint8_t new_id){
 }
 
 // 4.1.7. Communication type 17: Single parameter read
-bool RS05Driver::Single_Parameter_Read(){
-    // nicht implementiert
-    return false;
+// Request: comm_type 0x11, target motor in bits 7-0; Byte0~1 = parameter index
+// (little-endian), Byte2~7 = 0. The motor replies with comm_type 0x11 (parsed in
+// processFeedbackFrame). ID = (0x11<<24)|node_id_ > 0x7FF → sent as extended.
+// NOTE: index endianness (little-endian here) is the assumption to verify on
+// hardware; if no reply arrives, try big-endian (data[0]=high, data[1]=low).
+bool RS05Driver::Single_Parameter_Read(uint16_t index){
+    uint8_t data[8] = {0};
+    data[0] = index & 0xFF;          // index low byte
+    data[1] = (index >> 8) & 0xFF;   // index high byte
+    uint32_t ext_id = (0x11 << 24) | node_id_;
+    RCLCPP_DEBUG(logger_, "Axis %d: Single parameter read index 0x%04X", node_id_, index);
+    return comm_->sendFrame(ext_id, 8, data);
 }
 
 // 4.1.8. Communication type 18: Single parameter write (lost in power failure)
@@ -290,16 +299,24 @@ void RS05Driver::processFeedbackFrame(const struct can_frame &frame) {
             break;
         }
 
-        case 0x11: { 
-            // 4.1.7. Communication type 17: Single parameter read reply
-            uint8_t success_flag = (ext_id >> 16) & 0xFF; // Bit 16-23: 0x00 = success, 0x01 = fail
-            uint16_t index = (frame.data[0] << 8) | frame.data[1]; 
-            
+        case 0x11: {
+            // 4.1.7. Communication type 17: Single parameter read reply.
+            // Index little-endian (matches the request); value little-endian float
+            // in Byte4~7. mechPos/mechVel feed current_pos_/current_vel_ so the
+            // joint keeps tracking while the motor is disabled (Reset mode).
+            uint8_t success_flag = (ext_id >> 16) & 0xFF; // Bit 16-23: 0x00 = success
+            uint16_t index = frame.data[0] | (frame.data[1] << 8);
+
             if (success_flag == 0x00) {
                 uint32_t raw_val = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (static_cast<uint32_t>(frame.data[7]) << 24);
                 float param_value;
                 std::memcpy(&param_value, &raw_val, sizeof(float));
-                
+
+                {
+                    std::lock_guard<std::mutex> lock(data_mutex_);
+                    if (index == PARAM_MECH_POS)      current_pos_ = param_value;
+                    else if (index == PARAM_MECH_VEL) current_vel_ = param_value;
+                }
                 RCLCPP_DEBUG(logger_, "Axis %d: Read Param Index 0x%04X = %f", sender_id, index, param_value);
             } else {
                 RCLCPP_WARN(logger_, "Axis %d: Read Param Index 0x%04X FAILED", sender_id, index);
