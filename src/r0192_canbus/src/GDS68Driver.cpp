@@ -168,19 +168,23 @@ void GDS68Driver::processFeedbackFrame(const struct can_frame &frame) {
         mode_status_ = axis_state;
 
     } else if (frame.can_id == createId(0x008)) {
-        // MIT Control feedback: 16-bit pos, 12-bit vel, 12-bit torque
-        uint16_t pos_int = (static_cast<uint16_t>(frame.data[1]) << 8) | frame.data[2];
-        uint16_t vel_int = (static_cast<uint16_t>(frame.data[3]) << 4) | (frame.data[4] >> 4);
-        uint16_t t_int   = ((static_cast<uint16_t>(frame.data[4]) & 0x0F) << 8) | frame.data[5];
+        // MIT Control feedback (only arrives while we actively send MIT_Control).
+        // Position and velocity are deliberately NOT taken from here anymore:
+        // they come exclusively from the periodic Encoder_Estimates frame (0x009,
+        // below) so feedback keeps flowing even when the motor is idle/disabled
+        // and no MIT_Control is being sent. The MIT field (±12.5 rad) is also a
+        // DIFFERENT scale from 0x009 (rev × 2π / gear) — letting both write
+        // current_pos_ would make the two frames fight. We only use 0x008 for
+        // best-effort torque (0x009 carries no torque).
+        uint16_t t_int = ((static_cast<uint16_t>(frame.data[4]) & 0x0F) << 8) | frame.data[5];
         std::lock_guard<std::mutex> lock(data_mutex_);
-        current_pos_    = (static_cast<float>(pos_int) * 25.0f   / 65535.0f) - 12.5f;
-        current_vel_    = (static_cast<float>(vel_int) * 130.0f  / 4095.0f)  - 65.0f;
-        current_torque_ = (static_cast<float>(t_int)   * 100.0f  / 4095.0f)  - 50.0f;
-        RCLCPP_DEBUG(logger_, "Axis %d MIT FB: pos=%.2f vel=%.2f tau=%.2f",
-                     node_id_, current_pos_, current_vel_, current_torque_);
+        current_torque_ = (static_cast<float>(t_int) * 100.0f / 4095.0f) - 50.0f;
 
     } else if (frame.can_id == createId(0x009)) {
-        // Encoder estimates: position (rev), velocity (rev/s) as float32
+        // Encoder estimates (periodic @ encoder_rate_ms, default 10 ms = 100 Hz):
+        // position (rev), velocity (rev/s) as float32. This is now the SOLE
+        // source of position/velocity feedback for the GDS68 — available
+        // continuously, regardless of control mode or motor enable state.
         float pos_rev, vel_unit;
         std::memcpy(&pos_rev,   &frame.data[0], 4);
         std::memcpy(&vel_unit,  &frame.data[4], 4);
