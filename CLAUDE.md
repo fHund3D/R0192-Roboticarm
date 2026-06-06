@@ -107,7 +107,7 @@ Debug (lokal):
 
 **Feedback strategy per joint:**
 - `joint_1` (GDS68, axis 1): real CAN feedback from motor. Mode set to Position Control (3) + Passthrough (1) via `Set_Controller_Mode(3,1)` on activate; commands sent via `MIT_Control`. **Position/velocity feedback comes exclusively from the periodic Encoder_Estimates frame (0x009 @ `encoder_rate_ms`, default 10 ms = 100 Hz)** — so feedback streams continuously even when the motor is idle/disabled (no MIT command needed). The MIT response (0x008) is no longer used for pos/vel (only best-effort torque). **Enable `encoder_rate_ms = 10` in the SteadyWin tool and `Save_Configuration` (0x01F)**, otherwise no 0x009 frames arrive and joint_1 reports nothing.
-- `joint_4` (RS05, axis 4): real CAN feedback from motor. Commands sent via `MIT_Control`.
+- `joint_4` (RS05, axis 4): real CAN feedback from motor. Commands sent via `MIT_Control`. **Active reporting (Type 24, `0x18`) is enabled over CAN in `on_activate()` via `Actively_Reports_Frame(1.0f)` → the RS05 streams its Type-2 feedback frame continuously @ 10 ms (100 Hz)**, so position/velocity stream even when the motor is stopped/disabled (no MIT command needed). No tool required (set purely over CAN); not persisted to flash, so it is re-sent on every activation and disabled again in `stopMotorsAndRx()`. The Type-2 frame is parsed identically whether it arrives as a MIT response or an active report (same `case 0x02` in `processFeedbackFrame`), so there is no GDS68-style scale-mixing issue.
 - `joint_2/3/5/6/7`: **passthrough** — last commanded value is reported as state (zero error, no motor needed)
 - `joint_8`: derived from `joint_7` as mimic (multiplier −1)
 
@@ -423,6 +423,8 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 
 - [x] Motor-Test: Achse 1 (GDS68) über MoveIt — MIT_Control, CAN-Feedback, Positions-Tracking OK
 - [x] Motor-Test: Achse 4 (RS05) über MoveIt — MIT_Control, CAN-Feedback, Positions-Tracking OK
+- [x] GDS68-Feedback auf periodisches 0x009 (Encoder_Estimates) umgestellt — Pos/Vel kommen kontinuierlich (auch bei deaktivierten Motoren), getestet OK
+- [ ] Hardware-Test: RS05-Feedback über aktives Melden (Type 24 @ 10 ms, in `on_activate` per CAN aktiviert) — prüfen, dass joint_4 Pos/Vel auch bei gestopptem/deaktiviertem Motor streamt
 - [x] Encoder-Homing (on_activate) validiert: Hardware Interface setzt beim Start den internen Nullpunkt
 - [x] Achsen-Erkennung per CAN-Probe: `probePresent(200ms)` in `on_configure`, automatisches Passthrough für nicht angeschlossene Achsen
 - [x] `foxglove_bridge` in `real_robot.launch.py` integriert (nur als Debug-Tool, `use_foxglove` Launch-Arg, Port 8765)

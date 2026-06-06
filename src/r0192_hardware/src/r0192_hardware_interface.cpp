@@ -88,6 +88,16 @@ hardware_interface::CallbackReturn R0192SystemHardware::on_activate(const rclcpp
     }
     if (axis4_present_) {
       axis4_->Motor_Enabled_To_Run();
+      // Enable active reporting (Type 24, F_CMD=01 → 10 ms = 100 Hz) so the RS05
+      // streams its Type-2 feedback frame continuously, independent of
+      // MIT_Control / motor enable state. Without this the RS05 only replies
+      // with feedback while we actively command it, so a disabled motor would
+      // report nothing — same goal as the GDS68 0x009 periodic frame. Set purely
+      // over CAN (no tool needed); not persisted to flash, so it is re-sent on
+      // every activation. The Type-2 frame is parsed identically whether it
+      // arrives as a MIT response or an active report, so no read-path change is
+      // needed.
+      axis4_->Actively_Reports_Frame(1.0f);
     }
     // Let the first feedback frame stream back before reading the encoders.
     if (axis1_present_ || axis4_present_) {
@@ -415,7 +425,10 @@ bool R0192SystemHardware::encodersWithinLimits(std::string & reason)
 void R0192SystemHardware::stopMotorsAndRx()
 {
   if (axis1_present_) axis1_->Set_Axis_State(1);
-  if (axis4_present_) axis4_->Motor_Stop_Running();
+  if (axis4_present_) {
+    axis4_->Actively_Reports_Frame(0.0f);  // stop Type-2 streaming (bus cleanup)
+    axis4_->Motor_Stop_Running();
+  }
 
   rx_thread_running_ = false;
   if (rx_thread_.joinable()) {
