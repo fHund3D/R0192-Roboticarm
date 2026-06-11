@@ -3,12 +3,14 @@
 <package format="3">
   <name>r0192_interfaces</name>
   <version>0.0.0</version>
-  <description>Custom ROS 2 interfaces for the R0192 arm (robot state machine)</description>
+  <description>Custom ROS 2 interfaces for the R0192 arm (robot state machine, program executor)</description>
   <maintainer email="anbraten_giesser_3b@icloud.com">fHund3D</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <depend>action_msgs</depend>
 
   <exec_depend>rosidl_default_runtime</exec_depend>
 

@@ -1,0 +1,27 @@
+# Execute a YAML program file step by step (MoveGroupInterface, sequential).
+# Owned by the r0192_program_executor node (action name: /execute_program).
+#
+# The executor requests HOLD -> MOVEIT via /set_robot_state before the first
+# step and MOVEIT -> HOLD when finished, cancelled, or failed. The goal is
+# rejected unless the robot state allows entering MOVEIT.
+#
+# The goal carries only a file path (never inline program content): the YAML
+# file on disk is the single source of truth and is validated in exactly one
+# place, the backend loader.
+
+string program_path     # absolute path, or filename resolved against the programs_dir parameter
+---
+bool success
+string message          # human-readable reason on failure
+uint32 steps_completed  # number of fully executed steps
+---
+uint8 STATUS_LOADING=0  # parsing/validating the YAML files
+uint8 STATUS_PLANNING=1 # MoveIt is planning the current move step
+uint8 STATUS_MOVING=2   # trajectory execution in progress
+uint8 STATUS_WAITING=3  # wait step in progress
+
+uint32 current_step     # 0-based index of the step being executed
+uint32 total_steps
+string step_type        # move_j / move_l / wait
+string step_label       # step name if set, otherwise a target/duration summary
+uint8 status            # one of the STATUS_* values
