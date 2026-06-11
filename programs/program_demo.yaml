@@ -1,0 +1,20 @@
+# Demo program for the Phase-1 acceptance test:
+#   ros2 action send_goal /execute_program \
+#     r0192_interfaces/action/ExecuteProgram "{program_path: program_demo.yaml}" -f
+# Requires the arm in HOLD (the executor requests HOLD -> MOVEIT itself).
+version: 1
+name: "Demo: A - wait - B"
+description: "Moves to demo_a, waits 2 s, moves to demo_b, returns home"
+defaults:
+  velocity: 0.2
+  acceleration: 0.2
+steps:
+  - type: move_j
+    target: demo_a
+  - type: wait
+    duration: 2.0
+  - type: move_j
+    target: demo_b
+    velocity: 0.1
+  - type: move_j
+    target: home

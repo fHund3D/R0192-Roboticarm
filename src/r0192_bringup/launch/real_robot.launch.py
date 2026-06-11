@@ -113,6 +113,16 @@ def generate_launch_description():
         output="screen",
     )
 
+    # 5c. Program Executor – Backend für YAML-Programme (/execute_program).
+    #     MoveGroupInterface wird lazy beim ersten Goal erstellt (move_group
+    #     startet 3 s später); Zustand läuft ausschließlich über /set_robot_state.
+    program_executor = Node(
+        package="r0192_program_executor",
+        executable="program_executor",
+        name="r0192_program_executor",
+        output="screen",
+    )
+
     # 6-7. MoveIt + RViz (mit leichter Verzögerung damit Controller erst stabil sind)
     moveit_and_rviz = TimerAction(
         period=3.0,
@@ -150,6 +160,7 @@ def generate_launch_description():
         arm_controller_spawner,
         gripper_controller_spawner,
         robot_state_manager,
+        program_executor,
         moveit_and_rviz,
         foxglove_bridge,
     ])
