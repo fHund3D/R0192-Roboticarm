@@ -33,77 +33,113 @@ Dieses Modell entspricht der etablierten Aufteilung in der industriellen Robotik
 - **Erweitern**: `r0192_interfaces` — neue msgs/srvs/actions
 - **NEU** (Config-only): `.vscode/`-Verzeichnis im Repo-Root + JSON Schemas in `doku/schemas/`
 
-## Datenmodell (Vorschlag, finalisiert in Phase 0)
+## Datenmodell (FINAL — in Phase 0 abgestimmt, 2026-06-11)
 
 ### Punktdatei `points.yaml`
 
 ```yaml
+version: 1
 points:
   pick_home:
     type: joint
-    values: [0.0, -0.5, 1.2, 0.0, 1.0, 0.0]
+    joints: [0.0, -0.5, 1.2, 0.0, 1.0, 0.0]   # rad, Reihenfolge joint_1..joint_6
   drop_position:
     type: pose
-    frame: base_link
-    position: {x: 0.3, y: 0.2, z: 0.4}
-    orientation: {x: 0, y: 0, z: 0, w: 1}
+    frame: base_link                            # v1: nur base_link erlaubt
+    position: {x: 0.3, y: 0.2, z: 0.4}          # m
+    orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}
 ```
 
-### Programmdatei `program_xyz.yaml`
+Festgelegt:
+- **Map keyed by name** (kein Array) — Namens-Eindeutigkeit gratis, direkte Referenz, JSON-Schema-Validierung via `patternProperties`. Namensregel `^[A-Za-z_][A-Za-z0-9_]*$`.
+- **`joints:`** statt generischem `values:` (expliziter, review-freundlicher). Genau **6 Werte** (Gruppe `r0192_arm`); Greifer ist kein Punkt-Bestandteil.
+- `frame`: String mit Default `base_link`; Executor lehnt in v1 andere Frames ab.
+- `version: 1` für spätere Migrationen.
+
+### Programmdatei `program_*.yaml`
 
 ```yaml
+version: 1
 name: "Pick and Drop Demo"
-description: "Holt Objekt von A und legt es bei B ab"
+description: "Holt Objekt von A und legt es bei B ab"   # optional
+defaults:                # optional, gilt für Steps ohne eigene Angabe
+  velocity: 0.2
+  acceleration: 0.2
 steps:
   - type: move_j
     target: pick_home
-    velocity: 0.3
+    velocity: 0.3        # Skalierungsfaktor (0, 1], NICHT rad/s
     acceleration: 0.3
   - type: wait
-    duration: 2.0
+    duration: 2.0        # Sekunden
   - type: move_l
     target: drop_position
     velocity: 0.1
 ```
 
-Diese Schemas werden in Phase 2 in offizielle JSON Schemas überführt, die VS Code für Autocomplete und Validierung nutzt.
+Festgelegt:
+- **Step-Typen v1: `move_j`, `move_l`, `wait`** — keine Loops/Conditions.
+- **`velocity`/`acceleration` sind einheitenlose Skalierungsfaktoren (0, 1]** (MoveIt `velocity_scaling_factor`); physikalische Einheiten erst mit Pilz (Phase 7). Override-Slider (Phase 5) multipliziert sich drauf.
+- **`move_j` akzeptiert joint- und pose-Punkte** (pose → `setPoseTarget`); **`move_l` nur pose-Punkte** (v1).
+- Optionales `name:` pro Step für die Anzeige im Run-Panel.
+
+### Storage-Layout (final)
+
+```
+<workspace>/programs/          # im Repo (git-diff-bar), Default des Executors
+├── points.yaml
+└── program_*.yaml
+doku/schemas/                  # JSON Schemas (Phase 2) = Source of Truth
+```
+
+Im Workspace statt `~/.r0192/`: Programme sind git-versioniert (Prinzip 5), das `.vscode/`-Schema-Mapping greift im geöffneten Workspace, Engineering-Workflow läuft dort. Pfade als ROS-Parameter (`programs_dir`, `points_file`) überschreibbar.
+
+### ROS-Interfaces (final, in `r0192_interfaces`)
+
+- **`action/ExecuteProgram.action`** — Goal: `string program_path` (nur Pfad, kein Inhalt — Datei bleibt Source of Truth, Validierung nur im Backend-Loader). Result: `success`, `message`, `steps_completed`. Feedback: `current_step`, `total_steps`, `step_type`, `step_label`, `status` (`STATUS_LOADING/PLANNING/MOVING/WAITING`).
+- **`srv/TeachPoint.srv`** (Phase 4) — `name`, `type` (`TYPE_JOINT`/`TYPE_POSE`), `overwrite` → `success`, `message`.
+- **`srv/ListPoints.srv`** (Phase 4) — → `names[]`, `types[]`.
+- **`srv/DeletePoint.srv`** (Phase 4) — `name` → `success`, `message`.
+- **Kein `SavePoint` in v1** — explizite Werte schreibt man in VS Code direkt in `points.yaml` (Schema-validiert); ein Service wäre ein redundanter zweiter Schreibpfad. Bei Bedarf später additiv.
+
+Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-Code-Autocomplete und Validierung.
 
 ---
 
 ## ToDo
 
-### Phase 0 — Design & Schema festklopfen (kein Code)
+### Phase 0 — Design & Schema festklopfen (kein Code) ✅ (2026-06-11)
 
-- [ ] YAML-Schema für Punkte final festlegen (joint vs. pose, Frame-Handling)
-- [ ] YAML-Schema für Programme final festlegen (Step-Typen, Parameter pro Typ)
-- [ ] Step-Typen für v1 entscheiden (Empfehlung: `move_j`, `move_l`, `wait` — keine Loops/Conditions)
-- [ ] `ExecuteProgram.action` skizzieren (Goal: Programm-Pfad oder -Inhalt; Feedback: aktueller Step + Status; Result: Erfolg/Fehler)
-- [ ] Service-Interfaces für Punkte skizzieren (`SavePoint`, `DeletePoint`, `ListPoints`, `TeachPoint`)
-- [ ] Dateipfade & Storage-Layout festlegen (z.B. `~/.r0192/programs/`, `~/.r0192/points.yaml`)
+- [x] YAML-Schema für Punkte final festlegen (joint vs. pose, Frame-Handling) — siehe „Datenmodell (FINAL)"
+- [x] YAML-Schema für Programme final festlegen (Step-Typen, Parameter pro Typ)
+- [x] Step-Typen für v1 entschieden: `move_j`, `move_l`, `wait` — keine Loops/Conditions
+- [x] `ExecuteProgram.action` festgelegt (Goal: nur Programm-Pfad; Feedback: Step-Index/-Typ/-Label + Status; Result: success/message/steps_completed)
+- [x] Service-Interfaces für Punkte festgelegt: `TeachPoint`, `ListPoints`, `DeletePoint` — **kein `SavePoint` in v1** (VS Code editiert `points.yaml` direkt)
+- [x] Dateipfade & Storage-Layout festgelegt: `<workspace>/programs/` + `programs/points.yaml` (im Repo, per ROS-Parameter überschreibbar)
 
-### Phase 1 — Backend MVP (`r0192_program_executor`)
+### Phase 1 — Backend MVP (`r0192_program_executor`) ✅ (2026-06-11)
 
-- [ ] Neues Paket anlegen, in Workspace + Bringup registrieren
-- [ ] Custom Messages/Action in `r0192_interfaces` ergänzen
-- [ ] YAML-Loader mit Schema-Validierung (Punkte + Programme)
-- [ ] Action Server `ExecuteProgram` als Skelett (nur `wait`-Step) lauffähig bekommen
-- [ ] `move_j` implementieren: Punkt aus DB → `MoveGroupInterface` → planen → ausführen
-- [ ] State-Übergang im Executor: vor Start `HOLD → MOVEIT`, am Ende `MOVEIT → HOLD`
-- [ ] Cancel-Verhalten: bei Action-Cancel laufenden Move abbrechen, sauber nach `HOLD`
-- [ ] Feedback publizieren: aktueller Step-Index, Step-Name, Gesamt-Steps, Status
-- [ ] **Acceptance**: `ros2 action send_goal /execute_program …` mit 3-Schritt-Programm (move_j, wait, move_j) läuft durch und kehrt sauber nach `HOLD` zurück.
+- [x] Neues Paket angelegt, in Workspace + Bringup registriert (`real_robot.launch.py`, Node `r0192_program_executor`)
+- [x] `ExecuteProgram.action` in `r0192_interfaces` ergänzt (Punkt-Services folgen in Phase 4)
+- [x] YAML-Loader mit Schema-Validierung (`program_loader.cpp`: Punkte + Programme, strikte Fehlermeldungen `<file>: <step/point>: <problem>`, unbekannte Keys abgelehnt)
+- [x] Action Server `ExecuteProgram` lauffähig (`wait`-Step mit Cancel-responsiven 50-ms-Ticks)
+- [x] `move_j` implementiert: Punkt aus DB → `MoveGroupInterface` (lazy erstellt, da move_group später startet) → planen → ausführen; joint- und pose-Ziele
+- [x] State-Übergang im Executor: vor Start `HOLD → MOVEIT`, am Ende `MOVEIT → HOLD` — nur wenn der Zustand noch `MOVEIT` ist (nach `/e_stop` wird nichts angefasst)
+- [x] Cancel-Verhalten: Action-Cancel ruft `MoveGroupInterface::stop()`, Worker beendet als CANCELED, sauber nach `HOLD` (getestet)
+- [x] Feedback publiziert: Step-Index, Label, Gesamt-Steps, Status (LOADING/PLANNING/MOVING/WAITING)
+- [x] **Acceptance erfüllt** (virtueller Modus, 2026-06-11): 4-Schritt-Demo (`programs/program_demo.yaml`) läuft via `ros2 action send_goal` durch → SUCCEEDED, Zustand zurück in `HOLD`. Zusätzlich getestet: Cancel mid-program → CANCELED + `HOLD`; Goal aus `DISABLED` → ABORTED mit Manager-Meldung; ungültiger Step-Typ → ABORTED mit präziser Loader-Meldung. **Hardware-Test an Achse 1/4 steht aus.**
 
-### Phase 2 — VS-Code-Integration (Engineering)
+### Phase 2 — VS-Code-Integration (Engineering) ✅ implementiert (2026-06-11, Acceptance manuell offen)
 
 > Klein, aber sehr früh wertvoll: macht das Schreiben/Bearbeiten von Programm- und Punktdateien angenehm und sicher. Damit kannst du im weiteren Verlauf Programme zum Testen schnell und ohne Tippfehler schreiben.
 
-- [ ] JSON Schema für `program.yaml` schreiben (`doku/schemas/program.schema.json`)
-- [ ] JSON Schema für `points.yaml` schreiben (`doku/schemas/points.schema.json`)
-- [ ] `.vscode/extensions.json` mit Empfehlung für `redhat.vscode-yaml` anlegen
-- [ ] `.vscode/settings.json` mit Schema-Mapping (Filepattern → Schema)
-- [ ] `.vscode/r0192.code-snippets` mit Snippets für `move_j`, `move_l`, `wait`
-- [ ] Im Haupt-README kurz dokumentieren, wie Programme in VS Code geschrieben werden
-- [ ] **Acceptance**: Neue `program_*.yaml` aus einem Snippet erzeugen, ungültiger Step-Typ wird live als Fehler markiert, gültige Felder werden autocompleted, Hover zeigt Doku.
+- [x] JSON Schema für `program.yaml` geschrieben (`doku/schemas/program.schema.json`)
+- [x] JSON Schema für `points.yaml` geschrieben (`doku/schemas/points.schema.json`)
+- [x] `.vscode/extensions.json` mit Empfehlung für `redhat.vscode-yaml` angelegt
+- [x] `.vscode/settings.json` mit Schema-Mapping ergänzt (bestehende Settings beibehalten); `.gitignore` von `\.vscode/` auf selektives Whitelisting umgestellt (settings/extensions/snippets committet, Rest ignoriert)
+- [x] `.vscode/r0192.code-snippets`: `r0192-program`, `move_j`, `move_l`, `wait`, `point-joint`, `point-pose`
+- [x] Im Haupt-README dokumentiert (Abschnitt „Roboterprogramme")
+- [ ] **Acceptance** (manuell in VS Code zu verifizieren): Neue `program_*.yaml` aus Snippet erzeugen, ungültiger Step-Typ wird live markiert, Autocomplete + Hover funktionieren. (Schemas wurden bereits maschinell gegen die Beispieldateien validiert, inkl. Negativtest.)
 
 ### Phase 3 — RViz Run-Panel MVP (`r0192_rviz_plugins`)
 
