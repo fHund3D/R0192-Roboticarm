@@ -32,6 +32,8 @@ Panels:
     SyncSource: ""
   - Class: r0192_rviz_plugins::JogPanel
     Name: R0192 Control
+  - Class: r0192_rviz_plugins::ProgramPanel
+    Name: R0192 Program
 Visualization Manager:
   Class: ""
   Displays:

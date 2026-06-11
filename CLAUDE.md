@@ -294,14 +294,15 @@ Der Node läuft in `real_robot.launch.py` mit, ist im virtuellen Modus voll test
 
 ## Programm-System (r0192_program_executor)
 
-Industrielle Trennung **Engineering ↔ Operations** (Plan: [doku/program_ide_plan.md](doku/program_ide_plan.md); Phasen 0–2 fertig, Phase 3 RViz-Run-Panel als Nächstes):
+Industrielle Trennung **Engineering ↔ Operations** (Plan: [doku/program_ide_plan.md](doku/program_ide_plan.md); Phasen 0–3 implementiert, Phase 4 Punktverwaltung/Teach als Nächstes):
 
 - **Engineering (VS Code)**: Programme/Punkte als YAML in `programs/` (git-versioniert). Live-Validierung über JSON Schemas in `doku/schemas/` (`.vscode/settings.json`-Mapping, Extension `redhat.vscode-yaml`, Snippets `r0192-program`/`move_j`/`move_l`/`wait`/`point-joint`/`point-pose`). `.gitignore` whitelisted `.vscode/{settings,extensions,r0192.code-snippets}`.
 - **Backend**: Node `r0192_program_executor` (in `real_robot.launch.py`), Action **`/execute_program`** (`r0192_interfaces/action/ExecuteProgram`, Goal = Dateipfad, relativ zu Parameter `programs_dir`, Default `~/roboticarm_r0192_ws/programs`). Loader ([program_loader.cpp](src/r0192_program_executor/src/program_loader.cpp)) ist die **einzige** Parse-/Validierstelle (strikte Meldungen, unbekannte Keys abgelehnt).
 - **Datenmodell**: Punkte (`points.yaml`, Map by name, `type: joint` mit 6 rad-Werten joint_1..6 oder `type: pose` in `base_link`) ↔ Programme (`program_*.yaml`, Steps `move_j`/`move_l`/`wait`, Referenz **nur per Punktname**, `velocity`/`acceleration` = MoveIt-Skalierungsfaktoren (0, 1], optionale `defaults`, Fallback 0.1).
 - **State-Integration**: Executor ist reiner `/set_robot_state`-Client — `HOLD → MOVEIT` vor dem ersten Step, `MOVEIT → HOLD` am Ende/Cancel/Fehler, aber **nur wenn der Zustand noch MOVEIT ist** (nach `/e_stop` → DISABLED fasst er nichts an; ein HOLD-Request hieße Motoren einschalten). Goal aus falschem Zustand → ABORTED mit Manager-Meldung.
 - **Ausführung v1**: sequenziell via `MoveGroupInterface` (lazy erstellt — move_group startet 3 s nach dem Executor). `move_j` akzeptiert joint+pose-Punkte, `move_l` ist schema-gültig, wird aber bis Phase 6 beim Goal abgelehnt. Cancel → `MoveGroupInterface::stop()` bricht blockierendes plan/execute, Ergebnis CANCELED. Feedback: Step-Index/Label/Total + Status (LOADING/PLANNING/MOVING/WAITING).
-- **Getestet (virtuell, 2026-06-11)**: 4-Step-Demo SUCCEEDED + zurück in HOLD; Cancel mid-program → CANCELED + HOLD; Goal aus DISABLED → ABORTED; ungültiges YAML → ABORTED mit präziser Meldung. **Hardware-Test steht aus.**
+- **Operations (RViz `ProgramPanel`, „R0192 Program" in moveit.rviz)**: Runtime-only Run-Panel ([program_panel.cpp](src/r0192_rviz_plugins/src/program_panel.cpp)) — Datei-Combo über `programs/` (+ Browse, Verzeichnis in RViz-Config persistiert), read-only YAML-View mit Syntax-Highlighting, Run/Stop über den `/execute_program`-Action-Client, Live-Highlight des laufenden Steps (Feedback-Index → `- `-Items nach `steps:`), Status „Step X / Y" + Robot-State. State-getrieben wie das JogPanel (Run nur in `HOLD`/`MOVEIT`); das Panel ruft **nie** `/set_robot_state` — die Übergänge macht der Executor. **Kein Editor** (Editieren = VS Code).
+- **Getestet (virtuell, 2026-06-11)**: 4-Step-Demo SUCCEEDED + zurück in HOLD (auch auf dem Zielrechner real bestätigt); Cancel mid-program → CANCELED + HOLD; Goal aus DISABLED → ABORTED; ungültiges YAML → ABORTED mit präziser Meldung; RViz lädt das ProgramPanel fehlerfrei. **Hardware-Test + manuelle Panel-Acceptance stehen aus.**
 
 ---
 
@@ -549,9 +550,11 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - [x] Phase 0: Schemas/Interfaces final abgestimmt (Datenmodell im Plan-Dokument)
 - [x] Phase 1 Backend MVP: `r0192_program_executor` + `/execute_program`-Action, YAML-Loader, `move_j`/`wait`, State-Übergänge über `/set_robot_state`, Cancel, Feedback — virtuell getestet (Acceptance erfüllt)
 - [x] Phase 2 VS-Code-Integration: JSON Schemas (`doku/schemas/`), `.vscode/` (Schema-Mapping, Snippets, Extension-Empfehlung), README-Abschnitt
+- [x] Phase 1 Acceptance auch real bestätigt (Demo-Programm auf Zielrechner durchgelaufen, 2026-06-11)
+- [x] Phase 3 RViz Run-Panel: `ProgramPanel` (runtime-only, KEIN Editor) — Datei-Picker, YAML-View + Step-Highlight, Run/Stop, state-getrieben; in `moveit.rviz` als „R0192 Program"
 - [ ] Phase 2 Acceptance manuell in VS Code verifizieren (Snippet → Live-Validierung → Autocomplete/Hover)
-- [ ] Hardware-Test Phase 1: Demo-Programm gegen Achse 1/4 fahren
-- [ ] Phase 3: RViz Run-Panel (`ProgramPanel` in `r0192_rviz_plugins`, runtime-only, KEIN Editor)
+- [ ] Phase 3 Acceptance manuell in RViz verifizieren (Laden/Run/Stop/Step-Highlight über UI)
+- [ ] Hardware-Test: Demo-Programm gegen Achse 1/4 fahren
 - [ ] Phase 4: Punkt-Services (`TeachPoint`/`ListPoints`/`DeletePoint`) + Teach-UI
 - [ ] Phase 5+: Pause/Override, `move_l`, Pilz (siehe Plan)
 

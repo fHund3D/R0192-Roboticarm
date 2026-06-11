@@ -189,7 +189,7 @@ ros2 param set /r0192_homing zero_offset 0.05
 
 ## Roboterprogramme (Engineering in VS Code, Ausführung über ROS 2)
 
-Das Projekt folgt der industriellen Trennung **Engineering ↔ Operations** (siehe [doku/program_ide_plan.md](doku/program_ide_plan.md)): Programme werden in **VS Code** geschrieben (YAML mit Schema-Validierung), ausgeführt werden sie vom Backend **`r0192_program_executor`** über die Action **`/execute_program`** (ein RViz-Run-Panel folgt in Phase 3 des Plans).
+Das Projekt folgt der industriellen Trennung **Engineering ↔ Operations** (siehe [doku/program_ide_plan.md](doku/program_ide_plan.md)): Programme werden in **VS Code** geschrieben (YAML mit Schema-Validierung), ausgeführt werden sie vom Backend **`r0192_program_executor`** über die Action **`/execute_program`** — per CLI oder über das **RViz-Run-Panel „R0192 Program"** (`r0192_rviz_plugins/ProgramPanel`, erscheint automatisch beim `real_robot.launch.py`-Start): Programm wählen, Run/Stop, Live-Markierung des laufenden Steps, Status „Step X / Y". Das Panel ist bewusst runtime-only — editiert wird ausschließlich in VS Code.
 
 **Dateien** (im Repo, git-versioniert):
 

@@ -7,6 +7,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(rviz_common REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_srvs REQUIRED)
@@ -25,8 +26,10 @@ set(CMAKE_AUTOMOC ON)
 add_library(${PROJECT_NAME} SHARED
   src/operator_panel.cpp
   src/jog_panel.cpp
+  src/program_panel.cpp
   include/r0192_rviz_plugins/operator_panel.hpp
   include/r0192_rviz_plugins/jog_panel.hpp
+  include/r0192_rviz_plugins/program_panel.hpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -34,6 +37,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
+  rclcpp_action
   rviz_common
   pluginlib
   std_srvs

@@ -14,4 +14,12 @@
       Servo enable, MoveIt goal-marker visibility toggle).
     </description>
   </class>
+  <class type="r0192_rviz_plugins::ProgramPanel"
+         base_class_type="rviz_common::Panel">
+    <description>
+      R0192 program run panel (runtime-only, no editor): load YAML programs
+      from programs/, run/stop them via the /execute_program action and follow
+      the currently executing step with a live highlight.
+    </description>
+  </class>
 </library>

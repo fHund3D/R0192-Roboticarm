@@ -141,18 +141,18 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Im Haupt-README dokumentiert (Abschnitt „Roboterprogramme")
 - [ ] **Acceptance** (manuell in VS Code zu verifizieren): Neue `program_*.yaml` aus Snippet erzeugen, ungültiger Step-Typ wird live markiert, Autocomplete + Hover funktionieren. (Schemas wurden bereits maschinell gegen die Beispieldateien validiert, inkl. Negativtest.)
 
-### Phase 3 — RViz Run-Panel MVP (`r0192_rviz_plugins`)
+### Phase 3 — RViz Run-Panel MVP (`r0192_rviz_plugins`) ✅ implementiert (2026-06-11, Acceptance manuell offen)
 
 > Bewusst minimaler Scope: nur Runtime, kein Editor. Editiert wird in VS Code.
 
-- [ ] Panel-Klasse `ProgramPanel` (Subklasse von `rviz_common::Panel`) anlegen
-- [ ] In `plugins_description.xml` registrieren, CMakeLists/Build erweitern
-- [ ] UI-Layout: Datei-Picker, Programm-Anzeige (read-only mit Syntax-Highlighting via `QSyntaxHighlighter`), Buttons Run/Stop
-- [ ] Action-Client für `ExecuteProgram` einbauen
-- [ ] Live-Highlighting der aktuell ausgeführten Zeile/des Steps aus Action-Feedback
-- [ ] Stop-Button → Action-Cancel → Executor stoppt sauber nach `HOLD`
-- [ ] Status-Display: aktueller Step, "Step X von Y", aktueller Robot-State
-- [ ] **Acceptance**: YAML-Programm laden, anzeigen, ausführen, stoppen — komplett über UI. Aktuelle Programmzeile ist während der Ausführung sichtbar markiert.
+- [x] Panel-Klasse `ProgramPanel` (Subklasse von `rviz_common::Panel`) angelegt
+- [x] In `plugin_description.xml` registriert, CMakeLists/package.xml erweitert (`rclcpp_action`); zusätzlich im Default-Layout `moveit.rviz` als „R0192 Program" — erscheint beim Start automatisch
+- [x] UI-Layout: Datei-Combo über `programs/` (+ Refresh + Browse, Verzeichnis wird in der RViz-Config persistiert), Programm-Anzeige read-only mit YAML-`QSyntaxHighlighter`, Buttons Run/Stop
+- [x] Action-Client für `ExecuteProgram`; Goal mit absolutem Pfad, Datei wird vor Run frisch von Platte gelesen (View = was der Executor lädt)
+- [x] Live-Highlighting des aktuell ausgeführten Steps (Step-Index → `- `-Items nach `steps:` im Dokument, Amber-Block + Auto-Scroll)
+- [x] Stop-Button → Action-Cancel → Executor stoppt Bewegung (`stop()`) und kehrt sauber nach `HOLD` zurück
+- [x] Status-Display: „Step X / Y — label [status]", Robot-State-Label, Statuszeile; state-getriebene UI (Run nur in `HOLD`/`MOVEIT`, Dateiauswahl während Run gesperrt)
+- [ ] **Acceptance** (manuell in RViz): YAML-Programm laden, anzeigen, ausführen, stoppen — komplett über UI; aktuelle Programmzeile während der Ausführung sichtbar markiert. (Panel lädt fehlerfrei in RViz, per Launch-Test verifiziert.)
 
 ### Phase 4 — Punktverwaltung & Teach
 
