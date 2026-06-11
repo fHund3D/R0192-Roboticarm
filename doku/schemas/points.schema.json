@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/fHund3D/R0192-Roboticarm/doku/schemas/points.schema.json",
+  "title": "R0192 Points",
+  "description": "Named targets for R0192 programs (programs/points.yaml). Programs reference points by name only — inline poses in program steps are forbidden by design. Source of truth for the runtime loader in r0192_program_executor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "points"],
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Schema version (currently always 1)."
+    },
+    "points": {
+      "type": "object",
+      "description": "Map of point name -> point. Names must match ^[A-Za-z_][A-Za-z0-9_]*$ and are referenced by program steps via 'target'.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/definitions/jointPoint" },
+          { "$ref": "#/definitions/posePoint" }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "jointPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "joints"],
+      "properties": {
+        "type": {
+          "const": "joint",
+          "description": "Joint-space target: 6 joint angles."
+        },
+        "joints": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": { "type": "number" },
+          "description": "Joint angles in rad, order joint_1..joint_6 (group r0192_arm)."
+        }
+      }
+    },
+    "posePoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "position", "orientation"],
+      "properties": {
+        "type": {
+          "const": "pose",
+          "description": "Cartesian TCP target (position in m + quaternion) in 'frame'."
+        },
+        "frame": {
+          "enum": ["base_link"],
+          "default": "base_link",
+          "description": "Reference frame. v1 supports only base_link."
+        },
+        "position": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "z"],
+          "properties": {
+            "x": { "type": "number", "description": "m" },
+            "y": { "type": "number", "description": "m" },
+            "z": { "type": "number", "description": "m" }
+          }
+        },
+        "orientation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "z", "w"],
+          "description": "Unit quaternion (|q| = 1, checked by the runtime loader).",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "z": { "type": "number" },
+            "w": { "type": "number" }
+          }
+        }
+      }
+    }
+  }
+}

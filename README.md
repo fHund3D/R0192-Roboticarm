@@ -187,6 +187,34 @@ ros2 param set /r0192_homing zero_offset 0.05
 
 ---
 
+## Roboterprogramme (Engineering in VS Code, Ausführung über ROS 2)
+
+Das Projekt folgt der industriellen Trennung **Engineering ↔ Operations** (siehe [doku/program_ide_plan.md](doku/program_ide_plan.md)): Programme werden in **VS Code** geschrieben (YAML mit Schema-Validierung), ausgeführt werden sie vom Backend **`r0192_program_executor`** über die Action **`/execute_program`** (ein RViz-Run-Panel folgt in Phase 3 des Plans).
+
+**Dateien** (im Repo, git-versioniert):
+
+```
+programs/
+├── points.yaml          # Punktdatenbank: benannte Ziele (joint / pose)
+└── program_*.yaml       # Programme: Steps move_j / move_l / wait
+doku/schemas/            # JSON Schemas = Source of Truth (VS Code + Loader)
+```
+
+**Schreiben in VS Code:** Die empfohlene Extension `redhat.vscode-yaml` (siehe `.vscode/extensions.json`) validiert beide Dateitypen live gegen die Schemas in `doku/schemas/` (Mapping in `.vscode/settings.json`): ungültige Step-Typen/Felder werden markiert, gültige Felder autocompleted, Hover zeigt Doku. Snippets: `r0192-program` (neues Programm), `move_j`, `move_l`, `wait`, `point-joint`, `point-pose`.
+
+Wichtige Regeln: Programme referenzieren Punkte **nur per Name** aus `points.yaml` (keine Inline-Posen); `velocity`/`acceleration` sind **MoveIt-Skalierungsfaktoren (0, 1]**, keine physikalischen Geschwindigkeiten (kommt mit dem Pilz-Planner).
+
+**Ausführen** (Arm muss in `HOLD` sein; der Executor schaltet selbst `HOLD → MOVEIT → HOLD`):
+
+```bash
+ros2 action send_goal /execute_program \
+  r0192_interfaces/action/ExecuteProgram "{program_path: program_demo.yaml}" -f
+```
+
+Relative Pfade werden gegen `programs/` aufgelöst (Parameter `programs_dir`/`points_file` des Executor-Nodes). Action-Cancel stoppt die laufende Bewegung (`MoveGroupInterface::stop()`) und kehrt sauber nach `HOLD` zurück. Nach einem Notaus (`/e_stop`) fasst der Executor den Zustand nicht an — die Wiederinbetriebnahme läuft wie immer über `/robot_reset` + `/set_robot_state`.
+
+---
+
 ## Beitragen
 
 1. Fork das Repository

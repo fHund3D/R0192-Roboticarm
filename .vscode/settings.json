@@ -1,0 +1,21 @@
+{
+    "ROS2.distro": "jazzy",
+    "python.autoComplete.extraPaths": [
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+
+    // R0192 program engineering: YAML validation + autocomplete + hover docs
+    // for robot programs and the point database (see doku/program_ide_plan.md).
+    // Requires the recommended extension redhat.vscode-yaml.
+    "yaml.schemas": {
+        "./doku/schemas/program.schema.json": "programs/program_*.yaml",
+        "./doku/schemas/points.schema.json": "programs/points.yaml"
+    },
+    "yaml.validate": true,
+    "yaml.hover": true,
+    "yaml.completion": true
+}

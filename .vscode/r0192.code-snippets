@@ -1,0 +1,77 @@
+{
+  "R0192: new program": {
+    "scope": "yaml",
+    "prefix": "r0192-program",
+    "description": "Skeleton for a new R0192 program (programs/program_*.yaml)",
+    "body": [
+      "version: 1",
+      "name: \"${1:My Program}\"",
+      "description: \"${2:}\"",
+      "defaults:",
+      "  velocity: ${3:0.2}",
+      "  acceleration: ${4:0.2}",
+      "steps:",
+      "  - type: move_j",
+      "    target: ${5:home}",
+      "$0"
+    ]
+  },
+  "R0192: move_j step": {
+    "scope": "yaml",
+    "prefix": "move_j",
+    "description": "Joint-space move (PTP) to a named point",
+    "body": [
+      "- type: move_j",
+      "  target: ${1:point_name}",
+      "  velocity: ${2:0.2}",
+      "  acceleration: ${3:0.2}",
+      "$0"
+    ]
+  },
+  "R0192: move_l step": {
+    "scope": "yaml",
+    "prefix": "move_l",
+    "description": "Linear Cartesian move to a named pose point (executor: plan phase 6)",
+    "body": [
+      "- type: move_l",
+      "  target: ${1:point_name}",
+      "  velocity: ${2:0.1}",
+      "  acceleration: ${3:0.1}",
+      "$0"
+    ]
+  },
+  "R0192: wait step": {
+    "scope": "yaml",
+    "prefix": "wait",
+    "description": "Pause program execution (seconds)",
+    "body": [
+      "- type: wait",
+      "  duration: ${1:1.0}",
+      "$0"
+    ]
+  },
+  "R0192: joint point": {
+    "scope": "yaml",
+    "prefix": "point-joint",
+    "description": "Named joint-space point for points.yaml (rad, joint_1..joint_6)",
+    "body": [
+      "${1:point_name}:",
+      "  type: joint",
+      "  joints: [${2:0.0}, ${3:0.0}, ${4:0.0}, ${5:0.0}, ${6:0.0}, ${7:0.0}]",
+      "$0"
+    ]
+  },
+  "R0192: pose point": {
+    "scope": "yaml",
+    "prefix": "point-pose",
+    "description": "Named Cartesian point for points.yaml (base_link, m / quaternion)",
+    "body": [
+      "${1:point_name}:",
+      "  type: pose",
+      "  frame: base_link",
+      "  position: {x: ${2:0.0}, y: ${3:0.0}, z: ${4:0.3}}",
+      "  orientation: {x: ${5:0.0}, y: ${6:0.0}, z: ${7:0.0}, w: ${8:1.0}}",
+      "$0"
+    ]
+  }
+}

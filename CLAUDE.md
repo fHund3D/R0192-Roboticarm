@@ -60,15 +60,20 @@ Always consult these before implementing or modifying driver communication logic
 
 ```
 src/
-├── r0192_bringup/       # Central launch entry points (real + simulated)
-├── r0192_canbus/        # CAN drivers: CanCommunication, GDS68Driver, RS05Driver
-├── r0192_controller/    # JointTrajectoryController config + manual slider node
-├── r0192_description/   # URDF/xacro, STL meshes, Gazebo/Rviz configs
-├── r0192_interfaces/    # Custom msgs/srvs: RobotState, SetRobotState (state machine)
-├── r0192_hardware/      # ros2_control hardware interface + robot_state_manager node
-├── r0192_moveit/        # MoveIt 2 config: SRDF, kinematics, joint limits, launch
-├── r0192_rviz_plugins/  # RViz operator panel (Homing- + Motoren-EIN/AUS-Buttons)
-└── r0192_remote/        # (Planned) Web-based remote control interface
+├── r0192_bringup/          # Central launch entry points (real + simulated)
+├── r0192_canbus/           # CAN drivers: CanCommunication, GDS68Driver, RS05Driver
+├── r0192_controller/       # JointTrajectoryController config + manual slider node
+├── r0192_description/      # URDF/xacro, STL meshes, Gazebo/Rviz configs
+├── r0192_interfaces/       # Custom msgs/srvs/actions: RobotState, SetRobotState, ExecuteProgram
+├── r0192_hardware/         # ros2_control hardware interface + robot_state_manager node
+├── r0192_moveit/           # MoveIt 2 config: SRDF, kinematics, joint limits, launch
+├── r0192_program_executor/ # Program backend: YAML loader + /execute_program action server
+├── r0192_rviz_plugins/     # RViz operator panel (Homing- + Motoren-EIN/AUS-Buttons)
+└── r0192_remote/           # (Planned) Web-based remote control interface
+
+programs/                   # Robot programs (YAML): points.yaml + program_*.yaml
+doku/schemas/               # JSON Schemas for programs/points (VS Code + docs source of truth)
+.vscode/                    # Committed engineering config: YAML schema mapping, snippets
 ```
 
 ---
@@ -284,6 +289,19 @@ HOLD → HOMING → HOLD       (HOMING→HOLD automatisch nach Service-Abschluss
 **Nebenläufigkeit**: Die Executor-Thread-Callbacks (`handleSetState`/`handleEStop`/`handleReset`) sind durch den Single-Threaded-Spin serialisiert und teilen sich `client_node_`. Der **Homing-Worker läuft in einem eigenen Thread** und benutzt daher eine **separate `homing_node_`** mit eigenen Clients — sonst würden bei einem `/e_stop` während des Homings zwei Executoren dieselbe Node gleichzeitig spinnen, was rclcpp verbietet (war ein latenter Crash-Bug). Nicht-Homing-Übergänge sind kurz, daher ist die Serialisierung des Notaus dahinter unkritisch.
 
 Der Node läuft in `real_robot.launch.py` mit, ist im virtuellen Modus voll testbar (fehlende Services wie `/homing` ohne Achse 1 → Übergang wird sauber abgelehnt; `/e_stop`/`/robot_reset` setzen dann nur das Torque-Gate) und ist für das geplante `r0192_remote`-Web-Interface wiederverwendbar.
+
+---
+
+## Programm-System (r0192_program_executor)
+
+Industrielle Trennung **Engineering ↔ Operations** (Plan: [doku/program_ide_plan.md](doku/program_ide_plan.md); Phasen 0–2 fertig, Phase 3 RViz-Run-Panel als Nächstes):
+
+- **Engineering (VS Code)**: Programme/Punkte als YAML in `programs/` (git-versioniert). Live-Validierung über JSON Schemas in `doku/schemas/` (`.vscode/settings.json`-Mapping, Extension `redhat.vscode-yaml`, Snippets `r0192-program`/`move_j`/`move_l`/`wait`/`point-joint`/`point-pose`). `.gitignore` whitelisted `.vscode/{settings,extensions,r0192.code-snippets}`.
+- **Backend**: Node `r0192_program_executor` (in `real_robot.launch.py`), Action **`/execute_program`** (`r0192_interfaces/action/ExecuteProgram`, Goal = Dateipfad, relativ zu Parameter `programs_dir`, Default `~/roboticarm_r0192_ws/programs`). Loader ([program_loader.cpp](src/r0192_program_executor/src/program_loader.cpp)) ist die **einzige** Parse-/Validierstelle (strikte Meldungen, unbekannte Keys abgelehnt).
+- **Datenmodell**: Punkte (`points.yaml`, Map by name, `type: joint` mit 6 rad-Werten joint_1..6 oder `type: pose` in `base_link`) ↔ Programme (`program_*.yaml`, Steps `move_j`/`move_l`/`wait`, Referenz **nur per Punktname**, `velocity`/`acceleration` = MoveIt-Skalierungsfaktoren (0, 1], optionale `defaults`, Fallback 0.1).
+- **State-Integration**: Executor ist reiner `/set_robot_state`-Client — `HOLD → MOVEIT` vor dem ersten Step, `MOVEIT → HOLD` am Ende/Cancel/Fehler, aber **nur wenn der Zustand noch MOVEIT ist** (nach `/e_stop` → DISABLED fasst er nichts an; ein HOLD-Request hieße Motoren einschalten). Goal aus falschem Zustand → ABORTED mit Manager-Meldung.
+- **Ausführung v1**: sequenziell via `MoveGroupInterface` (lazy erstellt — move_group startet 3 s nach dem Executor). `move_j` akzeptiert joint+pose-Punkte, `move_l` ist schema-gültig, wird aber bis Phase 6 beim Goal abgelehnt. Cancel → `MoveGroupInterface::stop()` bricht blockierendes plan/execute, Ergebnis CANCELED. Feedback: Step-Index/Label/Total + Status (LOADING/PLANNING/MOVING/WAITING).
+- **Getestet (virtuell, 2026-06-11)**: 4-Step-Demo SUCCEEDED + zurück in HOLD; Cancel mid-program → CANCELED + HOLD; Goal aus DISABLED → ABORTED; ungültiges YAML → ABORTED mit präziser Meldung. **Hardware-Test steht aus.**
 
 ---
 
@@ -526,6 +544,16 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - [ ] Hardware-Test: Panel-Buttons gegen echte Hardware (Homing-Trigger, Motoren EIN/AUS, Drift-/Ruck-Verhalten beim Re-Enable prüfen)
 - [ ] Hardware-Test Jog-Panel: alle 3 Modi gegen Achse 1/4 verfahren; Twist-Frame-/Rotationsverhalten (`apply_twist_commands_about_ee_frame`) auf Hardware tunen; Speed-Slider-Bereich kalibrieren
 - [ ] Optional Jog-Panel: echter Inkrement-/Schritt-Modus (fixer Weg pro Klick) zusätzlich zum Press-and-Hold
+
+**Programm-System (Plan: doku/program_ide_plan.md)**
+- [x] Phase 0: Schemas/Interfaces final abgestimmt (Datenmodell im Plan-Dokument)
+- [x] Phase 1 Backend MVP: `r0192_program_executor` + `/execute_program`-Action, YAML-Loader, `move_j`/`wait`, State-Übergänge über `/set_robot_state`, Cancel, Feedback — virtuell getestet (Acceptance erfüllt)
+- [x] Phase 2 VS-Code-Integration: JSON Schemas (`doku/schemas/`), `.vscode/` (Schema-Mapping, Snippets, Extension-Empfehlung), README-Abschnitt
+- [ ] Phase 2 Acceptance manuell in VS Code verifizieren (Snippet → Live-Validierung → Autocomplete/Hover)
+- [ ] Hardware-Test Phase 1: Demo-Programm gegen Achse 1/4 fahren
+- [ ] Phase 3: RViz Run-Panel (`ProgramPanel` in `r0192_rviz_plugins`, runtime-only, KEIN Editor)
+- [ ] Phase 4: Punkt-Services (`TeachPoint`/`ListPoints`/`DeletePoint`) + Teach-UI
+- [ ] Phase 5+: Pause/Override, `move_l`, Pilz (siehe Plan)
 
 **Next: Web-Interface (r0192_remote)**
 - [ ] r0192_remote Paket aufbauen: Web-basiertes Bedienpanel als Operator-Interface

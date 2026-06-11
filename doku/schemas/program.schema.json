@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/fHund3D/R0192-Roboticarm/doku/schemas/program.schema.json",
+  "title": "R0192 Program",
+  "description": "Sequential robot program for the R0192 arm (programs/program_*.yaml), executed by r0192_program_executor via the /execute_program action. Steps reference points from points.yaml by name. Source of truth for the runtime loader.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "name", "steps"],
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Schema version (currently always 1)."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display name of the program."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional free-text description."
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Default scaling factors for steps that do not set their own (fallback if absent: 0.1).",
+      "properties": {
+        "velocity": { "$ref": "#/definitions/scaling" },
+        "acceleration": { "$ref": "#/definitions/scaling" }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of steps, executed sequentially.",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/definitions/moveJ" },
+          { "$ref": "#/definitions/moveL" },
+          { "$ref": "#/definitions/wait" }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "scaling": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "description": "MoveIt scaling factor in (0, 1] — NOT a physical velocity. Physical units come with the Pilz planner (plan phase 7)."
+    },
+    "pointName": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "Name of a point defined in points.yaml."
+    },
+    "stepName": {
+      "type": "string",
+      "description": "Optional display name shown in the RViz Program Panel."
+    },
+    "moveJ": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "description": "Joint-space move (PTP) to a named point (joint- or pose-type).",
+      "properties": {
+        "type": { "const": "move_j" },
+        "name": { "$ref": "#/definitions/stepName" },
+        "target": { "$ref": "#/definitions/pointName" },
+        "velocity": { "$ref": "#/definitions/scaling" },
+        "acceleration": { "$ref": "#/definitions/scaling" }
+      }
+    },
+    "moveL": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "description": "Linear Cartesian move to a named pose-type point (executor support comes in plan phase 6).",
+      "properties": {
+        "type": { "const": "move_l" },
+        "name": { "$ref": "#/definitions/stepName" },
+        "target": { "$ref": "#/definitions/pointName" },
+        "velocity": { "$ref": "#/definitions/scaling" },
+        "acceleration": { "$ref": "#/definitions/scaling" }
+      }
+    },
+    "wait": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "duration"],
+      "description": "Pause program execution.",
+      "properties": {
+        "type": { "const": "wait" },
+        "name": { "$ref": "#/definitions/stepName" },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds."
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,13 @@
 build/
 install/
 log/
-.vscode/
+# .vscode/ is committed selectively: schema mapping, extension recommendation
+# and snippets are part of the engineering workflow (doku/program_ide_plan.md),
+# personal files (launch.json etc.) stay ignored.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/r0192.code-snippets
 *.log
 *.tmp
 #CLAUDE.md
