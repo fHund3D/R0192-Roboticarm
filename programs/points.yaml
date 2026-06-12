@@ -12,3 +12,8 @@ points:
   home:
     type: joint
     joints: [0, 0, 0, 0, 0, 0]
+  p_test:
+    type: pose
+    frame: base_link
+    position: {x: -0.380956776, y: 0.0509791384, z: 0.372151062}
+    orientation: {x: 0.0863593351, y: -0.00432156853, z: -0.0497919799, w: 0.995009622}

@@ -150,9 +150,12 @@ public:
         const std::size_t n = std::min(msg.name.size(), msg.position.size());
         for (std::size_t i = 0; i < n; ++i) joint_pos_[msg.name[i]] = msg.position[i];
       });
+    // Dedicated spin thread: the teach handler blocks the main spin while it
+    // waits in lookupTransform(timeout), so TF data must arrive on another
+    // thread (tf2 errors out otherwise).
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(
-      *tf_buffer_, static_cast<rclcpp::Node *>(this), false);
+      *tf_buffer_, static_cast<rclcpp::Node *>(this), true);
 
     RCLCPP_INFO(get_logger(),
       "Program executor ready (/execute_program, /teach_point, /list_points, "
