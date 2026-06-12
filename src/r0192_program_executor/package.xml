@@ -17,6 +17,8 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
   <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
   <depend>moveit_ros_planning_interface</depend>
   <depend>r0192_interfaces</depend>
   <depend>yaml_cpp_vendor</depend>

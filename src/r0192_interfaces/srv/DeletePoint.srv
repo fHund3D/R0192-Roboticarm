@@ -1,0 +1,8 @@
+# Delete a named point from points.yaml (r0192_program_executor, service
+# /delete_point). Fails if the name does not exist. Does not affect a program
+# that is already running (points are loaded at goal time).
+
+string name
+---
+bool success
+string message

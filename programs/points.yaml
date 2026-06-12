@@ -1,14 +1,14 @@
 # R0192 point database — named targets referenced by programs (by name only).
-# Edited in VS Code (schema: doku/schemas/points.schema.json) or written by
-# the TeachPoint service (plan phase 4).
+# Edited in VS Code (schema: doku/schemas/points.schema.json) or rewritten by
+# the /teach_point and /delete_point services (comments are not preserved).
 version: 1
 points:
-  home:
-    type: joint
-    joints: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   demo_a:
     type: joint
-    joints: [0.5, 0.0, 0.0, 0.5, 0.0, 0.0]
+    joints: [0.5, 0, 0, 0.5, 0, 0]
   demo_b:
     type: joint
-    joints: [-0.5, 0.0, 0.0, -0.5, 0.0, 0.0]
+    joints: [-0.5, 0, 0, -0.5, 0, 0]
+  home:
+    type: joint
+    joints: [0, 0, 0, 0, 0, 0]

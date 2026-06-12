@@ -38,16 +38,25 @@
 
 #include <moveit/move_group_interface/move_group_interface.hpp>
 
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
 #include <r0192_interfaces/action/execute_program.hpp>
 #include <r0192_interfaces/msg/robot_state.hpp>
+#include <r0192_interfaces/srv/delete_point.hpp>
+#include <r0192_interfaces/srv/list_points.hpp>
 #include <r0192_interfaces/srv/set_robot_state.hpp>
+#include <r0192_interfaces/srv/teach_point.hpp>
 
 #include "r0192_program_executor/program_loader.hpp"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <string>
 #include <thread>
@@ -61,10 +70,18 @@ using ExecuteProgram = r0192_interfaces::action::ExecuteProgram;
 using GoalHandle = rclcpp_action::ServerGoalHandle<ExecuteProgram>;
 using RobotStateMsg = r0192_interfaces::msg::RobotState;
 using SetRobotState = r0192_interfaces::srv::SetRobotState;
+using TeachPoint = r0192_interfaces::srv::TeachPoint;
+using ListPoints = r0192_interfaces::srv::ListPoints;
+using DeletePoint = r0192_interfaces::srv::DeletePoint;
 using MoveGroupInterface = moveit::planning_interface::MoveGroupInterface;
 
 namespace
 {
+// Arm joints in point order (matches the SRDF group r0192_arm and the
+// 'joints:' arrays in points.yaml).
+constexpr std::array<const char *, 6> kArmJoints = {
+  "joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
+
 std::string expandUser(std::string path)
 {
   if (!path.empty() && path[0] == '~') {
@@ -88,6 +105,10 @@ public:
       points_file_ = (std::filesystem::path(programs_dir_) / "points.yaml").string();
     }
     planning_group_ = declare_parameter("planning_group", std::string("r0192_arm"));
+    // Link whose pose is captured by /teach_point (TYPE_POSE). Must be the
+    // planning group's end-effector link so a taught pose replays exactly.
+    pose_reference_link_ =
+      declare_parameter("pose_reference_link", std::string("gripper_base"));
 
     state_client_ = create_client<SetRobotState>("/set_robot_state");
 
@@ -106,8 +127,36 @@ public:
       [this](const std::shared_ptr<GoalHandle> &) { return handleCancel(); },
       [this](const std::shared_ptr<GoalHandle> & gh) { handleAccepted(gh); });
 
+    // --- Point services (phase 4). All run on the main spin (short file ops);
+    //     the joint-state cache below is filled on the same thread, so no lock
+    //     is needed. ---
+    teach_srv_ = create_service<TeachPoint>(
+      "/teach_point",
+      [this](const std::shared_ptr<TeachPoint::Request> req,
+             std::shared_ptr<TeachPoint::Response> resp) { handleTeach(req, resp); });
+    list_srv_ = create_service<ListPoints>(
+      "/list_points",
+      [this](const std::shared_ptr<ListPoints::Request>,
+             std::shared_ptr<ListPoints::Response> resp) { handleList(resp); });
+    delete_srv_ = create_service<DeletePoint>(
+      "/delete_point",
+      [this](const std::shared_ptr<DeletePoint::Request> req,
+             std::shared_ptr<DeletePoint::Response> resp) { handleDelete(req, resp); });
+
+    // Sources for teaching: joint angles from /joint_states, EE pose from TF.
+    joint_state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
+      "/joint_states", rclcpp::QoS(10),
+      [this](const sensor_msgs::msg::JointState & msg) {
+        const std::size_t n = std::min(msg.name.size(), msg.position.size());
+        for (std::size_t i = 0; i < n; ++i) joint_pos_[msg.name[i]] = msg.position[i];
+      });
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(
+      *tf_buffer_, static_cast<rclcpp::Node *>(this), false);
+
     RCLCPP_INFO(get_logger(),
-      "Program executor ready (/execute_program) — programs_dir: %s, points: %s",
+      "Program executor ready (/execute_program, /teach_point, /list_points, "
+      "/delete_point) — programs_dir: %s, points: %s",
       programs_dir_.c_str(), points_file_.c_str());
   }
 
@@ -325,6 +374,132 @@ private:
   }
 
   // --------------------------------------------------------------------------
+  // Point services (/teach_point, /list_points, /delete_point)
+  // --------------------------------------------------------------------------
+  void handleTeach(const std::shared_ptr<TeachPoint::Request> & req,
+                   std::shared_ptr<TeachPoint::Response> & resp)
+  {
+    resp->success = false;
+    if (!isValidPointName(req->name)) {
+      resp->message = "invalid point name '" + req->name +
+                      "' (allowed: ^[A-Za-z_][A-Za-z0-9_]*$)";
+      return;
+    }
+    if (req->type != TeachPoint::Request::TYPE_JOINT &&
+        req->type != TeachPoint::Request::TYPE_POSE) {
+      resp->message = "unknown point type";
+      return;
+    }
+    // Teach only from a defined resting state (servo holding or jogging).
+    if (robot_state_ != RobotStateMsg::HOLD && robot_state_ != RobotStateMsg::JOG) {
+      resp->message = "teaching requires state HOLD or JOG";
+      return;
+    }
+
+    PointMap points;
+    try {
+      if (std::filesystem::exists(points_file_)) points = loadPoints(points_file_);
+    } catch (const std::exception & e) {
+      resp->message = std::string("cannot load point database: ") + e.what();
+      return;
+    }
+    if (points.count(req->name) && !req->overwrite) {
+      resp->message = "point '" + req->name + "' already exists (set overwrite to replace)";
+      return;
+    }
+
+    Point p;
+    if (req->type == TeachPoint::Request::TYPE_JOINT) {
+      p.type = Point::Type::kJoint;
+      for (const char * joint : kArmJoints) {
+        const auto it = joint_pos_.find(joint);
+        if (it == joint_pos_.end()) {
+          resp->message = std::string("no /joint_states value for ") + joint + " yet";
+          return;
+        }
+        p.joints.push_back(it->second);
+      }
+    } else {
+      p.type = Point::Type::kPose;
+      p.frame = "base_link";
+      geometry_msgs::msg::TransformStamped tf;
+      try {
+        tf = tf_buffer_->lookupTransform("base_link", pose_reference_link_,
+                                         tf2::TimePointZero, 500ms);
+      } catch (const std::exception & e) {
+        resp->message = std::string("TF base_link -> ") + pose_reference_link_ +
+                        " unavailable: " + e.what();
+        return;
+      }
+      p.pose.position.x = tf.transform.translation.x;
+      p.pose.position.y = tf.transform.translation.y;
+      p.pose.position.z = tf.transform.translation.z;
+      p.pose.orientation = tf.transform.rotation;
+    }
+
+    points[req->name] = std::move(p);
+    try {
+      savePoints(points_file_, points);
+    } catch (const std::exception & e) {
+      resp->message = std::string("cannot write point database: ") + e.what();
+      return;
+    }
+    resp->success = true;
+    resp->message = "taught '" + req->name + "' (" +
+                    (req->type == TeachPoint::Request::TYPE_JOINT ? "joint" : "pose") + ")";
+    RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
+  }
+
+  void handleList(std::shared_ptr<ListPoints::Response> & resp)
+  {
+    resp->success = false;
+    if (!std::filesystem::exists(points_file_)) {
+      resp->message = "point database not found: " + points_file_;
+      return;
+    }
+    PointMap points;
+    try {
+      points = loadPoints(points_file_);   // re-read: VS Code edits show up live
+    } catch (const std::exception & e) {
+      resp->message = e.what();
+      return;
+    }
+    for (const auto & [name, p] : points) {   // std::map -> sorted by name
+      resp->names.push_back(name);
+      resp->types.push_back(p.type == Point::Type::kJoint
+                              ? TeachPoint::Request::TYPE_JOINT
+                              : TeachPoint::Request::TYPE_POSE);
+    }
+    resp->success = true;
+  }
+
+  void handleDelete(const std::shared_ptr<DeletePoint::Request> & req,
+                    std::shared_ptr<DeletePoint::Response> & resp)
+  {
+    resp->success = false;
+    PointMap points;
+    try {
+      if (std::filesystem::exists(points_file_)) points = loadPoints(points_file_);
+    } catch (const std::exception & e) {
+      resp->message = std::string("cannot load point database: ") + e.what();
+      return;
+    }
+    if (points.erase(req->name) == 0) {
+      resp->message = "point '" + req->name + "' does not exist";
+      return;
+    }
+    try {
+      savePoints(points_file_, points);
+    } catch (const std::exception & e) {
+      resp->message = std::string("cannot write point database: ") + e.what();
+      return;
+    }
+    resp->success = true;
+    resp->message = "deleted '" + req->name + "'";
+    RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
+  }
+
+  // --------------------------------------------------------------------------
   // Helpers
   // --------------------------------------------------------------------------
   bool ensureMoveGroup(std::string & err)
@@ -396,11 +571,21 @@ private:
   std::string programs_dir_;
   std::string points_file_;
   std::string planning_group_;
+  std::string pose_reference_link_;
 
   // --- ROS ---
   rclcpp_action::Server<ExecuteProgram>::SharedPtr server_;
   rclcpp::Client<SetRobotState>::SharedPtr state_client_;
   rclcpp::Subscription<RobotStateMsg>::SharedPtr state_sub_;
+  rclcpp::Service<TeachPoint>::SharedPtr teach_srv_;
+  rclcpp::Service<ListPoints>::SharedPtr list_srv_;
+  rclcpp::Service<DeletePoint>::SharedPtr delete_srv_;
+
+  // --- Teaching sources (filled and read on the main spin only) ---
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
+  std::map<std::string, double> joint_pos_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   // --- Execution ---
   std::shared_ptr<MoveGroupInterface> move_group_;  // lazy (move_group up later)

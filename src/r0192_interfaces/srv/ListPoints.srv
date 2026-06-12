@@ -1,0 +1,9 @@
+# List all points in points.yaml (r0192_program_executor, service
+# /list_points). The file is re-read on every call, so edits made in VS Code
+# show up without restarting anything.
+
+---
+bool success
+string message          # error detail when the file is missing/invalid
+string[] names          # point names, sorted
+uint8[] types           # TeachPoint TYPE_* per name (same order)

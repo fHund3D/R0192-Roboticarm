@@ -3,6 +3,8 @@
 #include <yaml-cpp/yaml.h>
 
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -242,6 +244,55 @@ Program loadProgram(const std::string & path)
     prog.steps.push_back(std::move(s));
   }
   return prog;
+}
+
+bool isValidPointName(const std::string & name)
+{
+  return validName(name);
+}
+
+void savePoints(const std::string & path, const PointMap & points)
+{
+  YAML::Emitter out;
+  out.SetDoublePrecision(9);
+  out << YAML::BeginMap;
+  out << YAML::Key << "version" << YAML::Value << kSchemaVersion;
+  out << YAML::Key << "points" << YAML::Value << YAML::BeginMap;
+  for (const auto & [name, p] : points) {
+    out << YAML::Key << name << YAML::Value << YAML::BeginMap;
+    if (p.type == Point::Type::kJoint) {
+      out << YAML::Key << "type" << YAML::Value << "joint";
+      out << YAML::Key << "joints" << YAML::Value << YAML::Flow << p.joints;
+    } else {
+      out << YAML::Key << "type" << YAML::Value << "pose";
+      out << YAML::Key << "frame" << YAML::Value << p.frame;
+      out << YAML::Key << "position" << YAML::Value << YAML::Flow << YAML::BeginMap
+          << YAML::Key << "x" << YAML::Value << p.pose.position.x
+          << YAML::Key << "y" << YAML::Value << p.pose.position.y
+          << YAML::Key << "z" << YAML::Value << p.pose.position.z
+          << YAML::EndMap;
+      out << YAML::Key << "orientation" << YAML::Value << YAML::Flow << YAML::BeginMap
+          << YAML::Key << "x" << YAML::Value << p.pose.orientation.x
+          << YAML::Key << "y" << YAML::Value << p.pose.orientation.y
+          << YAML::Key << "z" << YAML::Value << p.pose.orientation.z
+          << YAML::Key << "w" << YAML::Value << p.pose.orientation.w
+          << YAML::EndMap;
+    }
+    out << YAML::EndMap;
+  }
+  out << YAML::EndMap << YAML::EndMap;
+
+  const std::string tmp = path + ".tmp";
+  {
+    std::ofstream file(tmp);
+    if (!file) throw std::runtime_error("cannot write " + tmp);
+    file << "# R0192 point database — named targets referenced by programs (by name only).\n"
+            "# Edited in VS Code (schema: doku/schemas/points.schema.json) or rewritten by\n"
+            "# the /teach_point and /delete_point services (comments are not preserved).\n"
+         << out.c_str() << "\n";
+    if (!file.good()) throw std::runtime_error("write to " + tmp + " failed");
+  }
+  std::filesystem::rename(tmp, path);
 }
 
 void crossValidate(const Program & program, const PointMap & points)

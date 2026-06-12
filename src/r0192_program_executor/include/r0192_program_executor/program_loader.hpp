@@ -64,6 +64,14 @@ struct Program
 PointMap loadPoints(const std::string & path);
 Program loadProgram(const std::string & path);
 
+// Point name rule shared by loader and the point services (^[A-Za-z_][A-Za-z0-9_]*$).
+bool isValidPointName(const std::string & name);
+
+// Writes the whole point map back to disk (schema version 1), atomically via
+// a temp file + rename. Used by the teach/delete services. NOTE: hand-written
+// comments in points.yaml are not preserved by a rewrite. Throws on I/O error.
+void savePoints(const std::string & path, const PointMap & points);
+
 // Checks that every move step references an existing point and that the
 // step/point combination is executable (move_l requires a pose point).
 // Throws std::runtime_error on violation.

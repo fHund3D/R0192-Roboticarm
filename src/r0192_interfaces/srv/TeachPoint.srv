@@ -1,0 +1,21 @@
+# Capture the CURRENT robot position under a name and store it in points.yaml
+# (r0192_program_executor, service /teach_point). Only allowed while the arm
+# is in HOLD or JOG (a defined, resting pose).
+#
+#   TYPE_JOINT: stores the current joint angles (joint_1..joint_6, rad)
+#   TYPE_POSE:  stores the current end-effector pose in base_link (the pose of
+#               the planning group's EE link, so replaying it via move_j/move_l
+#               returns exactly here)
+#
+# Explicit values are NOT set through this service — that is VS Code's job
+# (editing points.yaml directly, schema-validated).
+
+uint8 TYPE_JOINT=0
+uint8 TYPE_POSE=1
+
+string name             # point name, ^[A-Za-z_][A-Za-z0-9_]*$
+uint8 type              # TYPE_JOINT or TYPE_POSE
+bool overwrite          # false -> fail if the name already exists
+---
+bool success
+string message
