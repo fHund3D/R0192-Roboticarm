@@ -141,7 +141,7 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Im Haupt-README dokumentiert (Abschnitt „Roboterprogramme")
 - [ ] **Acceptance** (manuell in VS Code zu verifizieren): Neue `program_*.yaml` aus Snippet erzeugen, ungültiger Step-Typ wird live markiert, Autocomplete + Hover funktionieren. (Schemas wurden bereits maschinell gegen die Beispieldateien validiert, inkl. Negativtest.)
 
-### Phase 3 — RViz Run-Panel MVP (`r0192_rviz_plugins`) ✅ implementiert (2026-06-11, Acceptance manuell offen)
+### Phase 3 — RViz Run-Panel MVP (`r0192_rviz_plugins`) ✅ (2026-06-12, Acceptance erfüllt)
 
 > Bewusst minimaler Scope: nur Runtime, kein Editor. Editiert wird in VS Code.
 
@@ -152,15 +152,16 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Live-Highlighting des aktuell ausgeführten Steps (Step-Index → `- `-Items nach `steps:` im Dokument, Amber-Block + Auto-Scroll)
 - [x] Stop-Button → Action-Cancel → Executor stoppt Bewegung (`stop()`) und kehrt sauber nach `HOLD` zurück
 - [x] Status-Display: „Step X / Y — label [status]", Robot-State-Label, Statuszeile; state-getriebene UI (Run nur in `HOLD`/`MOVEIT`, Dateiauswahl während Run gesperrt)
-- [ ] **Acceptance** (manuell in RViz): YAML-Programm laden, anzeigen, ausführen, stoppen — komplett über UI; aktuelle Programmzeile während der Ausführung sichtbar markiert. (Panel lädt fehlerfrei in RViz, per Launch-Test verifiziert.)
+- [x] **Acceptance erfüllt** (manuell in RViz, 2026-06-12): Programm über UI geladen, ausgeführt und gestoppt; Step-Highlight sichtbar; State-Übergänge MOVEIT→HOLD im Log bestätigt.
 
-### Phase 4 — Punktverwaltung & Teach
+### Phase 4 — Punktverwaltung & Teach ✅ implementiert (2026-06-12, Acceptance manuell offen)
 
-- [ ] Services `SavePoint`, `DeletePoint`, `ListPoints` im Backend implementieren
-- [ ] `TeachPoint`: holt aktuelle Joint-States bzw. TCP-Pose via TF und speichert unter Namen
-- [ ] Punktdatei live nachladen (File-Watcher oder Service-getriggert)
-- [ ] UI-Erweiterung (im Run-Panel oder als separates Teach-Panel): Punktliste-View, "Teach"-Button (nur aktiv im `JOG`-State), Rename, Delete
-- [ ] **Acceptance**: Mit Jog-Panel hinfahren → "Teach as P1" → P1 in Punktliste sichtbar → in Programm (VS Code) per Name referenzierbar mit Autocomplete.
+- [x] Services `/teach_point`, `/list_points`, `/delete_point` im Backend implementiert (kein `SavePoint` — Phase-0-Entscheidung: explizite Werte schreibt VS Code direkt). YAML-Writer schreibt atomar (tmp+rename), schema-valide; **Achtung: Hand-Kommentare in `points.yaml` überleben einen Teach/Delete-Rewrite nicht** (Header-Kommentar in der Datei weist darauf hin)
+- [x] `TeachPoint`: Joint-Typ aus `/joint_states` (joint_1..6), Pose-Typ via TF `base_link` → `pose_reference_link` (Param, Default `gripper_base` = EE-Link der Planning Group, damit die Pose beim Abspielen exakt reproduziert wird). Nur in `HOLD`/`JOG` erlaubt
+- [x] Punktdatei live nachladen: service-getriggert — jede List/Teach/Delete-Anfrage und jedes Programm-Goal liest die Datei frisch (kein File-Watcher nötig)
+- [x] UI-Erweiterung im Run-Panel (`ProgramPanel`, Gruppe „Points"): Punktliste (Name + Typ), Refresh, Teach (Name + joint/pose, nur in `HOLD`/**`JOG`** aktiv, Overwrite-Rückfrage), Delete mit Bestätigungsdialog. **Rename bewusst weggelassen** — Umbenennen ist eine Engineering-Aktion (VS Code, mit Suchen/Ersetzen der Referenzen)
+- [x] Services per CLI getestet (2026-06-12, virtuell): List/Teach joint/Teach pose/Overwrite-Ablehnung/Delete/Unknown-Delete/State-Gating alle OK; regenerierte `points.yaml` schema-valide; Demo-Programm läuft aus der regenerierten Datei
+- [ ] **Acceptance** (manuell): Mit Jog-Panel hinfahren → „Teach as P1" → P1 in Punktliste sichtbar → in Programm (VS Code) per Name referenzierbar. *Hinweis: Namens-Autocomplete über Dateigrenzen kann ein statisches JSON Schema nicht leisten — das kommt erst mit der VS-Code-Extension (Phase 9); das Schema validiert das Namensmuster.*
 
 ### Phase 5 — Pause & Override
 

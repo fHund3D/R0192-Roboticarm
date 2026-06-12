@@ -4,6 +4,8 @@
 
 #include <QComboBox>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
 
@@ -15,6 +17,9 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <r0192_interfaces/action/execute_program.hpp>
 #include <r0192_interfaces/msg/robot_state.hpp>
+#include <r0192_interfaces/srv/delete_point.hpp>
+#include <r0192_interfaces/srv/list_points.hpp>
+#include <r0192_interfaces/srv/teach_point.hpp>
 
 namespace r0192_rviz_plugins
 {
@@ -43,6 +48,12 @@ class YamlHighlighter;
 // by the EXECUTOR via /set_robot_state — the panel never touches the state
 // machine.
 //
+// Point management (phase 4) is a thin client of the backend point services:
+// /list_points (point list view, re-read from points.yaml on every refresh),
+// /teach_point (capture current joints / EE pose under a name; only enabled
+// in HOLD/JOG) and /delete_point. Explicit point values are still edited in
+// VS Code only.
+//
 // All ROS calls are asynchronous; RViz spins its node on the GUI thread, so
 // the callbacks may touch Qt widgets directly.
 // ============================================================================
@@ -62,6 +73,9 @@ private Q_SLOTS:
   void onFileSelected(int index);
   void onRunClicked();
   void onStopClicked();
+  void onPointsRefreshClicked();
+  void onTeachClicked();
+  void onDeletePointClicked();
 
 private:
   using ExecuteProgram = r0192_interfaces::action::ExecuteProgram;
@@ -77,6 +91,8 @@ private:
   void updateUiForState();
   void setStatus(const QString & text, bool ok);
   QString selectedFilePath() const;
+  void refreshPointList();                          // call /list_points
+  void sendTeach(const QString & name, uint8_t type, bool overwrite);
 
   // --- Widgets ---
   QComboBox * file_combo_{nullptr};
@@ -89,6 +105,12 @@ private:
   QLabel * progress_label_{nullptr};
   QLabel * state_label_{nullptr};
   QLabel * status_label_{nullptr};
+  QListWidget * points_list_{nullptr};
+  QPushButton * points_refresh_btn_{nullptr};
+  QLineEdit * teach_name_{nullptr};
+  QComboBox * teach_type_{nullptr};
+  QPushButton * teach_btn_{nullptr};
+  QPushButton * delete_point_btn_{nullptr};
 
   // --- Program/run state ---
   QString programs_dir_;            // persisted in the rviz config
@@ -101,6 +123,10 @@ private:
   rclcpp::Node::SharedPtr node_;
   rclcpp_action::Client<ExecuteProgram>::SharedPtr action_client_;
   rclcpp::Subscription<r0192_interfaces::msg::RobotState>::SharedPtr state_sub_;
+  rclcpp::Client<r0192_interfaces::srv::TeachPoint>::SharedPtr teach_client_;
+  rclcpp::Client<r0192_interfaces::srv::ListPoints>::SharedPtr list_client_;
+  rclcpp::Client<r0192_interfaces::srv::DeletePoint>::SharedPtr delete_client_;
+  bool points_loaded_once_{false};   // first /robot_state triggers initial list
 };
 
 }  // namespace r0192_rviz_plugins

@@ -6,7 +6,9 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGroupBox>
 #include <QHBoxLayout>
+#include <QMessageBox>
 #include <QRegularExpression>
 #include <QSyntaxHighlighter>
 #include <QTextBlock>
@@ -154,6 +156,39 @@ ProgramPanel::ProgramPanel(QWidget * parent)
   status_label_->setWordWrap(true);
   root->addWidget(status_label_);
 
+  // --- Point management (phase 4): list + teach + delete. Thin client of the
+  //     backend point services; explicit values are edited in VS Code only. ---
+  auto * points_box = new QGroupBox("Points (points.yaml)");
+  auto * points_layout = new QVBoxLayout;
+  points_list_ = new QListWidget;
+  points_list_->setSelectionMode(QAbstractItemView::SingleSelection);
+  points_list_->setMaximumHeight(120);
+  points_layout->addWidget(points_list_);
+
+  auto * teach_row = new QHBoxLayout;
+  teach_name_ = new QLineEdit;
+  teach_name_->setPlaceholderText("point name");
+  teach_type_ = new QComboBox;
+  teach_type_->addItem("joint", r0192_interfaces::srv::TeachPoint::Request::TYPE_JOINT);
+  teach_type_->addItem("pose", r0192_interfaces::srv::TeachPoint::Request::TYPE_POSE);
+  teach_btn_ = new QPushButton("Teach");
+  teach_btn_->setToolTip("Store the CURRENT robot position under this name "
+                         "(requires HOLD or JOG)");
+  teach_row->addWidget(teach_name_, 1);
+  teach_row->addWidget(teach_type_);
+  teach_row->addWidget(teach_btn_);
+  points_layout->addLayout(teach_row);
+
+  auto * points_btn_row = new QHBoxLayout;
+  points_refresh_btn_ = new QPushButton("Refresh");
+  delete_point_btn_ = new QPushButton("Delete selected");
+  points_btn_row->addWidget(points_refresh_btn_);
+  points_btn_row->addWidget(delete_point_btn_);
+  points_layout->addLayout(points_btn_row);
+
+  points_box->setLayout(points_layout);
+  root->addWidget(points_box);
+
   setLayout(root);
 
   connect(refresh_btn_, &QPushButton::clicked, this, &ProgramPanel::onRefreshClicked);
@@ -162,6 +197,11 @@ ProgramPanel::ProgramPanel(QWidget * parent)
           this, &ProgramPanel::onFileSelected);
   connect(run_btn_, &QPushButton::clicked, this, &ProgramPanel::onRunClicked);
   connect(stop_btn_, &QPushButton::clicked, this, &ProgramPanel::onStopClicked);
+  connect(points_refresh_btn_, &QPushButton::clicked, this, &ProgramPanel::onPointsRefreshClicked);
+  connect(teach_btn_, &QPushButton::clicked, this, &ProgramPanel::onTeachClicked);
+  connect(delete_point_btn_, &QPushButton::clicked, this, &ProgramPanel::onDeletePointClicked);
+  connect(points_list_, &QListWidget::itemSelectionChanged, this,
+          [this]() { delete_point_btn_->setEnabled(points_list_->currentItem() != nullptr); });
 
   updateUiForState();
 }
@@ -170,6 +210,9 @@ void ProgramPanel::onInitialize()
 {
   node_ = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
   action_client_ = rclcpp_action::create_client<ExecuteProgram>(node_, kActionName);
+  teach_client_ = node_->create_client<r0192_interfaces::srv::TeachPoint>("/teach_point");
+  list_client_ = node_->create_client<r0192_interfaces::srv::ListPoints>("/list_points");
+  delete_client_ = node_->create_client<r0192_interfaces::srv::DeletePoint>("/delete_point");
 
   state_sub_ = node_->create_subscription<r0192_interfaces::msg::RobotState>(
     "/robot_state", rclcpp::QoS(1).transient_local(),
@@ -428,11 +471,127 @@ void ProgramPanel::onResult(const GoalHandle::WrappedResult & result)
 }
 
 // ----------------------------------------------------------------------------
+// Point management (thin client of /list_points, /teach_point, /delete_point)
+// ----------------------------------------------------------------------------
+void ProgramPanel::onPointsRefreshClicked()
+{
+  refreshPointList();
+}
+
+void ProgramPanel::refreshPointList()
+{
+  if (!list_client_ || !list_client_->service_is_ready()) {
+    setStatus("Point services unavailable — is the executor running?", false);
+    return;
+  }
+  auto req = std::make_shared<r0192_interfaces::srv::ListPoints::Request>();
+  list_client_->async_send_request(
+    req,
+    [this](rclcpp::Client<r0192_interfaces::srv::ListPoints>::SharedFuture future) {
+      const auto resp = future.get();
+      points_list_->clear();
+      if (!resp->success) {
+        setStatus(QString::fromStdString(resp->message), false);
+        return;
+      }
+      using Teach = r0192_interfaces::srv::TeachPoint::Request;
+      for (std::size_t i = 0; i < resp->names.size(); ++i) {
+        const char * type =
+          (i < resp->types.size() && resp->types[i] == Teach::TYPE_POSE) ? "pose" : "joint";
+        auto * item = new QListWidgetItem(
+          QString("%1   [%2]").arg(QString::fromStdString(resp->names[i])).arg(type));
+        item->setData(Qt::UserRole, QString::fromStdString(resp->names[i]));
+        points_list_->addItem(item);
+      }
+      delete_point_btn_->setEnabled(points_list_->currentItem() != nullptr);
+    });
+}
+
+void ProgramPanel::onTeachClicked()
+{
+  const QString name = teach_name_->text().trimmed();
+  if (name.isEmpty()) {
+    setStatus("Enter a point name first.", false);
+    return;
+  }
+  sendTeach(name, static_cast<uint8_t>(teach_type_->currentData().toUInt()), false);
+}
+
+void ProgramPanel::sendTeach(const QString & name, uint8_t type, bool overwrite)
+{
+  if (!teach_client_->service_is_ready()) {
+    setStatus("Teach service unavailable — is the executor running?", false);
+    return;
+  }
+  auto req = std::make_shared<r0192_interfaces::srv::TeachPoint::Request>();
+  req->name = name.toStdString();
+  req->type = type;
+  req->overwrite = overwrite;
+  teach_client_->async_send_request(
+    req,
+    [this, name, type](rclcpp::Client<r0192_interfaces::srv::TeachPoint>::SharedFuture future) {
+      const auto resp = future.get();
+      if (resp->success) {
+        setStatus(QString::fromStdString(resp->message), true);
+        refreshPointList();
+        return;
+      }
+      // Existing name: confirm before replacing (the backend rejects unless
+      // 'overwrite' is set).
+      if (QString::fromStdString(resp->message).contains("already exists")) {
+        const auto answer = QMessageBox::question(
+          this, "Overwrite point?",
+          QString("Point '%1' already exists. Overwrite it with the current position?")
+            .arg(name));
+        if (answer == QMessageBox::Yes) {
+          sendTeach(name, type, true);
+          return;
+        }
+      }
+      setStatus(QString::fromStdString(resp->message), false);
+    });
+}
+
+void ProgramPanel::onDeletePointClicked()
+{
+  auto * item = points_list_->currentItem();
+  if (!item) {
+    return;
+  }
+  const QString name = item->data(Qt::UserRole).toString();
+  const auto answer = QMessageBox::question(
+    this, "Delete point?",
+    QString("Delete point '%1' from points.yaml? Programs referencing it will "
+            "fail to load.").arg(name));
+  if (answer != QMessageBox::Yes) {
+    return;
+  }
+  if (!delete_client_->service_is_ready()) {
+    setStatus("Delete service unavailable — is the executor running?", false);
+    return;
+  }
+  auto req = std::make_shared<r0192_interfaces::srv::DeletePoint::Request>();
+  req->name = name.toStdString();
+  delete_client_->async_send_request(
+    req,
+    [this](rclcpp::Client<r0192_interfaces::srv::DeletePoint>::SharedFuture future) {
+      const auto resp = future.get();
+      setStatus(QString::fromStdString(resp->message), resp->success);
+      if (resp->success) refreshPointList();
+    });
+}
+
+// ----------------------------------------------------------------------------
 // State-driven UI
 // ----------------------------------------------------------------------------
 void ProgramPanel::onRobotState(uint8_t state)
 {
   robot_state_ = state;
+  // First state message means the stack (incl. executor) is up — load the list.
+  if (!points_loaded_once_) {
+    points_loaded_once_ = true;
+    refreshPointList();
+  }
   updateUiForState();
 }
 
@@ -455,6 +614,15 @@ void ProgramPanel::updateUiForState()
   file_combo_->setEnabled(!running_);
   browse_btn_->setEnabled(!running_);
   refresh_btn_->setEnabled(!running_);
+
+  // Teaching captures the current position — only meaningful from a defined
+  // resting state (HOLD after moves/jog, or directly while jogging).
+  const bool teachable = (robot_state_ == RS::HOLD || robot_state_ == RS::JOG);
+  teach_btn_->setEnabled(teachable);
+  teach_btn_->setToolTip(teachable
+                           ? "Store the CURRENT robot position under this name"
+                           : "Teaching requires state HOLD or JOG");
+  delete_point_btn_->setEnabled(points_list_->currentItem() != nullptr);
 }
 
 void ProgramPanel::setStatus(const QString & text, bool ok)
