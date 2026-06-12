@@ -294,7 +294,7 @@ Der Node läuft in `real_robot.launch.py` mit, ist im virtuellen Modus voll test
 
 ## Programm-System (r0192_program_executor)
 
-Industrielle Trennung **Engineering ↔ Operations** (Plan: [doku/program_ide_plan.md](doku/program_ide_plan.md); Phasen 0–4 implementiert, Phase 5 Pause/Override als Nächstes):
+Industrielle Trennung **Engineering ↔ Operations** (Plan: [doku/program_ide_plan.md](doku/program_ide_plan.md); Phasen 0–5 implementiert, Phase 6 `move_l`/Visualisierung als Nächstes):
 
 - **Engineering (VS Code)**: Programme/Punkte als YAML in `programs/` (git-versioniert). Live-Validierung über JSON Schemas in `doku/schemas/` (`.vscode/settings.json`-Mapping, Extension `redhat.vscode-yaml`, Snippets `r0192-program`/`move_j`/`move_l`/`wait`/`point-joint`/`point-pose`). `.gitignore` whitelisted `.vscode/{settings,extensions,r0192.code-snippets}`.
 - **Backend**: Node `r0192_program_executor` (in `real_robot.launch.py`), Action **`/execute_program`** (`r0192_interfaces/action/ExecuteProgram`, Goal = Dateipfad, relativ zu Parameter `programs_dir`, Default `~/roboticarm_r0192_ws/programs`). Loader ([program_loader.cpp](src/r0192_program_executor/src/program_loader.cpp)) ist die **einzige** Parse-/Validierstelle (strikte Meldungen, unbekannte Keys abgelehnt).
@@ -303,7 +303,8 @@ Industrielle Trennung **Engineering ↔ Operations** (Plan: [doku/program_ide_pl
 - **Ausführung v1**: sequenziell via `MoveGroupInterface` (lazy erstellt — move_group startet 3 s nach dem Executor). `move_j` akzeptiert joint+pose-Punkte, `move_l` ist schema-gültig, wird aber bis Phase 6 beim Goal abgelehnt. Cancel → `MoveGroupInterface::stop()` bricht blockierendes plan/execute, Ergebnis CANCELED. Feedback: Step-Index/Label/Total + Status (LOADING/PLANNING/MOVING/WAITING).
 - **Operations (RViz `ProgramPanel`, „R0192 Program" in moveit.rviz)**: Runtime-only Run-Panel ([program_panel.cpp](src/r0192_rviz_plugins/src/program_panel.cpp)) — Datei-Combo über `programs/` (+ Browse, Verzeichnis in RViz-Config persistiert), read-only YAML-View mit Syntax-Highlighting, Run/Stop über den `/execute_program`-Action-Client, Live-Highlight des laufenden Steps (Feedback-Index → `- `-Items nach `steps:`), Status „Step X / Y" + Robot-State. State-getrieben wie das JogPanel (Run nur in `HOLD`/`MOVEIT`); das Panel ruft **nie** `/set_robot_state` — die Übergänge macht der Executor. **Kein Editor** (Editieren = VS Code).
 - **Punktverwaltung (Phase 4)**: Backend-Services **`/teach_point`** (aktuelle Position unter Namen speichern: joint aus `/joint_states`, pose via TF `base_link`→`pose_reference_link`-Param, Default `gripper_base` = EE-Link der Gruppe; nur in `HOLD`/`JOG`), **`/list_points`**, **`/delete_point`**. Kein `SavePoint` (explizite Werte = VS Code). Writer schreibt `points.yaml` atomar (tmp+rename) und schema-valide; **Hand-Kommentare überleben einen Rewrite nicht**. Live-Nachladen service-getriggert (jede Anfrage + jedes Goal liest frisch). UI: „Points"-Gruppe im ProgramPanel (Liste, Refresh, Teach mit Overwrite-Rückfrage, Delete mit Bestätigung); **kein Rename** (VS-Code-Aktion). Kein Cross-File-Autocomplete für Punktnamen im Schema (erst Phase 9 Extension).
-- **Getestet (virtuell)**: 4-Step-Demo SUCCEEDED + zurück in HOLD (real bestätigt 2026-06-11); Cancel mid-program → CANCELED + HOLD; Goal aus DISABLED → ABORTED; ungültiges YAML → ABORTED mit präziser Meldung; Panel-Acceptance (Run/Stop/Highlight) manuell bestätigt 2026-06-12; Punkt-Services per CLI getestet 2026-06-12 (inkl. State-Gating, Overwrite, Schema-Validität der regenerierten Datei). **Hardware-Test + manuelle Teach-UI-Acceptance stehen aus.**
+- **Pause & Override (Phase 5)**: `/pause_program` + `/resume_program` (`std_srvs/Trigger`) — „Pause after current step": laufender Step wird beendet, Worker hält vor dem nächsten; **Zustand bleibt `MOVEIT`** (kein HOLD-Ping-Pong, kein JOG-Konfliktfenster), JTC hält Position; Feedback `STATUS_PAUSED=4`; Cancel aus Pause OK. **Speed-Override**: Service `/set_program_override` (`SetProgramOverride.srv`, klemmt [0.1, 1.0]) + latched Topic `/program_override` (`Float32`, Ist-Wert; Haus-Muster wie `/robot_state`) — multipliziert die Step-Skalierung **vor jedem Plan** (wirkt ab dem nächsten Step; Live-Override erst mit Pilz, Phase 7); Reset auf 1.0 bei Executor-Neustart. UI: Pause/Resume-Button + Override-Slider (folgt dem latched Topic) im ProgramPanel.
+- **Getestet (virtuell)**: 4-Step-Demo SUCCEEDED + zurück in HOLD (real bestätigt 2026-06-11); Cancel mid-program → CANCELED + HOLD; Goal aus DISABLED → ABORTED; ungültiges YAML → ABORTED mit präziser Meldung; Panel-Acceptance (Run/Stop/Highlight) manuell bestätigt 2026-06-12; Punkt-Services per CLI getestet 2026-06-12 (inkl. State-Gating, Overwrite, Schema-Validität; Teach-UI real bestätigt 2026-06-12, inkl. Pose-Teach auf Achse 4); Pause/Resume/Override headless getestet 2026-06-12 (Clamping, latched Topic, Pause vor Step 2, Resume → SUCCEEDED, Cancel aus Pause). **Hardware-Test der Programmläufe + manuelle Pause/Override-Acceptance stehen aus.**
 
 ---
 
@@ -555,10 +556,12 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - [x] Phase 3 RViz Run-Panel: `ProgramPanel` (runtime-only, KEIN Editor) — Datei-Picker, YAML-View + Step-Highlight, Run/Stop, state-getrieben; in `moveit.rviz` als „R0192 Program"
 - [x] Phase 3 Acceptance manuell in RViz bestätigt (Laden/Run/Stop/Step-Highlight, 2026-06-12)
 - [x] Phase 4 Punkt-Services + Teach-UI: `/teach_point` (joint via `/joint_states`, pose via TF, nur HOLD/JOG), `/list_points`, `/delete_point`; atomarer YAML-Writer; „Points"-Gruppe im ProgramPanel — CLI-getestet (virtuell)
+- [x] Phase 4 Acceptance real bestätigt (Teach joint+pose über Panel, 2026-06-12); TF-Listener-Bug gefixt (eigener Spin-Thread)
+- [x] Phase 5 Pause & Override: `/pause_program`/`/resume_program` (Pause nach aktuellem Step, Zustand bleibt MOVEIT, `STATUS_PAUSED`), `/set_program_override` + latched `/program_override` (klemmt [0.1,1.0], wirkt ab nächstem Step); Panel-UI (Pause/Resume-Button, Override-Slider) — headless getestet
 - [ ] Phase 2 Acceptance manuell in VS Code verifizieren (Snippet → Live-Validierung → Autocomplete/Hover)
-- [ ] Phase 4 Acceptance manuell verifizieren (Jog → Teach → Punkt in Liste → in VS Code referenzieren)
+- [ ] Phase 5 Acceptance manuell verifizieren (Override 0.3 → sichtbar langsamer; Pause/Resume über Panel)
 - [ ] Hardware-Test: Demo-Programm gegen Achse 1/4 fahren
-- [ ] Phase 5+: Pause/Override, `move_l`, Pilz (siehe Plan)
+- [ ] Phase 6+: `move_l`, Punkt-Visualisierung, Pilz (siehe Plan)
 
 **Next: Web-Interface (r0192_remote)**
 - [ ] r0192_remote Paket aufbauen: Web-basiertes Bedienpanel als Operator-Interface

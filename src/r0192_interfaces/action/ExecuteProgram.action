@@ -19,6 +19,8 @@ uint8 STATUS_LOADING=0  # parsing/validating the YAML files
 uint8 STATUS_PLANNING=1 # MoveIt is planning the current move step
 uint8 STATUS_MOVING=2   # trajectory execution in progress
 uint8 STATUS_WAITING=3  # wait step in progress
+uint8 STATUS_PAUSED=4   # paused between steps ("pause after current step");
+                        # current_step is the NEXT step, resumed via /resume_program
 
 uint32 current_step     # 0-based index of the step being executed
 uint32 total_steps

@@ -39,6 +39,8 @@
 #include <moveit/move_group_interface/move_group_interface.hpp>
 
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <std_msgs/msg/float32.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -46,11 +48,13 @@
 #include <r0192_interfaces/msg/robot_state.hpp>
 #include <r0192_interfaces/srv/delete_point.hpp>
 #include <r0192_interfaces/srv/list_points.hpp>
+#include <r0192_interfaces/srv/set_program_override.hpp>
 #include <r0192_interfaces/srv/set_robot_state.hpp>
 #include <r0192_interfaces/srv/teach_point.hpp>
 
 #include "r0192_program_executor/program_loader.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -73,6 +77,8 @@ using SetRobotState = r0192_interfaces::srv::SetRobotState;
 using TeachPoint = r0192_interfaces::srv::TeachPoint;
 using ListPoints = r0192_interfaces::srv::ListPoints;
 using DeletePoint = r0192_interfaces::srv::DeletePoint;
+using SetProgramOverride = r0192_interfaces::srv::SetProgramOverride;
+using Trigger = std_srvs::srv::Trigger;
 using MoveGroupInterface = moveit::planning_interface::MoveGroupInterface;
 
 namespace
@@ -143,6 +149,58 @@ public:
       [this](const std::shared_ptr<DeletePoint::Request> req,
              std::shared_ptr<DeletePoint::Response> resp) { handleDelete(req, resp); });
 
+    // --- Pause / Resume (phase 5): "pause after current step" — the running
+    //     step finishes, then the worker holds before the next one. The state
+    //     stays MOVEIT while paused (the goal still owns the state machine). ---
+    pause_srv_ = create_service<Trigger>(
+      "/pause_program",
+      [this](const std::shared_ptr<Trigger::Request>,
+             std::shared_ptr<Trigger::Response> resp) {
+        if (!busy_) {
+          resp->success = false;
+          resp->message = "no program running";
+          return;
+        }
+        pause_requested_ = true;
+        resp->success = true;
+        resp->message = "pausing after the current step";
+        RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
+      });
+    resume_srv_ = create_service<Trigger>(
+      "/resume_program",
+      [this](const std::shared_ptr<Trigger::Request>,
+             std::shared_ptr<Trigger::Response> resp) {
+        if (!busy_ || !pause_requested_) {
+          resp->success = false;
+          resp->message = "no paused program";
+          return;
+        }
+        pause_requested_ = false;
+        resp->success = true;
+        resp->message = "resuming";
+        RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
+      });
+
+    // --- Speed override (phase 5): multiplies each step's scaling at plan
+    //     time -> effective from the NEXT step. Applied value is published
+    //     latched on /program_override; UIs mirror that topic. ---
+    override_pub_ = create_publisher<std_msgs::msg::Float32>(
+      "/program_override", rclcpp::QoS(1).transient_local());
+    publishOverride();
+    override_srv_ = create_service<SetProgramOverride>(
+      "/set_program_override",
+      [this](const std::shared_ptr<SetProgramOverride::Request> req,
+             std::shared_ptr<SetProgramOverride::Response> resp) {
+        const double applied = std::clamp(static_cast<double>(req->override), 0.1, 1.0);
+        override_ = applied;
+        publishOverride();
+        resp->success = true;
+        resp->override = static_cast<float>(applied);
+        resp->message = "override set to " + std::to_string(applied) +
+                        (applied != static_cast<double>(req->override) ? " (clamped)" : "");
+        RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
+      });
+
     // Sources for teaching: joint angles from /joint_states, EE pose from TF.
     joint_state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
       "/joint_states", rclcpp::QoS(10),
@@ -159,7 +217,8 @@ public:
 
     RCLCPP_INFO(get_logger(),
       "Program executor ready (/execute_program, /teach_point, /list_points, "
-      "/delete_point) — programs_dir: %s, points: %s",
+      "/delete_point, /pause_program, /resume_program, /set_program_override) "
+      "— programs_dir: %s, points: %s",
       programs_dir_.c_str(), points_file_.c_str());
   }
 
@@ -212,6 +271,7 @@ private:
   {
     auto result = std::make_shared<ExecuteProgram::Result>();
     result->steps_completed = 0;
+    pause_requested_ = false;   // a stale pause never carries into a new goal
 
     const std::string path = resolveProgramPath(goal_handle->get_goal()->program_path);
     publishFeedback(goal_handle, 0, 0, nullptr, ExecuteProgram::Feedback::STATUS_LOADING);
@@ -254,6 +314,20 @@ private:
     bool ok = true;
     bool cancelled = false;
     for (std::size_t i = 0; i < program.steps.size(); ++i) {
+      // Pause point: between steps ("pause after current step"). The state
+      // stays MOVEIT; the JTC holds the last setpoint. Cancel still works.
+      if (pause_requested_) {
+        RCLCPP_INFO(get_logger(), "Program paused before step %zu/%zu",
+                    i + 1, program.steps.size());
+        while (rclcpp::ok() && pause_requested_ && !goal_handle->is_canceling()) {
+          publishFeedback(goal_handle, i, program.steps.size(), &program.steps[i],
+                          ExecuteProgram::Feedback::STATUS_PAUSED);
+          std::this_thread::sleep_for(200ms);
+        }
+        if (!pause_requested_) {
+          RCLCPP_INFO(get_logger(), "Program resumed at step %zu", i + 1);
+        }
+      }
       if (goal_handle->is_canceling()) {
         cancelled = true;
         break;
@@ -332,8 +406,11 @@ private:
                     ExecuteProgram::Feedback::STATUS_PLANNING);
 
     move_group_->setStartStateToCurrentState();
-    move_group_->setMaxVelocityScalingFactor(step.velocity);
-    move_group_->setMaxAccelerationScalingFactor(step.acceleration);
+    // Speed override: read before every plan, so a change takes effect from
+    // the next step. step.* in (0,1] times override in [0.1,1] stays in (0,1].
+    const double ov = override_;
+    move_group_->setMaxVelocityScalingFactor(step.velocity * ov);
+    move_group_->setMaxAccelerationScalingFactor(step.acceleration * ov);
 
     if (point.type == Point::Type::kJoint) {
       std::map<std::string, double> target;
@@ -570,6 +647,13 @@ private:
     return p.string();
   }
 
+  void publishOverride()
+  {
+    std_msgs::msg::Float32 msg;
+    msg.data = static_cast<float>(override_.load());
+    override_pub_->publish(msg);
+  }
+
   // --- Parameters ---
   std::string programs_dir_;
   std::string points_file_;
@@ -583,6 +667,10 @@ private:
   rclcpp::Service<TeachPoint>::SharedPtr teach_srv_;
   rclcpp::Service<ListPoints>::SharedPtr list_srv_;
   rclcpp::Service<DeletePoint>::SharedPtr delete_srv_;
+  rclcpp::Service<Trigger>::SharedPtr pause_srv_;
+  rclcpp::Service<Trigger>::SharedPtr resume_srv_;
+  rclcpp::Service<SetProgramOverride>::SharedPtr override_srv_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr override_pub_;
 
   // --- Teaching sources (filled and read on the main spin only) ---
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
@@ -595,6 +683,8 @@ private:
   std::vector<std::string> joint_names_;
   std::thread worker_;
   std::atomic<bool> busy_{false};
+  std::atomic<bool> pause_requested_{false};
+  std::atomic<double> override_{1.0};
   std::atomic<uint8_t> robot_state_{RobotStateMsg::DISABLED};
 };
 

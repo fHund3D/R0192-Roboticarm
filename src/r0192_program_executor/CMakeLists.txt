@@ -10,6 +10,8 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(r0192_interfaces REQUIRED)
@@ -26,6 +28,8 @@ ament_target_dependencies(program_executor
   rclcpp_action
   geometry_msgs
   sensor_msgs
+  std_msgs
+  std_srvs
   tf2_ros
   moveit_ros_planning_interface
   r0192_interfaces

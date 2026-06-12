@@ -12,6 +12,7 @@ find_package(action_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotState.msg"
   "srv/SetRobotState.srv"
+  "srv/SetProgramOverride.srv"
   "srv/TeachPoint.srv"
   "srv/ListPoints.srv"
   "srv/DeletePoint.srv"

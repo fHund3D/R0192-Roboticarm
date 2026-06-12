@@ -2,6 +2,8 @@
 
 #include <rviz_common/display_context.hpp>
 
+#include <cmath>
+
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -43,6 +45,7 @@ const char * stepStatusName(uint8_t s)
     case FB::STATUS_PLANNING: return "planning";
     case FB::STATUS_MOVING:   return "moving";
     case FB::STATUS_WAITING:  return "waiting";
+    case FB::STATUS_PAUSED:   return "paused";
     default:                  return "?";
   }
 }
@@ -133,18 +136,37 @@ ProgramPanel::ProgramPanel(QWidget * parent)
   highlighter_ = new YamlHighlighter(program_view_->document());
   root->addWidget(program_view_, 1);
 
-  // --- Run / Stop ---
+  // --- Run / Pause / Stop ---
   auto * btn_row = new QHBoxLayout;
   run_btn_ = new QPushButton("Run");
   run_btn_->setStyleSheet(
     "QPushButton:enabled { background-color: #2e7d32; color: white; font-weight: bold; }");
+  pause_btn_ = new QPushButton("Pause (after step)");
+  pause_btn_->setToolTip("Finish the current step, then hold before the next one. "
+                         "Resume continues the program.");
+  pause_btn_->setEnabled(false);
   stop_btn_ = new QPushButton("Stop");
   stop_btn_->setStyleSheet(
     "QPushButton:enabled { background-color: #c62828; color: white; font-weight: bold; }");
   stop_btn_->setEnabled(false);
   btn_row->addWidget(run_btn_);
+  btn_row->addWidget(pause_btn_);
   btn_row->addWidget(stop_btn_);
   root->addLayout(btn_row);
+
+  // --- Speed override (applies from the NEXT step; mirrors /program_override) ---
+  auto * override_row = new QHBoxLayout;
+  override_row->addWidget(new QLabel("Override"));
+  override_slider_ = new QSlider(Qt::Horizontal);
+  override_slider_->setRange(10, 100);
+  override_slider_->setValue(100);
+  override_slider_->setTracking(false);   // emit valueChanged only on release
+  override_slider_->setToolTip("Speed override — applies from the next step");
+  override_value_ = new QLabel("100 %");
+  override_value_->setMinimumWidth(44);
+  override_row->addWidget(override_slider_);
+  override_row->addWidget(override_value_);
+  root->addLayout(override_row);
 
   // --- Progress + state + status ---
   progress_label_ = new QLabel("—");
@@ -196,7 +218,9 @@ ProgramPanel::ProgramPanel(QWidget * parent)
   connect(file_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
           this, &ProgramPanel::onFileSelected);
   connect(run_btn_, &QPushButton::clicked, this, &ProgramPanel::onRunClicked);
+  connect(pause_btn_, &QPushButton::clicked, this, &ProgramPanel::onPauseResumeClicked);
   connect(stop_btn_, &QPushButton::clicked, this, &ProgramPanel::onStopClicked);
+  connect(override_slider_, &QSlider::valueChanged, this, &ProgramPanel::onOverrideChanged);
   connect(points_refresh_btn_, &QPushButton::clicked, this, &ProgramPanel::onPointsRefreshClicked);
   connect(teach_btn_, &QPushButton::clicked, this, &ProgramPanel::onTeachClicked);
   connect(delete_point_btn_, &QPushButton::clicked, this, &ProgramPanel::onDeletePointClicked);
@@ -213,6 +237,22 @@ void ProgramPanel::onInitialize()
   teach_client_ = node_->create_client<r0192_interfaces::srv::TeachPoint>("/teach_point");
   list_client_ = node_->create_client<r0192_interfaces::srv::ListPoints>("/list_points");
   delete_client_ = node_->create_client<r0192_interfaces::srv::DeletePoint>("/delete_point");
+  pause_client_ = node_->create_client<std_srvs::srv::Trigger>("/pause_program");
+  resume_client_ = node_->create_client<std_srvs::srv::Trigger>("/resume_program");
+  override_client_ =
+    node_->create_client<r0192_interfaces::srv::SetProgramOverride>("/set_program_override");
+
+  // The slider follows the authoritative (latched) override value instead of
+  // assuming its own request succeeded — same pattern as the state-driven UI.
+  override_sub_ = node_->create_subscription<std_msgs::msg::Float32>(
+    "/program_override", rclcpp::QoS(1).transient_local(),
+    [this](const std_msgs::msg::Float32::ConstSharedPtr msg) {
+      const int percent = static_cast<int>(std::lround(msg->data * 100.0f));
+      override_slider_->blockSignals(true);
+      override_slider_->setValue(percent);
+      override_slider_->blockSignals(false);
+      override_value_->setText(QString::number(percent) + " %");
+    });
 
   state_sub_ = node_->create_subscription<r0192_interfaces::msg::RobotState>(
     "/robot_state", rclcpp::QoS(1).transient_local(),
@@ -432,13 +472,54 @@ void ProgramPanel::onStopClicked()
   action_client_->async_cancel_goal(goal_handle_);
 }
 
+void ProgramPanel::onPauseResumeClicked()
+{
+  auto & client = paused_ ? resume_client_ : pause_client_;
+  if (!client->service_is_ready()) {
+    setStatus("Pause/resume service unavailable — is the executor running?", false);
+    return;
+  }
+  auto req = std::make_shared<std_srvs::srv::Trigger::Request>();
+  client->async_send_request(
+    req,
+    [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
+      const auto resp = future.get();
+      setStatus(QString::fromStdString(resp->message), resp->success);
+      // The paused flag itself follows the STATUS_PAUSED action feedback.
+    });
+}
+
+void ProgramPanel::onOverrideChanged(int percent)
+{
+  override_value_->setText(QString::number(percent) + " %");
+  if (!override_client_->service_is_ready()) {
+    setStatus("Override service unavailable — is the executor running?", false);
+    return;
+  }
+  auto req = std::make_shared<r0192_interfaces::srv::SetProgramOverride::Request>();
+  req->override = static_cast<float>(percent) / 100.0f;
+  override_client_->async_send_request(
+    req,
+    [this](rclcpp::Client<r0192_interfaces::srv::SetProgramOverride>::SharedFuture future) {
+      const auto resp = future.get();
+      // Slider/label sync happens via the latched /program_override topic.
+      setStatus(QString::fromStdString(resp->message), resp->success);
+    });
+}
+
 void ProgramPanel::onFeedback(const std::shared_ptr<const ExecuteProgram::Feedback> & fb)
 {
+  const bool paused_now = (fb->status == ExecuteProgram::Feedback::STATUS_PAUSED);
+  if (paused_now != paused_) {
+    paused_ = paused_now;
+    pause_btn_->setText(paused_ ? "Resume" : "Pause (after step)");
+  }
   if (fb->total_steps == 0) {
     progress_label_->setText("loading program …");
     return;
   }
-  progress_label_->setText(QString("Step %1 / %2 — %3 [%4]")
+  progress_label_->setText(QString("%1 %2 / %3 — %4 [%5]")
+                             .arg(paused_now ? "Paused before step" : "Step")
                              .arg(fb->current_step + 1)
                              .arg(fb->total_steps)
                              .arg(QString::fromStdString(fb->step_label))
@@ -449,6 +530,8 @@ void ProgramPanel::onFeedback(const std::shared_ptr<const ExecuteProgram::Feedba
 void ProgramPanel::onResult(const GoalHandle::WrappedResult & result)
 {
   running_ = false;
+  paused_ = false;
+  pause_btn_->setText("Pause (after step)");
   goal_handle_.reset();
   highlightStep(-1);
 
@@ -608,6 +691,7 @@ void ProgramPanel::updateUiForState()
   run_btn_->setToolTip(startable
                          ? "Execute the selected program (HOLD -> MOVEIT -> HOLD)"
                          : "Enable the servos first (state must be HOLD)");
+  pause_btn_->setEnabled(running_);
   stop_btn_->setEnabled(running_);
 
   // Switching files mid-run would desync the step highlight.

@@ -8,6 +8,7 @@
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSlider>
 
 #include <memory>
 #include <string>
@@ -15,10 +16,13 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
+#include <std_msgs/msg/float32.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <r0192_interfaces/action/execute_program.hpp>
 #include <r0192_interfaces/msg/robot_state.hpp>
 #include <r0192_interfaces/srv/delete_point.hpp>
 #include <r0192_interfaces/srv/list_points.hpp>
+#include <r0192_interfaces/srv/set_program_override.hpp>
 #include <r0192_interfaces/srv/teach_point.hpp>
 
 namespace r0192_rviz_plugins
@@ -73,6 +77,8 @@ private Q_SLOTS:
   void onFileSelected(int index);
   void onRunClicked();
   void onStopClicked();
+  void onPauseResumeClicked();
+  void onOverrideChanged(int percent);
   void onPointsRefreshClicked();
   void onTeachClicked();
   void onDeletePointClicked();
@@ -101,7 +107,10 @@ private:
   QPlainTextEdit * program_view_{nullptr};
   YamlHighlighter * highlighter_{nullptr};
   QPushButton * run_btn_{nullptr};
+  QPushButton * pause_btn_{nullptr};
   QPushButton * stop_btn_{nullptr};
+  QSlider * override_slider_{nullptr};
+  QLabel * override_value_{nullptr};
   QLabel * progress_label_{nullptr};
   QLabel * state_label_{nullptr};
   QLabel * status_label_{nullptr};
@@ -116,6 +125,7 @@ private:
   QString programs_dir_;            // persisted in the rviz config
   std::vector<int> step_lines_;     // document line of each step's "- " item
   bool running_{false};
+  bool paused_{false};              // mirrors STATUS_PAUSED from action feedback
   GoalHandle::SharedPtr goal_handle_;
   uint8_t robot_state_{r0192_interfaces::msg::RobotState::DISABLED};
 
@@ -126,6 +136,10 @@ private:
   rclcpp::Client<r0192_interfaces::srv::TeachPoint>::SharedPtr teach_client_;
   rclcpp::Client<r0192_interfaces::srv::ListPoints>::SharedPtr list_client_;
   rclcpp::Client<r0192_interfaces::srv::DeletePoint>::SharedPtr delete_client_;
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr pause_client_;
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr resume_client_;
+  rclcpp::Client<r0192_interfaces::srv::SetProgramOverride>::SharedPtr override_client_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr override_sub_;
   bool points_loaded_once_{false};   // first /robot_state triggers initial list
 };
 

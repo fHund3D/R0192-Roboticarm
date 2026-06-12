@@ -213,6 +213,20 @@ ros2 action send_goal /execute_program \
 
 Relative Pfade werden gegen `programs/` aufgelöst (Parameter `programs_dir`/`points_file` des Executor-Nodes). Action-Cancel stoppt die laufende Bewegung (`MoveGroupInterface::stop()`) und kehrt sauber nach `HOLD` zurück. Nach einem Notaus (`/e_stop`) fasst der Executor den Zustand nicht an — die Wiederinbetriebnahme läuft wie immer über `/robot_reset` + `/set_robot_state`.
 
+**Pause, Resume & Speed-Override** (auch als Button/Slider im Run-Panel):
+
+```bash
+# Pause nach dem aktuellen Step (Zustand bleibt MOVEIT, Arm hält Position)
+ros2 service call /pause_program std_srvs/srv/Trigger {}
+ros2 service call /resume_program std_srvs/srv/Trigger {}
+
+# Globaler Speed-Override (klemmt auf [0.1, 1.0], wirkt ab dem NÄCHSTEN Step)
+ros2 service call /set_program_override r0192_interfaces/srv/SetProgramOverride "{override: 0.3}"
+ros2 topic echo /program_override --once     # autoritativer Ist-Wert (latched)
+```
+
+**Punkte teachen** (Phase 4, auch über die „Points"-Gruppe im Run-Panel): `/teach_point` speichert die aktuelle Position (joint oder pose, nur in `HOLD`/`JOG`), `/list_points` listet, `/delete_point` löscht. Explizite Werte editiert man direkt in `points.yaml` (VS Code, schema-validiert) — Achtung: ein Teach/Delete-Rewrite erhält Hand-Kommentare nicht.
+
 ---
 
 ## Beitragen

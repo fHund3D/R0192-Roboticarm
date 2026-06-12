@@ -1,0 +1,14 @@
+# Global speed override for program execution (r0192_program_executor,
+# service /set_program_override). Multiplies each step's velocity/acceleration
+# scaling at PLAN time, so it takes effect from the NEXT step — live override
+# of an already running trajectory comes with the Pilz planner (plan phase 7).
+#
+# The applied value is published latched on /program_override
+# (std_msgs/Float32); UIs should mirror that topic instead of assuming the
+# request succeeded. Resets to 1.0 when the executor restarts.
+
+float32 override        # requested factor, clamped to [0.1, 1.0]
+---
+bool success
+string message
+float32 override        # actually applied value (after clamping)

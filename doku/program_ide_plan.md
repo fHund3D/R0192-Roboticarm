@@ -163,15 +163,16 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Services per CLI getestet (2026-06-12, virtuell): List/Teach joint/Teach pose/Overwrite-Ablehnung/Delete/Unknown-Delete/State-Gating alle OK; regenerierte `points.yaml` schema-valide; Demo-Programm läuft aus der regenerierten Datei
 - [ ] **Acceptance** (manuell): Mit Jog-Panel hinfahren → „Teach as P1" → P1 in Punktliste sichtbar → in Programm (VS Code) per Name referenzierbar. *Hinweis: Namens-Autocomplete über Dateigrenzen kann ein statisches JSON Schema nicht leisten — das kommt erst mit der VS-Code-Extension (Phase 9); das Schema validiert das Namensmuster.*
 
-### Phase 5 — Pause & Override
+### Phase 5 — Pause & Override ✅ implementiert (2026-06-12, Acceptance manuell offen)
 
 > Hier zwei Features mit ehrlichen technischen Caveats — bitte im Backend sauber implementieren, nicht "irgendwie reinhacken".
 
-- [ ] **Pause-Implementierung**: Da MoveIt-Trajektorien nicht echt mid-execution pausierbar sind, wird "Pause" als *Stop nach aktuellem Step* implementiert. Resume = Weitermachen ab Step N+1. Im UI klar so kommunizieren ("Pause after current step").
-- [ ] **Speed-Override-Slider** im UI (0.1 – 1.0)
-- [ ] Override wirkt auf den **nächsten** Step (Skalierung von `velocity`/`acceleration` beim Planen). Live-Override auf laufender Trajektorie ist NICHT Teil von v1 — kommt mit Pilz (Phase 7).
-- [ ] Im Backend: Override-Wert als Service oder Topic, Executor liest ihn vor jedem Plan-Aufruf
-- [ ] **Acceptance**: Override auf 0.3 setzen → nächster `move_j` ist sichtbar langsamer. Pause während eines Programms → Roboter hält nach aktuellem Step, Resume setzt den Ablauf fort.
+- [x] **Pause-Implementierung**: „Pause after current step" — `/pause_program` + `/resume_program` (`std_srvs/Trigger`, Executor). Laufender Step wird beendet, dann hält der Worker vor dem nächsten Step; **Zustand bleibt `MOVEIT`** (Goal besitzt die Zustandsmaschine weiter — kein HOLD-Ping-Pong, kein JOG-Konfliktfenster), JTC hält die Position. Feedback-Status `STATUS_PAUSED=4` (additiv in `ExecuteProgram.action`); Cancel aus der Pause heraus funktioniert. UI-Button „Pause (after step)"/„Resume", paused-Flag folgt dem Action-Feedback
+- [x] **Speed-Override-Slider** im UI (10–100 %), folgt dem autoritativen latched Topic statt optimistisch zu schalten
+- [x] Override wirkt auf den **nächsten** Step (Multiplikation der `velocity`/`acceleration`-Skalierung beim Planen; (0,1]×[0.1,1] bleibt in (0,1]). Live-Override auf laufender Trajektorie kommt mit Pilz (Phase 7)
+- [x] Backend: **Service `/set_program_override`** (`SetProgramOverride.srv`, klemmt auf [0.1, 1.0]) + **latched Topic `/program_override`** (`std_msgs/Float32`, Ist-Wert) — Haus-Muster wie `/set_robot_state` + `/robot_state`; Executor liest den Wert vor jedem Plan-Aufruf; Reset auf 1.0 bei Neustart
+- [x] Headless getestet (2026-06-12, virtuell): Override 0.3 angewendet / 0.05→0.1 geklemmt / latched Topic korrekt; Pause ohne Programm abgelehnt; Pause mid-run → hält nach aktuellem Step (PAUSED vor Step 2), bleibt stabil, Resume → SUCCEEDED (4 Steps); Cancel während Pause → CANCELED
+- [ ] **Acceptance** (manuell): Override auf 0.3 → nächster `move_j` sichtbar langsamer; Pause während eines Programms → hält nach aktuellem Step, Resume setzt fort.
 
 ### Phase 6 — MoveL (Kartesisch) & Visualisierung
 
