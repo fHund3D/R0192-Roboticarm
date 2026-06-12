@@ -1,0 +1,17 @@
+# Mixed PTP/linear demo (phase 6 acceptance): joint moves to a bent-wrist
+# pose, then a straight-line move (move_l) back to the taught pose lin_bent.
+# NOTE: linear moves need the wrist AWAY from the joint_5 = 0 singularity —
+# KDL cannot follow a Cartesian line while joint_4/joint_6 are axis-parallel.
+version: 1
+name: "Linear demo: PTP + LIN"
+description: "move_j to bent_a/bent_b, then move_l straight back to lin_bent"
+defaults:
+  velocity: 0.3
+  acceleration: 0.3
+steps:
+  - type: move_j
+    target: bent_a
+  - type: move_j
+    target: bent_b
+  - type: move_l
+    target: lin_bent

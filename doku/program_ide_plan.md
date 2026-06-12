@@ -163,7 +163,7 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Services per CLI getestet (2026-06-12, virtuell): List/Teach joint/Teach pose/Overwrite-Ablehnung/Delete/Unknown-Delete/State-Gating alle OK; regenerierte `points.yaml` schema-valide; Demo-Programm läuft aus der regenerierten Datei
 - [ ] **Acceptance** (manuell): Mit Jog-Panel hinfahren → „Teach as P1" → P1 in Punktliste sichtbar → in Programm (VS Code) per Name referenzierbar. *Hinweis: Namens-Autocomplete über Dateigrenzen kann ein statisches JSON Schema nicht leisten — das kommt erst mit der VS-Code-Extension (Phase 9); das Schema validiert das Namensmuster.*
 
-### Phase 5 — Pause & Override ✅ implementiert (2026-06-12, Acceptance manuell offen)
+### Phase 5 — Pause & Override ✅ (2026-06-12, Acceptance erfüllt)
 
 > Hier zwei Features mit ehrlichen technischen Caveats — bitte im Backend sauber implementieren, nicht "irgendwie reinhacken".
 
@@ -172,14 +172,16 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Override wirkt auf den **nächsten** Step (Multiplikation der `velocity`/`acceleration`-Skalierung beim Planen; (0,1]×[0.1,1] bleibt in (0,1]). Live-Override auf laufender Trajektorie kommt mit Pilz (Phase 7)
 - [x] Backend: **Service `/set_program_override`** (`SetProgramOverride.srv`, klemmt auf [0.1, 1.0]) + **latched Topic `/program_override`** (`std_msgs/Float32`, Ist-Wert) — Haus-Muster wie `/set_robot_state` + `/robot_state`; Executor liest den Wert vor jedem Plan-Aufruf; Reset auf 1.0 bei Neustart
 - [x] Headless getestet (2026-06-12, virtuell): Override 0.3 angewendet / 0.05→0.1 geklemmt / latched Topic korrekt; Pause ohne Programm abgelehnt; Pause mid-run → hält nach aktuellem Step (PAUSED vor Step 2), bleibt stabil, Resume → SUCCEEDED (4 Steps); Cancel während Pause → CANCELED
-- [ ] **Acceptance** (manuell): Override auf 0.3 → nächster `move_j` sichtbar langsamer; Pause während eines Programms → hält nach aktuellem Step, Resume setzt fort.
+- [x] **Acceptance erfüllt** (manuell, 2026-06-12): Override 0.21 → nächster `move_j` ~4× langsamer (Log); Pause vor Step 3 → Resume setzt fort, Programm SUCCEEDED.
 
-### Phase 6 — MoveL (Kartesisch) & Visualisierung
+### Phase 6 — MoveL (Kartesisch) & Visualisierung ✅ implementiert (2026-06-12, Acceptance manuell offen)
 
-- [ ] `move_l` im Executor: `computeCartesianPath()` für gerade Linien
-- [ ] Punkt-Visualisierung im RViz 3D-View (interaktive Marker für alle Punkte des aktuellen Programms, mit Namen-Labels)
-- [ ] Optional: Trajektorien-Preview vor Ausführung (planen, anzeigen, dann erst ausführen)
-- [ ] **Acceptance**: Gemischtes `move_j`/`move_l`-Programm läuft sauber, Punkte sind im 3D-View sichtbar und benannt.
+- [x] `move_l` im Executor: `computeCartesianPath()` (eef_step via Param `cartesian_eef_step`, Default 5 mm). **Retiming serverseitig**: die Skalierungsfaktoren (`velocity`/`acceleration` × Override) gehen im Service-Request mit; move_group wendet TOTG mit den `joint_limits.yaml`-Limits an (das Client-Robotermodell hat keine Beschleunigungslimits — clientseitiges TOTG schlug deshalb fehl). `fraction < 99.9 %` → sauberer Abbruch mit Prozentangabe; Null-Distanz (< 2 Trajektorienpunkte) = No-op-Erfolg
+- [x] **Wichtige Erkenntnis (getestet)**: KDL kann **keine Linie durch die Handgelenk-Singularität joint_5 = 0** verfolgen (alle bisherigen Demo-Punkte lagen dort → 0 % feasible). `move_l`-Punkte brauchen ein abgewinkeltes Handgelenk; Fehlermeldung weist darauf hin. Langfristige Alternative: TRAC-IK (siehe Known Issues)
+- [x] Punkt-Visualisierung im RViz 3D-View: `MarkerArray` auf **`/program_points_markers`** (latched) — Kugel + Namens-Label je Punkt aus `points.yaml` (pose = orange, joint = blau via FK, sobald das Robotermodell verfügbar ist); Republish bei Teach/Delete/List; Display „ProgramPoints" in `moveit.rviz`. *Bewusst keine interaktiven Marker* — ohne Edit-Funktion (Editieren = VS Code) wäre Interaktivität nur Schein
+- [ ] Optional: Trajektorien-Preview vor Ausführung — **nicht umgesetzt** (optional, bei Bedarf später)
+- [x] Headless getestet (2026-06-12, virtuell): gemischtes `move_j`/`move_l`-Programm (`programs/program_linear_demo.yaml`, Punkte `bent_a`/`bent_b`/`lin_bent`) SUCCEEDED; Wiederholung mit Null-Distanz-`move_l` SUCCEEDED; Marker-Topic liefert Kugel+Label für alle Punkte; Singularitäts-Fall bricht sauber mit klarer Meldung ab
+- [ ] **Acceptance** (manuell in RViz): `program_linear_demo.yaml` läuft sichtbar (PTP, PTP, Linearbewegung), Punkte im 3D-View sichtbar und benannt.
 
 ### Phase 7 — Pilz Industrial Motion Planner (optional, mittelfristig)
 

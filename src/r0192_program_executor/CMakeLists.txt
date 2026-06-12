@@ -13,6 +13,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(r0192_interfaces REQUIRED)
 find_package(yaml_cpp_vendor REQUIRED)
@@ -31,6 +32,7 @@ ament_target_dependencies(program_executor
   std_msgs
   std_srvs
   tf2_ros
+  visualization_msgs
   moveit_ros_planning_interface
   r0192_interfaces
   yaml_cpp_vendor

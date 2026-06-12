@@ -3,6 +3,12 @@
 # the /teach_point and /delete_point services (comments are not preserved).
 version: 1
 points:
+  bent_a:
+    type: joint
+    joints: [0, 0, 0.5, 0, 0.7, 0]
+  bent_b:
+    type: joint
+    joints: [0.15, 0, 0.5, 0.15, 0.7, 0]
   demo_a:
     type: joint
     joints: [0.5, 0, 0, 0.5, 0, 0]
@@ -12,6 +18,11 @@ points:
   home:
     type: joint
     joints: [0, 0, 0, 0, 0, 0]
+  lin_bent:
+    type: pose
+    frame: base_link
+    position: {x: -0.264290857, y: 0.014834397, z: 0.602660417}
+    orientation: {x: -0.000340729518, y: 0.564712834, z: 2.21636966e-05, w: 0.825287404}
   p_test:
     type: pose
     frame: base_link

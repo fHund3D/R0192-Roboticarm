@@ -39,6 +39,7 @@
 #include <moveit/move_group_interface/move_group_interface.hpp>
 
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <tf2_ros/buffer.h>
@@ -62,6 +63,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -115,6 +117,8 @@ public:
     // planning group's end-effector link so a taught pose replays exactly.
     pose_reference_link_ =
       declare_parameter("pose_reference_link", std::string("gripper_base"));
+    // Max EE distance between consecutive IK samples of a move_l path (m).
+    cartesian_eef_step_ = declare_parameter("cartesian_eef_step", 0.005);
 
     state_client_ = create_client<SetRobotState>("/set_robot_state");
 
@@ -201,6 +205,13 @@ public:
         RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
       });
 
+    // --- Point visualization (phase 6): spheres + name labels for all points
+    //     in points.yaml, published latched. Pose points directly; joint
+    //     points via FK once the robot model is available (lazy MoveGroup). ---
+    marker_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>(
+      "/program_points_markers", rclcpp::QoS(1).transient_local());
+    publishPointMarkers();
+
     // Sources for teaching: joint angles from /joint_states, EE pose from TF.
     joint_state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
       "/joint_states", rclcpp::QoS(10),
@@ -250,7 +261,7 @@ private:
     RCLCPP_INFO(get_logger(), "Cancel requested — stopping current motion");
     // Breaks a blocking plan()/execute() in the worker; the worker then sees
     // is_canceling() and finishes the goal as CANCELED.
-    if (move_group_) move_group_->stop();
+    if (auto mg = moveGroup()) mg->stop();
     return rclcpp_action::CancelResponse::ACCEPT;
   }
 
@@ -282,11 +293,6 @@ private:
       points = loadPoints(points_file_);
       program = loadProgram(path);
       crossValidate(program, points);
-      for (const auto & s : program.steps) {
-        if (s.type == "move_l") {
-          throw std::runtime_error("move_l is not implemented yet (plan phase 6)");
-        }
-      }
     } catch (const std::exception & e) {
       result->message = e.what();
       goal_handle->abort(result);
@@ -335,6 +341,8 @@ private:
       const Step & step = program.steps[i];
       if (step.type == "wait") {
         ok = runWait(goal_handle, i, program, cancelled);
+      } else if (step.type == "move_l") {
+        ok = runMoveL(goal_handle, i, program, points.at(step.target), cancelled, err);
       } else {
         ok = runMoveJ(goal_handle, i, program, points.at(step.target), cancelled, err);
       }
@@ -453,6 +461,61 @@ private:
     return true;
   }
 
+  // Linear Cartesian move (phase 6): straight EE line to a pose-type point via
+  // computeCartesianPath. Time parameterization happens SERVER-side: the
+  // cartesian-path service applies TOTG with the scaling factors from the
+  // request and the joint_limits.yaml only move_group has loaded (the client
+  // robot model lacks acceleration limits, so client-side TOTG would fail).
+  // NOTE: KDL cannot iterate along a line through the wrist singularity
+  // (joint_5 = 0) — such programs fail cleanly with a 0%-feasible message.
+  bool runMoveL(const std::shared_ptr<GoalHandle> & goal_handle, std::size_t index,
+                const Program & program, const Point & point, bool & cancelled,
+                std::string & err)
+  {
+    const Step & step = program.steps[index];
+    publishFeedback(goal_handle, index, program.steps.size(), &step,
+                    ExecuteProgram::Feedback::STATUS_PLANNING);
+
+    move_group_->setStartStateToCurrentState();
+    move_group_->setPoseReferenceFrame(point.frame);   // loader enforces base_link
+    const double ov = override_;
+    move_group_->setMaxVelocityScalingFactor(step.velocity * ov);
+    move_group_->setMaxAccelerationScalingFactor(step.acceleration * ov);
+
+    moveit_msgs::msg::RobotTrajectory traj_msg;
+    const std::vector<geometry_msgs::msg::Pose> waypoints{point.pose};
+    const double fraction =
+      move_group_->computeCartesianPath(waypoints, cartesian_eef_step_, traj_msg, true);
+    if (goal_handle->is_canceling()) {
+      cancelled = true;
+      return true;
+    }
+    if (fraction < 0.999) {
+      err = "linear path to '" + step.target + "' is only " +
+            std::to_string(static_cast<int>(fraction * 100.0)) +
+            "% feasible (collision, joint limit or IK failure on the line — "
+            "note: KDL cannot follow lines through the joint_5 = 0 wrist singularity)";
+      return false;
+    }
+    if (traj_msg.joint_trajectory.points.size() < 2) {
+      return true;   // already at the target pose — nothing to execute
+    }
+
+    publishFeedback(goal_handle, index, program.steps.size(), &step,
+                    ExecuteProgram::Feedback::STATUS_MOVING);
+    const auto code = move_group_->execute(traj_msg);
+    if (goal_handle->is_canceling()) {
+      cancelled = true;
+      return true;
+    }
+    if (code != moveit::core::MoveItErrorCode::SUCCESS) {
+      err = "execution of linear move to '" + step.target + "' failed (MoveIt error " +
+            std::to_string(code.val) + ")";
+      return false;
+    }
+    return true;
+  }
+
   // --------------------------------------------------------------------------
   // Point services (/teach_point, /list_points, /delete_point)
   // --------------------------------------------------------------------------
@@ -528,6 +591,7 @@ private:
     resp->message = "taught '" + req->name + "' (" +
                     (req->type == TeachPoint::Request::TYPE_JOINT ? "joint" : "pose") + ")";
     RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
+    publishPointMarkers();
   }
 
   void handleList(std::shared_ptr<ListPoints::Response> & resp)
@@ -551,6 +615,7 @@ private:
                               : TeachPoint::Request::TYPE_POSE);
     }
     resp->success = true;
+    publishPointMarkers();   // panel refresh doubles as marker refresh
   }
 
   void handleDelete(const std::shared_ptr<DeletePoint::Request> & req,
@@ -577,6 +642,7 @@ private:
     resp->success = true;
     resp->message = "deleted '" + req->name + "'";
     RCLCPP_INFO(get_logger(), "%s", resp->message.c_str());
+    publishPointMarkers();
   }
 
   // --------------------------------------------------------------------------
@@ -585,22 +651,35 @@ private:
   bool ensureMoveGroup(std::string & err)
   {
     if (move_group_) return true;
+    std::shared_ptr<MoveGroupInterface> mg;
     try {
-      move_group_ = std::make_shared<MoveGroupInterface>(
+      mg = std::make_shared<MoveGroupInterface>(
         shared_from_this(), planning_group_, std::shared_ptr<tf2_ros::Buffer>(),
         rclcpp::Duration::from_seconds(15.0));
     } catch (const std::exception & e) {
       err = e.what();
       return false;
     }
-    joint_names_ = move_group_->getJointNames();
+    joint_names_ = mg->getJointNames();
     if (joint_names_.size() != 6) {
       err = "planning group '" + planning_group_ + "' has " +
             std::to_string(joint_names_.size()) + " active joints, expected 6";
-      move_group_.reset();
       return false;
     }
+    {
+      // Guarded: service callbacks (cancel, marker FK) read move_group_ from
+      // the main spin while this runs on the worker thread.
+      std::lock_guard<std::mutex> lock(move_group_mtx_);
+      move_group_ = mg;
+    }
+    publishPointMarkers();   // joint-point FK is possible from now on
     return true;
+  }
+
+  std::shared_ptr<MoveGroupInterface> moveGroup()
+  {
+    std::lock_guard<std::mutex> lock(move_group_mtx_);
+    return move_group_;
   }
 
   bool setRobotState(uint8_t state, std::string & err)
@@ -654,11 +733,85 @@ private:
     override_pub_->publish(msg);
   }
 
+  // Republished after every teach/delete, on /list_points (panel refresh) and
+  // when the MoveGroup becomes available (joint-point FK needs the model).
+  void publishPointMarkers()
+  {
+    PointMap points;
+    try {
+      if (std::filesystem::exists(points_file_)) points = loadPoints(points_file_);
+    } catch (const std::exception &) {
+      return;  // invalid file: keep the last published markers
+    }
+
+    visualization_msgs::msg::MarkerArray arr;
+    visualization_msgs::msg::Marker clear;
+    clear.action = visualization_msgs::msg::Marker::DELETEALL;
+    arr.markers.push_back(clear);
+
+    int id = 0;
+    for (const auto & [name, p] : points) {
+      geometry_msgs::msg::Pose pose;
+      std::string frame;
+      bool is_pose = (p.type == Point::Type::kPose);
+      if (is_pose) {
+        pose = p.pose;
+        frame = p.frame;
+      } else {
+        auto mg = moveGroup();
+        if (!mg) continue;  // FK possible only once MoveIt was contacted
+        moveit::core::RobotState state(mg->getRobotModel());
+        state.setToDefaultValues();
+        state.setJointGroupPositions(planning_group_, p.joints);
+        state.update();
+        const Eigen::Isometry3d & tf = state.getGlobalLinkTransform(pose_reference_link_);
+        const Eigen::Quaterniond q(tf.rotation());
+        pose.position.x = tf.translation().x();
+        pose.position.y = tf.translation().y();
+        pose.position.z = tf.translation().z();
+        pose.orientation.x = q.x();
+        pose.orientation.y = q.y();
+        pose.orientation.z = q.z();
+        pose.orientation.w = q.w();
+        frame = mg->getRobotModel()->getModelFrame();
+      }
+
+      visualization_msgs::msg::Marker sphere;
+      sphere.header.frame_id = frame;
+      sphere.ns = "points";
+      sphere.id = id++;
+      sphere.type = visualization_msgs::msg::Marker::SPHERE;
+      sphere.action = visualization_msgs::msg::Marker::ADD;
+      sphere.pose = pose;
+      sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.012;
+      sphere.color.a = 0.9f;
+      if (is_pose) {  // pose = orange, joint = blue
+        sphere.color.r = 1.0f; sphere.color.g = 0.55f; sphere.color.b = 0.0f;
+      } else {
+        sphere.color.r = 0.15f; sphere.color.g = 0.45f; sphere.color.b = 1.0f;
+      }
+      arr.markers.push_back(sphere);
+
+      visualization_msgs::msg::Marker text = sphere;
+      text.ns = "labels";
+      text.id = id++;
+      text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+      text.text = name;
+      text.pose.position.z += 0.025;
+      text.scale.x = text.scale.y = 0.0;
+      text.scale.z = 0.018;  // text height (m)
+      text.color.r = text.color.g = text.color.b = 1.0f;
+      arr.markers.push_back(text);
+    }
+    marker_pub_->publish(arr);
+  }
+
   // --- Parameters ---
   std::string programs_dir_;
   std::string points_file_;
   std::string planning_group_;
   std::string pose_reference_link_;
+  double cartesian_eef_step_{0.005};
 
   // --- ROS ---
   rclcpp_action::Server<ExecuteProgram>::SharedPtr server_;
@@ -671,6 +824,7 @@ private:
   rclcpp::Service<Trigger>::SharedPtr resume_srv_;
   rclcpp::Service<SetProgramOverride>::SharedPtr override_srv_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr override_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
   // --- Teaching sources (filled and read on the main spin only) ---
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
@@ -680,6 +834,7 @@ private:
 
   // --- Execution ---
   std::shared_ptr<MoveGroupInterface> move_group_;  // lazy (move_group up later)
+  std::mutex move_group_mtx_;                       // guards move_group_ assignment/reads
   std::vector<std::string> joint_names_;
   std::thread worker_;
   std::atomic<bool> busy_{false};
