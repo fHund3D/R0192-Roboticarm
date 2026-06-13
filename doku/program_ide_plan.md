@@ -13,7 +13,7 @@ Dieses Modell entspricht der etablierten Aufteilung in der industriellen Robotik
 
 1. **Trennung Backend / UI / Editor**: Backend (Executor) ist die einzige Stelle mit Geschäftslogik. RViz-Panel = Runtime-Client. VS Code = Editor. Kommunikation nur über ROS 2 Actions/Services und Dateien (YAML).
 2. **State-Management nur über `/set_robot_state`**: Programmausführung läuft im `MOVEIT`-State, am Ende immer zurück nach `HOLD`. Niemals direkt `/robot_enable`, `/homing`, `pause_servo` oder Controller-Switch aufrufen.
-3. **MoveIt sequenziell für v1**: `MoveGroupInterface` step-by-step. Pilz Industrial Motion Planner kommt erst in einer späteren Phase.
+3. **MoveIt sequenziell für v1**: `MoveGroupInterface` step-by-step. Pilz Industrial Motion Planner kommt erst in einer späteren Phase. *(Update: in Phase 7 umgesetzt — `ptp`/`lin`/`circ` über Pilz, plus Blend-Modus via `/sequence_move_group`. Der sequenzielle `MoveGroupInterface`-Pfad bleibt für „stop at each point" erhalten.)*
 4. **Punkte vs. Programme getrennt**: Programme referenzieren Punkte per Name aus einer separaten Punktdatei — keine inline-Posen in Schritten.
 5. **Programme sind YAML, kein Custom-DSL**: Files sind menschen- und maschinenlesbar, git-diff-bar und ohne Spezialtools editierbar.
 
@@ -34,6 +34,8 @@ Dieses Modell entspricht der etablierten Aufteilung in der industriellen Robotik
 - **NEU** (Config-only): `.vscode/`-Verzeichnis im Repo-Root + JSON Schemas in `doku/schemas/`
 
 ## Datenmodell (FINAL — in Phase 0 abgestimmt, 2026-06-11)
+
+> **Update 2026-06-13**: Dieser Abschnitt beschreibt das in Phase 0 abgestimmte **v1-Modell**. Es wurde in den Phasen 5/7/8 **additiv erweitert** (das v1-Modell bleibt unverändert gültig). Die Erweiterungen — KRL-Vokabular `ptp`/`lin`/`circ`, die Goal-Felder `blend`/`dry_run`, der `STATUS_PAUSED`-Feedback-Status und die Pause-/Override-Interfaces — sind unten im Block **„Erweiterungen seit v1"** zusammengefasst. **Source of Truth** für das Endmodell sind die JSON Schemas in `doku/schemas/` und die `.action`/`.srv`-Dateien in `r0192_interfaces`.
 
 ### Punktdatei `points.yaml`
 
@@ -104,6 +106,38 @@ Im Workspace statt `~/.r0192/`: Programme sind git-versioniert (Prinzip 5), das 
 
 Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-Code-Autocomplete und Validierung.
 
+### Erweiterungen seit v1 (Phasen 5/7/8 — additiv, v1 bleibt gültig)
+
+**KRL/Pilz-Step-Vokabular (Phase 7)** — koexistiert mit den Legacy-Steps; `move_j`/`move_l` sind als *deprecated, prefer ptp/lin* markiert:
+
+```yaml
+steps:
+  - type: ptp                # Pilz PTP (Punkt-zu-Punkt), joint- oder pose-Ziel
+    target: pick_home
+    vel: 0.3                  # Skalierungsfaktor (0,1]  — KRL-Steps nutzen vel/acc (NICHT velocity/acceleration)
+    acc: 0.3
+  - type: lin                # Pilz LIN (kartesische Linie), nur pose-Ziel
+    target: drop_position
+    vel: 0.1
+    c_dis: 0.02              # optionaler Blend-Radius in m (nur im blend-Modus wirksam)
+  - type: circ               # Pilz CIRC (Kreisbogen), nur pose-Ziel
+    target: arc_end
+    via: arc_mid             # Hilfspunkt (Pose), zwingend; nicht kollinear zu Start/Ziel
+    vel: 0.1
+```
+
+- **Zwei Run-Modi (Goal-Feld `blend`)**: `false` = „stop at each point" (je Step ein Plan via `MoveGroupInterface`, `c_dis` ignoriert, `circ` abgelehnt); `true` = „blend through" (zusammenhängende Move-Steps als ein `MotionSequenceRequest` an `/sequence_move_group`, `blend_radius=c_dis`, `circ`-`via` als „interim"-Constraint). `wait`-Steps trennen eine Sequenz.
+- **Simulationsmodus (Goal-Feld `dry_run`)**: plant das ganze Programm als Pilz-Sequenz mit `plan_only`, animiert es auf `/display_planned_path` (RViz-Geist), bewegt den Arm **nicht** und ändert den Zustand **nicht** (kein MOVEIT); läuft aus jedem Zustand. *(Erfüllt zugleich die in Phase 6 offen gelassene „Trajektorien-Preview".)*
+- **Pose-Referenzlink für `lin`/`circ`/`move_l`**: kartesische Steps brauchen ein abgewinkeltes Handgelenk — KDL/Pilz können keine Linie durch die joint_5=0-Singularität.
+
+**ExecuteProgram.action — additive Felder** (Endstand): Goal zusätzlich `bool blend`, `bool dry_run`. Feedback zusätzlich `STATUS_PAUSED=4` (zwischen Steps pausiert; `current_step` = nächster Step). `step_type` deckt nun `move_j`/`move_l`/`wait`/`ptp`/`lin`/`circ` ab.
+
+**Pause & Override (Phase 5) — zusätzliche Interfaces**:
+- `srv/SetProgramOverride.srv` → Service `/set_program_override` (klemmt [0.1, 1.0]) + latched Topic `/program_override` (`std_msgs/Float32`, Ist-Wert).
+- `/pause_program` + `/resume_program` (`std_srvs/Trigger`) — „Pause after current step", Zustand bleibt `MOVEIT`.
+
+**Punkt-Visualisierung (Phase 6)**: latched `MarkerArray` auf `/program_points_markers` (Kugel + Namens-Label je Punkt).
+
 ---
 
 ## ToDo
@@ -161,7 +195,7 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Punktdatei live nachladen: service-getriggert — jede List/Teach/Delete-Anfrage und jedes Programm-Goal liest die Datei frisch (kein File-Watcher nötig)
 - [x] UI-Erweiterung im Run-Panel (`ProgramPanel`, Gruppe „Points"): Punktliste (Name + Typ), Refresh, Teach (Name + joint/pose, nur in `HOLD`/**`JOG`** aktiv, Overwrite-Rückfrage), Delete mit Bestätigungsdialog. **Rename bewusst weggelassen** — Umbenennen ist eine Engineering-Aktion (VS Code, mit Suchen/Ersetzen der Referenzen)
 - [x] Services per CLI getestet (2026-06-12, virtuell): List/Teach joint/Teach pose/Overwrite-Ablehnung/Delete/Unknown-Delete/State-Gating alle OK; regenerierte `points.yaml` schema-valide; Demo-Programm läuft aus der regenerierten Datei
-- [ ] **Acceptance** (manuell): Mit Jog-Panel hinfahren → „Teach as P1" → P1 in Punktliste sichtbar → in Programm (VS Code) per Name referenzierbar. *Hinweis: Namens-Autocomplete über Dateigrenzen kann ein statisches JSON Schema nicht leisten — das kommt erst mit der VS-Code-Extension (Phase 9); das Schema validiert das Namensmuster.*
+- [x] **Acceptance erfüllt** (real, 2026-06-12): Teach joint+pose über das Panel bestätigt (inkl. Pose-Teach auf Achse 4); TF-Listener-Bug gefixt (eigener Spin-Thread). *Hinweis: Namens-Autocomplete über Dateigrenzen kann ein statisches JSON Schema nicht leisten — das kommt erst mit der VS-Code-Extension (Phase 9); das Schema validiert das Namensmuster.*
 
 ### Phase 5 — Pause & Override ✅ (2026-06-12, Acceptance erfüllt)
 
@@ -179,11 +213,13 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] `move_l` im Executor: `computeCartesianPath()` (eef_step via Param `cartesian_eef_step`, Default 5 mm). **Retiming serverseitig**: die Skalierungsfaktoren (`velocity`/`acceleration` × Override) gehen im Service-Request mit; move_group wendet TOTG mit den `joint_limits.yaml`-Limits an (das Client-Robotermodell hat keine Beschleunigungslimits — clientseitiges TOTG schlug deshalb fehl). `fraction < 99.9 %` → sauberer Abbruch mit Prozentangabe; Null-Distanz (< 2 Trajektorienpunkte) = No-op-Erfolg
 - [x] **Wichtige Erkenntnis (getestet)**: KDL kann **keine Linie durch die Handgelenk-Singularität joint_5 = 0** verfolgen (alle bisherigen Demo-Punkte lagen dort → 0 % feasible). `move_l`-Punkte brauchen ein abgewinkeltes Handgelenk; Fehlermeldung weist darauf hin. Langfristige Alternative: TRAC-IK (siehe Known Issues)
 - [x] Punkt-Visualisierung im RViz 3D-View: `MarkerArray` auf **`/program_points_markers`** (latched) — Kugel + Namens-Label je Punkt aus `points.yaml` (pose = orange, joint = blau via FK, sobald das Robotermodell verfügbar ist); Republish bei Teach/Delete/List; Display „ProgramPoints" in `moveit.rviz`. *Bewusst keine interaktiven Marker* — ohne Edit-Funktion (Editieren = VS Code) wäre Interaktivität nur Schein
-- [ ] Optional: Trajektorien-Preview vor Ausführung — **nicht umgesetzt** (optional, bei Bedarf später)
+- [x] Optional: Trajektorien-Preview vor Ausführung — **nachträglich durch den Dry-Run-Modus (Phase 8) erfüllt** (`dry_run`-Goal plant + animiert das Programm als RViz-Geist, ohne den Arm zu bewegen)
 - [x] Headless getestet (2026-06-12, virtuell): gemischtes `move_j`/`move_l`-Programm (`programs/program_linear_demo.yaml`, Punkte `bent_a`/`bent_b`/`lin_bent`) SUCCEEDED; Wiederholung mit Null-Distanz-`move_l` SUCCEEDED; Marker-Topic liefert Kugel+Label für alle Punkte; Singularitäts-Fall bricht sauber mit klarer Meldung ab
 - [ ] **Acceptance** (manuell in RViz): `program_linear_demo.yaml` läuft sichtbar (PTP, PTP, Linearbewegung), Punkte im 3D-View sichtbar und benannt.
 
-### Phase 7 — Pilz Industrial Motion Planner + KRL-Vokabular 🚧 teilweise implementiert (2026-06-13)
+### Phase 7 — Pilz Industrial Motion Planner + KRL-Vokabular ✅ funktional abgeschlossen (2026-06-13)
+
+> **Status**: Vokabular, sequenzielles Pilz-Routing und der Blend-/Sequence-Modus (inkl. `circ`) sind implementiert und real bestätigt. **Einzige bewusste Limitation**: echtes Live-Override auf einer laufenden Trajektorie (braucht Stop+Replan) — als Folgearbeit eingeordnet, siehe `[~]`-Punkt unten.
 
 > Ab hier macht es Sinn, sich beim Befehlsvokabular an etablierten Industrie-Sprachen zu orientieren statt es selbst zu erfinden. **KUKA KRL** (Robot Language der klassischen KR-Industrieserie) ist die natürliche Wahl, weil ihre Kernbefehle (`PTP`, `LIN`, `CIRC`) **exakt das sind, was Pilz erwartet** — die Step-Typen mappen sich quasi von selbst. KRL ist in Schulungsmaterial und Lehrbüchern frei dokumentiert, IP-rechtlich unproblematisch. (Hinweis: KUKA Sunrise / iiwa Java-API NICHT als Referenz nehmen — proprietär, nur mit Lizenz zugänglich.)
 
