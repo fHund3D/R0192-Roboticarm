@@ -16,15 +16,22 @@
 //     state is still MOVEIT — after an /e_stop the state is DISABLED and a
 //     HOLD request would mean "enable motors", which is not ours to decide.
 //
-// Execution model (v1, sequential):
-//   - move_j: MoveGroupInterface plan + execute (joint or pose target),
-//     velocity/acceleration as MoveIt scaling factors in (0, 1].
-//   - wait:   sleep in small ticks so cancel stays responsive.
-//   - move_l: schema-valid but rejected at goal time (Phase 6).
+// Execution model:
+//   Two step vocabularies and two run modes.
+//   - "Stop at each point" (goal.blend == false, default): each move step is
+//     planned + executed on its own.
+//       move_j: OMPL plan+execute (joint or pose).      ptp: Pilz PTP.
+//       move_l: KDL computeCartesianPath (Cartesian).   lin: Pilz LIN.
+//       circ:   rejected (needs blend mode).            wait: cancel-responsive sleep.
+//     velocity/acceleration (vel/acc) are MoveIt scaling factors in (0, 1].
+//   - "Blend through" (goal.blend == true): consecutive move steps are batched
+//     into one Pilz MotionSequenceRequest (planner per step, blend_radius=c_dis,
+//     last item forced to 0) and sent to the /sequence_move_group action. circ
+//     is supported here (via point = interim). wait steps split a sequence.
 //
-// Cancel: handle_cancel calls MoveGroupInterface::stop(), which makes a
-// blocking execute() return; the worker then reports CANCELED and returns
-// the state to HOLD.
+// Cancel: handle_cancel calls MoveGroupInterface::stop() (sequential) and
+// cancels the active /sequence_move_group goal (blend). The worker then reports
+// CANCELED and returns the state to HOLD.
 //
 // Threading: the action callbacks run on the main spin; each accepted goal
 // runs in its own worker thread (goals are serialized via busy_). The
@@ -37,6 +44,12 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 
 #include <moveit/move_group_interface/move_group_interface.hpp>
+#include <moveit/kinematic_constraints/utils.hpp>
+#include <moveit/robot_state/conversions.hpp>
+
+#include <moveit_msgs/action/move_group_sequence.hpp>
+#include <moveit_msgs/msg/motion_sequence_request.hpp>
+#include <moveit_msgs/msg/display_trajectory.hpp>
 
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -82,6 +95,7 @@ using DeletePoint = r0192_interfaces::srv::DeletePoint;
 using SetProgramOverride = r0192_interfaces::srv::SetProgramOverride;
 using Trigger = std_srvs::srv::Trigger;
 using MoveGroupInterface = moveit::planning_interface::MoveGroupInterface;
+using MoveGroupSequence = moveit_msgs::action::MoveGroupSequence;
 
 namespace
 {
@@ -98,6 +112,20 @@ std::string expandUser(std::string path)
     }
   }
   return path;
+}
+
+bool isMoveStep(const std::string & t)
+{
+  return t == "move_j" || t == "move_l" || t == "ptp" || t == "lin" || t == "circ";
+}
+
+// Pilz planner id for a move step. Legacy aliases map onto their KRL twin
+// (move_j ~ ptp, move_l ~ lin).
+const char * pilzPlannerId(const std::string & t)
+{
+  if (t == "lin" || t == "move_l") return "LIN";
+  if (t == "circ") return "CIRC";
+  return "PTP";   // ptp / move_j
 }
 }  // namespace
 
@@ -136,6 +164,16 @@ public:
       },
       [this](const std::shared_ptr<GoalHandle> &) { return handleCancel(); },
       [this](const std::shared_ptr<GoalHandle> & gh) { handleAccepted(gh); });
+
+    // Pilz blend mode (phase 7) sends whole runs of move steps to the
+    // /sequence_move_group action (provided by the Pilz MoveGroupSequenceAction
+    // capability — added to move_group in moveit.launch.py).
+    seq_client_ = rclcpp_action::create_client<MoveGroupSequence>(this, "/sequence_move_group");
+
+    // Dry-run preview: planned trajectories are animated as the RViz ghost on
+    // the same topic move_group uses for plan previews.
+    display_pub_ = create_publisher<moveit_msgs::msg::DisplayTrajectory>(
+      "/display_planned_path", rclcpp::QoS(1));
 
     // --- Point services (phase 4). All run on the main spin (short file ops);
     //     the joint-state cache below is filled on the same thread, so no lock
@@ -259,9 +297,14 @@ private:
   rclcpp_action::CancelResponse handleCancel()
   {
     RCLCPP_INFO(get_logger(), "Cancel requested — stopping current motion");
-    // Breaks a blocking plan()/execute() in the worker; the worker then sees
-    // is_canceling() and finishes the goal as CANCELED.
+    // Sequential: breaks a blocking plan()/execute() in the worker.
     if (auto mg = moveGroup()) mg->stop();
+    // Blend mode: cancel the in-flight /sequence_move_group goal (its result
+    // future then returns CANCELED). The worker sees is_canceling() either way
+    // and finishes the goal as CANCELED.
+    std::shared_ptr<rclcpp_action::ClientGoalHandle<MoveGroupSequence>> sg;
+    { std::lock_guard<std::mutex> lock(seq_mtx_); sg = seq_goal_; }
+    if (sg) seq_client_->async_cancel_goal(sg);
     return rclcpp_action::CancelResponse::ACCEPT;
   }
 
@@ -308,18 +351,25 @@ private:
       return;
     }
 
-    if (!setRobotState(RobotStateMsg::MOVEIT, err)) {
+    const bool blend = goal_handle->get_goal()->blend;
+    const bool dry_run = goal_handle->get_goal()->dry_run;
+
+    // A real run needs MOVEIT (motors on, arm_controller active) before the first
+    // step. A dry run only plans + animates the RViz ghost — it never executes and
+    // never changes the robot state, so it skips the transition (works from any state).
+    if (!dry_run && !setRobotState(RobotStateMsg::MOVEIT, err)) {
       result->message = "cannot enter MOVEIT: " + err;
       goal_handle->abort(result);
       RCLCPP_ERROR(get_logger(), "%s", result->message.c_str());
       return;
     }
-    RCLCPP_INFO(get_logger(), "Executing program '%s' (%zu steps) from %s",
+    RCLCPP_INFO(get_logger(), "%s program '%s' (%zu steps) from %s",
+                dry_run ? "Simulating" : "Executing",
                 program.name.c_str(), program.steps.size(), path.c_str());
-
     bool ok = true;
     bool cancelled = false;
-    for (std::size_t i = 0; i < program.steps.size(); ++i) {
+    std::size_t i = 0;
+    while (i < program.steps.size()) {
       // Pause point: between steps ("pause after current step"). The state
       // stays MOVEIT; the JTC holds the last setpoint. Cancel still works.
       if (pause_requested_) {
@@ -340,21 +390,49 @@ private:
       }
       const Step & step = program.steps[i];
       if (step.type == "wait") {
-        ok = runWait(goal_handle, i, program, cancelled);
+        ok = dry_run ? true : runWait(goal_handle, i, program, cancelled);  // skip waits in a preview
+        if (ok && !cancelled) result->steps_completed = static_cast<uint32_t>(i + 1);
+        ++i;
+      } else if (blend || dry_run) {
+        // Blend through (or any dry run): the maximal run of consecutive move
+        // steps [i, j) goes to the Pilz sequence (wait steps split it). dry_run
+        // makes it plan-only + animate; blend controls whether c_dis is applied.
+        std::size_t j = i;
+        while (j < program.steps.size() && isMoveStep(program.steps[j].type)) ++j;
+        ok = runBlendedRun(goal_handle, i, j, program, points, cancelled, err, dry_run, blend);
+        if (ok && !cancelled) result->steps_completed = static_cast<uint32_t>(j);
+        i = j;
       } else if (step.type == "move_l") {
         ok = runMoveL(goal_handle, i, program, points.at(step.target), cancelled, err);
+        if (ok && !cancelled) result->steps_completed = static_cast<uint32_t>(i + 1);
+        ++i;
+      } else if (step.type == "ptp" || step.type == "lin") {
+        ok = runPilz(goal_handle, i, program, points.at(step.target), cancelled, err);
+        if (ok && !cancelled) result->steps_completed = static_cast<uint32_t>(i + 1);
+        ++i;
+      } else if (step.type == "circ") {
+        // CIRC needs the via point planned as one arc — only the sequence mode
+        // builds that. Reject cleanly in stop-at-each-point mode.
+        err = "circ requires blend mode — run the program with blend=true "
+              "(\"blend through\") so the via point becomes a Pilz CIRC segment";
+        ok = false;
+        ++i;
       } else {
         ok = runMoveJ(goal_handle, i, program, points.at(step.target), cancelled, err);
+        if (ok && !cancelled) result->steps_completed = static_cast<uint32_t>(i + 1);
+        ++i;
       }
       if (!ok || cancelled) break;
-      result->steps_completed = static_cast<uint32_t>(i + 1);
     }
 
     // Always hand control back: MOVEIT -> HOLD (only if we still own MOVEIT —
     // after an /e_stop the manager has forced DISABLED and HOLD would mean
-    // re-enabling the motors).
+    // re-enabling the motors). A dry run never entered MOVEIT, so it leaves the
+    // state alone.
     std::string hold_note;
-    if (robot_state_ == RobotStateMsg::MOVEIT) {
+    if (dry_run) {
+      hold_note = " (dry run — state untouched)";
+    } else if (robot_state_ == RobotStateMsg::MOVEIT) {
       std::string hold_err;
       if (!setRobotState(RobotStateMsg::HOLD, hold_err)) {
         hold_note = " (warning: could not return to HOLD: " + hold_err + ")";
@@ -514,6 +592,246 @@ private:
       return false;
     }
     return true;
+  }
+
+  // KRL/Pilz move (phase 7): routes a single step through the Pilz Industrial
+  // Motion Planner. ptp -> PTP (joint or pose target), lin -> LIN (pose only,
+  // enforced by crossValidate). Sequential for now — c_dis blending requires the
+  // MoveGroupSequence mode (next sub-step) and is logged + ignored here. The
+  // pipeline is reset to OMPL afterwards so legacy move_j/move_l keep their
+  // validated planners.
+  bool runPilz(const std::shared_ptr<GoalHandle> & goal_handle, std::size_t index,
+               const Program & program, const Point & point, bool & cancelled,
+               std::string & err)
+  {
+    const Step & step = program.steps[index];
+    publishFeedback(goal_handle, index, program.steps.size(), &step,
+                    ExecuteProgram::Feedback::STATUS_PLANNING);
+
+    if (step.c_dis > 0.0) {
+      RCLCPP_WARN(get_logger(),
+        "step %zu (%s): c_dis=%.3f m ignored — blending needs the Pilz sequence "
+        "mode (not yet implemented); stopping at the point",
+        index + 1, step.type.c_str(), step.c_dis);
+    }
+
+    move_group_->setStartStateToCurrentState();
+    move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
+    move_group_->setPlannerId(step.type == "lin" ? "LIN" : "PTP");
+    const double ov = override_;
+    move_group_->setMaxVelocityScalingFactor(step.velocity * ov);
+    move_group_->setMaxAccelerationScalingFactor(step.acceleration * ov);
+
+    if (point.type == Point::Type::kJoint) {
+      std::map<std::string, double> target;
+      for (std::size_t i = 0; i < joint_names_.size(); ++i) {
+        target[joint_names_[i]] = point.joints[i];
+      }
+      move_group_->setJointValueTarget(target);
+    } else {
+      move_group_->setPoseReferenceFrame(point.frame);   // loader enforces base_link
+      geometry_msgs::msg::PoseStamped ps;
+      ps.header.frame_id = point.frame;
+      ps.pose = point.pose;
+      move_group_->setPoseTarget(ps);
+    }
+
+    MoveGroupInterface::Plan plan;
+    auto code = move_group_->plan(plan);
+    move_group_->clearPoseTargets();
+    move_group_->setPlanningPipelineId("ompl");   // restore default for legacy steps
+    if (goal_handle->is_canceling()) {
+      cancelled = true;
+      return true;
+    }
+    if (code != moveit::core::MoveItErrorCode::SUCCESS) {
+      err = step.type + " planning to '" + step.target + "' failed (Pilz error " +
+            std::to_string(code.val) + ")";
+      if (step.type == "lin") {
+        err += " — note: LIN cannot pass the joint_5 = 0 wrist singularity";
+      }
+      return false;
+    }
+
+    publishFeedback(goal_handle, index, program.steps.size(), &step,
+                    ExecuteProgram::Feedback::STATUS_MOVING);
+    code = move_group_->execute(plan);
+    if (goal_handle->is_canceling()) {
+      cancelled = true;
+      return true;
+    }
+    if (code != moveit::core::MoveItErrorCode::SUCCESS) {
+      err = step.type + " execution of '" + step.target + "' failed (MoveIt error " +
+            std::to_string(code.val) + ")";
+      return false;
+    }
+    return true;
+  }
+
+  // Pilz "blend through" (phase 7): run the consecutive move steps [i0, i1) as
+  // ONE MotionSequenceRequest via /sequence_move_group. Each step becomes a
+  // MotionSequenceItem (planner per type; the last item's blend radius is forced
+  // to 0 as Pilz requires). circ adds its via point as an "interim" path
+  // constraint. Only the first item carries a start state (the live robot state);
+  // the rest stay empty so Pilz chains each from the previous.
+  //   apply_blend: use each step's c_dis as the blend radius (else stop at every point).
+  //   dry_run:     plan only and animate the RViz ghost — never execute (phase 8).
+  bool runBlendedRun(const std::shared_ptr<GoalHandle> & goal_handle, std::size_t i0,
+                     std::size_t i1, const Program & program, const PointMap & points,
+                     bool & cancelled, std::string & err, bool dry_run, bool apply_blend)
+  {
+    publishFeedback(goal_handle, i0, program.steps.size(), &program.steps[i0],
+                    ExecuteProgram::Feedback::STATUS_PLANNING);
+
+    if (!seq_client_->wait_for_action_server(2s)) {
+      err = "/sequence_move_group unavailable — is the Pilz MoveGroupSequenceAction "
+            "capability loaded in move_group? (moveit.launch.py)";
+      return false;
+    }
+
+    const auto * jmg = move_group_->getRobotModel()->getJointModelGroup(planning_group_);
+    const double ov = override_;
+
+    moveit_msgs::msg::MotionSequenceRequest seq;
+    bool has_circ = false;
+    for (std::size_t k = i0; k < i1; ++k) {
+      const Step & s = program.steps[k];
+      const Point & pt = points.at(s.target);
+      if (s.type == "circ") has_circ = true;
+
+      moveit_msgs::msg::MotionSequenceItem item;
+      auto & req = item.req;
+      req.group_name = planning_group_;
+      req.pipeline_id = "pilz_industrial_motion_planner";
+      req.planner_id = pilzPlannerId(s.type);
+      req.num_planning_attempts = 1;
+      req.allowed_planning_time = 5.0;
+      req.max_velocity_scaling_factor = std::clamp(s.velocity * ov, 0.0, 1.0);
+      req.max_acceleration_scaling_factor = std::clamp(s.acceleration * ov, 0.0, 1.0);
+
+      if (pt.type == Point::Type::kJoint) {
+        moveit::core::RobotState gs(move_group_->getRobotModel());
+        gs.setToDefaultValues();
+        gs.setJointGroupPositions(jmg, pt.joints);
+        gs.update();
+        req.goal_constraints.push_back(
+          kinematic_constraints::constructGoalConstraints(gs, jmg, 1e-4));
+      } else {
+        geometry_msgs::msg::PoseStamped ps;
+        ps.header.frame_id = pt.frame;   // loader enforces base_link
+        ps.pose = pt.pose;
+        req.goal_constraints.push_back(
+          kinematic_constraints::constructGoalConstraints(pose_reference_link_, ps, 1e-3, 1e-2));
+      }
+
+      if (s.type == "circ") {
+        // Pilz reads the via point from a position constraint on the EE link in
+        // path_constraints; the constraint name selects interim vs centre.
+        const Point & via = points.at(s.via);
+        moveit_msgs::msg::PositionConstraint pc;
+        pc.header.frame_id = via.frame;
+        pc.link_name = pose_reference_link_;
+        pc.constraint_region.primitive_poses.resize(1);
+        pc.constraint_region.primitive_poses[0].position = via.pose.position;
+        pc.constraint_region.primitive_poses[0].orientation.w = 1.0;
+        pc.weight = 1.0;
+        req.path_constraints.name = "interim";
+        req.path_constraints.position_constraints.push_back(pc);
+      }
+
+      // Pilz requires the last segment's blend radius to be 0 (stop on arrival);
+      // without blend mode every segment stops too (radius 0).
+      item.blend_radius = (apply_blend && (k + 1 != i1)) ? s.c_dis : 0.0;
+      seq.items.push_back(std::move(item));
+    }
+
+    // Give the first segment a populated start state (the live robot state) so
+    // move_group's start-state adapters don't log "Found empty JointState
+    // message". move_group executes from the current state regardless; this only
+    // quiets that noise. Subsequent items stay empty so Pilz chains them.
+    if (!seq.items.empty()) {
+      if (auto cur = move_group_->getCurrentState(1.0)) {
+        moveit::core::robotStateToRobotStateMsg(*cur, seq.items.front().req.start_state);
+      }
+    }
+
+    MoveGroupSequence::Goal goal;
+    goal.request = seq;
+    goal.planning_options.plan_only = dry_run;   // dry run: plan + visualize, never execute
+
+    auto send_future = seq_client_->async_send_goal(goal);
+    if (send_future.wait_for(15s) != std::future_status::ready) {
+      err = "sequence goal send timed out";
+      return false;
+    }
+    auto gh = send_future.get();
+    if (!gh) {
+      err = "blended sequence rejected by move_group (check blend radii / singularities)";
+      return false;
+    }
+    { std::lock_guard<std::mutex> lock(seq_mtx_); seq_goal_ = gh; }
+
+    publishFeedback(goal_handle, i0, program.steps.size(), &program.steps[i0],
+                    ExecuteProgram::Feedback::STATUS_MOVING);
+    auto result_future = seq_client_->async_get_result(gh);
+    while (result_future.wait_for(100ms) != std::future_status::ready) {
+      if (!rclcpp::ok()) {
+        err = "shutdown during blended sequence";
+        std::lock_guard<std::mutex> lock(seq_mtx_); seq_goal_.reset();
+        return false;
+      }
+    }
+    const auto wrapped = result_future.get();
+    { std::lock_guard<std::mutex> lock(seq_mtx_); seq_goal_.reset(); }
+
+    if (goal_handle->is_canceling() ||
+        wrapped.code == rclcpp_action::ResultCode::CANCELED) {
+      cancelled = true;
+      return true;
+    }
+    if (wrapped.code != rclcpp_action::ResultCode::SUCCEEDED) {
+      const int ec = wrapped.result ? wrapped.result->response.error_code.val : 0;
+      err = "blended sequence (steps " + std::to_string(i0 + 1) + "-" +
+            std::to_string(i1) + ") failed (MoveIt error " + std::to_string(ec) +
+            " — check blend radii, reachability or the joint_5 = 0 singularity)";
+      if (has_circ) {
+        err += ". For circ: start, via and target must not be collinear and must "
+               "define a valid arc plane (Pilz: \"Plane for motion is not properly "
+               "defined\")";
+      }
+      return false;
+    }
+    if (dry_run && wrapped.result) {
+      animatePreview(wrapped.result->response, goal_handle, cancelled);
+    }
+    return true;
+  }
+
+  // Dry-run preview: publish the planned trajectories as the RViz ghost
+  // (/display_planned_path) and block for their total duration so the animation
+  // plays before the next sequence overwrites it. Cancel-responsive.
+  void animatePreview(const moveit_msgs::msg::MotionSequenceResponse & resp,
+                      const std::shared_ptr<GoalHandle> & goal_handle, bool & cancelled)
+  {
+    if (resp.planned_trajectories.empty()) return;
+    moveit_msgs::msg::DisplayTrajectory disp;
+    disp.model_id = move_group_->getRobotModel()->getName();
+    disp.trajectory_start = resp.sequence_start;
+    disp.trajectory = resp.planned_trajectories;
+    display_pub_->publish(disp);
+
+    double secs = 0.0;
+    for (const auto & t : resp.planned_trajectories) {
+      if (!t.joint_trajectory.points.empty()) {
+        const auto & d = t.joint_trajectory.points.back().time_from_start;
+        secs += static_cast<double>(d.sec) + static_cast<double>(d.nanosec) * 1e-9;
+      }
+    }
+    const auto end = std::chrono::steady_clock::now() + std::chrono::duration<double>(secs);
+    while (rclcpp::ok() && std::chrono::steady_clock::now() < end) {
+      if (goal_handle->is_canceling()) { cancelled = true; return; }
+      std::this_thread::sleep_for(50ms);
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -815,6 +1133,9 @@ private:
 
   // --- ROS ---
   rclcpp_action::Server<ExecuteProgram>::SharedPtr server_;
+  rclcpp_action::Client<MoveGroupSequence>::SharedPtr seq_client_;  // Pilz blend mode
+  std::shared_ptr<rclcpp_action::ClientGoalHandle<MoveGroupSequence>> seq_goal_;  // active, for cancel
+  std::mutex seq_mtx_;
   rclcpp::Client<SetRobotState>::SharedPtr state_client_;
   rclcpp::Subscription<RobotStateMsg>::SharedPtr state_sub_;
   rclcpp::Service<TeachPoint>::SharedPtr teach_srv_;
@@ -825,6 +1146,7 @@ private:
   rclcpp::Service<SetProgramOverride>::SharedPtr override_srv_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr override_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+  rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_pub_;  // dry-run ghost
 
   // --- Teaching sources (filled and read on the main spin only) ---
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;

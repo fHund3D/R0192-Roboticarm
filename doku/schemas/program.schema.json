@@ -35,6 +35,9 @@
       "description": "Ordered list of steps, executed sequentially.",
       "items": {
         "oneOf": [
+          { "$ref": "#/definitions/ptp" },
+          { "$ref": "#/definitions/lin" },
+          { "$ref": "#/definitions/circ" },
           { "$ref": "#/definitions/moveJ" },
           { "$ref": "#/definitions/moveL" },
           { "$ref": "#/definitions/wait" }
@@ -58,11 +61,59 @@
       "type": "string",
       "description": "Optional display name shown in the RViz Program Panel."
     },
+    "blendRadius": {
+      "type": "number",
+      "minimum": 0,
+      "description": "c_dis — blend/approximation radius in metres (0 = stop exactly at the point). KRL Continuous-Distance. Only effective once the Pilz sequence mode lands; currently logged and ignored (sequential stop-at-point)."
+    },
+    "ptp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "description": "Point-to-point joint move via the Pilz planner (KRL PTP). Accepts a joint- or pose-type point. Successor of move_j.",
+      "properties": {
+        "type": { "const": "ptp" },
+        "name": { "$ref": "#/definitions/stepName" },
+        "target": { "$ref": "#/definitions/pointName" },
+        "vel": { "$ref": "#/definitions/scaling" },
+        "acc": { "$ref": "#/definitions/scaling" },
+        "c_dis": { "$ref": "#/definitions/blendRadius" }
+      }
+    },
+    "lin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "description": "Linear Cartesian move via the Pilz planner (KRL LIN). Requires a pose-type point. Cannot pass the joint_5 = 0 wrist singularity. Successor of move_l.",
+      "properties": {
+        "type": { "const": "lin" },
+        "name": { "$ref": "#/definitions/stepName" },
+        "target": { "$ref": "#/definitions/pointName" },
+        "vel": { "$ref": "#/definitions/scaling" },
+        "acc": { "$ref": "#/definitions/scaling" },
+        "c_dis": { "$ref": "#/definitions/blendRadius" }
+      }
+    },
+    "circ": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target", "via"],
+      "description": "Circular Cartesian move via the Pilz planner (KRL CIRC): an arc through the via (auxiliary) point to the target. Both must be pose-type. Executor support arrives with the Pilz sequence mode.",
+      "properties": {
+        "type": { "const": "circ" },
+        "name": { "$ref": "#/definitions/stepName" },
+        "target": { "$ref": "#/definitions/pointName" },
+        "via": { "$ref": "#/definitions/pointName" },
+        "vel": { "$ref": "#/definitions/scaling" },
+        "acc": { "$ref": "#/definitions/scaling" },
+        "c_dis": { "$ref": "#/definitions/blendRadius" }
+      }
+    },
     "moveJ": {
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "target"],
-      "description": "Joint-space move (PTP) to a named point (joint- or pose-type).",
+      "description": "DEPRECATED — prefer ptp. Joint-space move (OMPL) to a named point (joint- or pose-type). Kept for backward compatibility.",
       "properties": {
         "type": { "const": "move_j" },
         "name": { "$ref": "#/definitions/stepName" },
@@ -75,7 +126,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "target"],
-      "description": "Linear Cartesian move to a named pose-type point (executor support comes in plan phase 6).",
+      "description": "DEPRECATED — prefer lin. Linear Cartesian move (KDL computeCartesianPath) to a named pose-type point. Kept for backward compatibility.",
       "properties": {
         "type": { "const": "move_l" },
         "name": { "$ref": "#/definitions/stepName" },

@@ -1,0 +1,21 @@
+# KRL/Pilz vocabulary demo (phase 7): point-to-point joint moves (ptp, Pilz PTP)
+# to bent-wrist joint points, then a straight Cartesian line (lin, Pilz LIN) to
+# the taught pose lin_bent.
+# NOTE: lin needs the wrist AWAY from the joint_5 = 0 singularity — same rule as
+# the legacy move_l demo. circ (Pilz CIRC) and c_dis blending land with the
+# MoveGroupSequence sub-step and are not exercised here.
+version: 1
+name: "KRL demo: PTP + LIN"
+description: "ptp to bent_a/bent_b, then lin straight to lin_bent"
+defaults:
+  velocity: 0.3
+  acceleration: 0.3
+steps:
+  - type: ptp
+    target: bent_a
+  - type: ptp
+    target: bent_b
+  - type: lin
+    target: lin_bent
+    vel: 0.1
+    acc: 0.1

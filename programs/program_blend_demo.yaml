@@ -1,0 +1,22 @@
+# Pilz "blend through" demo (phase 7): run with blend=true so the three move
+# steps go to /sequence_move_group as ONE blended trajectory. c_dis on bent_b
+# rounds the corner (no full stop at that point); the last segment always stops.
+# Reuses points that already plan individually in the KRL demo.
+#   ros2 action send_goal /execute_program r0192_interfaces/action/ExecuteProgram \
+#     "{program_path: 'program_blend_demo.yaml', blend: true}"
+version: 1
+name: "Blend demo: PTP -> (blend) PTP -> LIN"
+description: "ptp bent_a, ptp bent_b with c_dis blend, lin to lin_bent"
+defaults:
+  velocity: 0.3
+  acceleration: 0.3
+steps:
+  - type: ptp
+    target: bent_a
+  - type: ptp
+    target: bent_b
+    c_dis: 0.02
+  - type: lin
+    target: lin_bent
+    vel: 0.1
+    acc: 0.1

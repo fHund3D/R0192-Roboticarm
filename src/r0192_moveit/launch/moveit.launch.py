@@ -59,6 +59,10 @@ def generate_launch_description():
             moveit_config.to_dict(),
             {"use_sim_time": is_sim},
             {"publish_robot_description_semantic": True},
+            # Non-default capability: enables the /sequence_move_group action used
+            # by the program executor's Pilz "blend through" mode (move_l/lin/circ
+            # with c_dis blending). Added on top of the built-in capabilities.
+            {"capabilities": "pilz_industrial_motion_planner/MoveGroupSequenceAction"},
         ],
         arguments=["--ros-args", "--log-level", "info"],
     )

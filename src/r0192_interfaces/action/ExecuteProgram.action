@@ -1,5 +1,5 @@
-# Execute a YAML program file step by step (MoveGroupInterface, sequential).
-# Owned by the r0192_program_executor node (action name: /execute_program).
+# Execute a YAML program file step by step. Owned by the r0192_program_executor
+# node (action name: /execute_program).
 #
 # The executor requests HOLD -> MOVEIT via /set_robot_state before the first
 # step and MOVEIT -> HOLD when finished, cancelled, or failed. The goal is
@@ -10,6 +10,16 @@
 # place, the backend loader.
 
 string program_path     # absolute path, or filename resolved against the programs_dir parameter
+bool blend              # false (default) = "stop at each point": each move step planned and
+                        #   executed on its own (MoveGroupInterface); c_dis ignored.
+                        # true = "blend through" (Pilz): consecutive move steps are sent as one
+                        #   MotionSequenceRequest with blend_radius=c_dis. Required for circ.
+                        #   Wait steps split a sequence.
+bool dry_run            # false (default) = execute on the real arm.
+                        # true = simulate only: plan the whole program and animate it on
+                        #   /display_planned_path (the RViz ghost), but DON'T move the arm and
+                        #   DON'T touch the robot state (no MOVEIT, motors stay as they are).
+                        #   Waits are skipped. Works from any state.
 ---
 bool success
 string message          # human-readable reason on failure
@@ -24,6 +34,6 @@ uint8 STATUS_PAUSED=4   # paused between steps ("pause after current step");
 
 uint32 current_step     # 0-based index of the step being executed
 uint32 total_steps
-string step_type        # move_j / move_l / wait
+string step_type        # move_j / move_l / wait / ptp / lin / circ
 string step_label       # step name if set, otherwise a target/duration summary
 uint8 status            # one of the STATUS_* values

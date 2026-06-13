@@ -8,8 +8,9 @@
 //
 //   points.yaml     named targets, type joint (6 values, rad) or pose
 //                   (base_link, m / quaternion)
-//   program_*.yaml  ordered steps: move_j / move_l / wait. velocity and
-//                   acceleration are MoveIt scaling factors in (0, 1].
+//   program_*.yaml  ordered steps. Two vocabularies: legacy move_j / move_l /
+//                   wait (velocity/acceleration) and KRL/Pilz ptp / lin / circ
+//                   (vel/acc + c_dis blend radius). Scaling factors in (0, 1].
 // ============================================================================
 
 #pragma once
@@ -39,13 +40,22 @@ using PointMap = std::map<std::string, Point>;
 
 // One program step. For move steps, velocity/acceleration are MoveIt
 // scaling factors in (0, 1] (defaults applied by the loader).
+//
+// Two step vocabularies coexist (phase 7):
+//   - Legacy:    move_j (OMPL joint-space), move_l (KDL Cartesian line), wait.
+//                Keys velocity/acceleration. Backward compatible — unchanged.
+//   - KRL/Pilz:  ptp (Pilz PTP), lin (Pilz LIN), circ (Pilz CIRC). Keys
+//                vel/acc and an optional c_dis blend radius; circ adds a via
+//                (auxiliary) point. Routed through the pilz pipeline.
 struct Step
 {
-  std::string type;    // "move_j" / "move_l" / "wait"
+  std::string type;    // "move_j"/"move_l"/"wait"/"ptp"/"lin"/"circ"
   std::string name;    // optional display name (empty if not set)
-  std::string target;  // move steps: point name
+  std::string target;  // move steps: point name (CIRC: end point)
+  std::string via;     // circ only: auxiliary (interim) point name
   double velocity{0.0};
   double acceleration{0.0};
+  double c_dis{0.0};     // ptp/lin/circ: blend radius (m), 0 = stop at point
   double duration{0.0};  // wait: seconds
 
   // Display string for action feedback: name if set, otherwise a summary.

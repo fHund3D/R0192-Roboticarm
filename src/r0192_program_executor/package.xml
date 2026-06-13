@@ -23,11 +23,14 @@
   <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
   <depend>moveit_ros_planning_interface</depend>
+  <depend>moveit_core</depend>
+  <depend>moveit_msgs</depend>
   <depend>r0192_interfaces</depend>
   <depend>yaml_cpp_vendor</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

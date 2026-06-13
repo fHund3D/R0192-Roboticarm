@@ -11,15 +11,52 @@
       "  velocity: ${3:0.2}",
       "  acceleration: ${4:0.2}",
       "steps:",
-      "  - type: move_j",
+      "  - type: ptp",
       "    target: ${5:home}",
       "$0"
     ]
   },
-  "R0192: move_j step": {
+  "R0192: ptp step": {
+    "scope": "yaml",
+    "prefix": "ptp",
+    "description": "Point-to-point joint move via Pilz (KRL PTP) — successor of move_j",
+    "body": [
+      "- type: ptp",
+      "  target: ${1:point_name}",
+      "  vel: ${2:0.2}",
+      "  acc: ${3:0.2}",
+      "$0"
+    ]
+  },
+  "R0192: lin step": {
+    "scope": "yaml",
+    "prefix": "lin",
+    "description": "Linear Cartesian move via Pilz (KRL LIN) to a pose point — successor of move_l",
+    "body": [
+      "- type: lin",
+      "  target: ${1:point_name}",
+      "  vel: ${2:0.1}",
+      "  acc: ${3:0.1}",
+      "$0"
+    ]
+  },
+  "R0192: circ step": {
+    "scope": "yaml",
+    "prefix": "circ",
+    "description": "Circular Cartesian move via Pilz (KRL CIRC): arc through 'via' to 'target' (both pose points)",
+    "body": [
+      "- type: circ",
+      "  via: ${1:via_point}",
+      "  target: ${2:end_point}",
+      "  vel: ${3:0.1}",
+      "  acc: ${4:0.1}",
+      "$0"
+    ]
+  },
+  "R0192: move_j step (deprecated)": {
     "scope": "yaml",
     "prefix": "move_j",
-    "description": "Joint-space move (PTP) to a named point",
+    "description": "DEPRECATED — prefer ptp. Joint-space move (OMPL) to a named point",
     "body": [
       "- type: move_j",
       "  target: ${1:point_name}",
@@ -28,10 +65,10 @@
       "$0"
     ]
   },
-  "R0192: move_l step": {
+  "R0192: move_l step (deprecated)": {
     "scope": "yaml",
     "prefix": "move_l",
-    "description": "Linear Cartesian move to a named pose point (executor: plan phase 6)",
+    "description": "DEPRECATED — prefer lin. Linear Cartesian move (KDL) to a named pose point",
     "body": [
       "- type: move_l",
       "  target: ${1:point_name}",

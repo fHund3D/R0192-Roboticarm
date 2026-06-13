@@ -183,21 +183,33 @@ Die JSON Schemas in `doku/schemas/` (Phase 2) sind die Source of Truth für VS-C
 - [x] Headless getestet (2026-06-12, virtuell): gemischtes `move_j`/`move_l`-Programm (`programs/program_linear_demo.yaml`, Punkte `bent_a`/`bent_b`/`lin_bent`) SUCCEEDED; Wiederholung mit Null-Distanz-`move_l` SUCCEEDED; Marker-Topic liefert Kugel+Label für alle Punkte; Singularitäts-Fall bricht sauber mit klarer Meldung ab
 - [ ] **Acceptance** (manuell in RViz): `program_linear_demo.yaml` läuft sichtbar (PTP, PTP, Linearbewegung), Punkte im 3D-View sichtbar und benannt.
 
-### Phase 7 — Pilz Industrial Motion Planner (optional, mittelfristig)
+### Phase 7 — Pilz Industrial Motion Planner + KRL-Vokabular 🚧 teilweise implementiert (2026-06-13)
 
-- [ ] Pilz im MoveIt-Setup als Planning Pipeline aktivieren
-- [ ] Step-Typen erweitern: `move_ptp`, `move_lin`, `move_circ` mit `blend_radius`
-- [ ] JSON Schema entsprechend erweitern (VS Code lernt die neuen Typen automatisch mit)
-- [ ] Executor-Modus "Pilz Sequence": ganzes Programm als `MoveGroupSequence`-Request statt sequenziell
-- [ ] UI-Toggle "Stop at each point" vs. "Blend through"
-- [ ] **Echtes Live-Override** auf laufender Trajektorie wird hier endlich möglich
+> Ab hier macht es Sinn, sich beim Befehlsvokabular an etablierten Industrie-Sprachen zu orientieren statt es selbst zu erfinden. **KUKA KRL** (Robot Language der klassischen KR-Industrieserie) ist die natürliche Wahl, weil ihre Kernbefehle (`PTP`, `LIN`, `CIRC`) **exakt das sind, was Pilz erwartet** — die Step-Typen mappen sich quasi von selbst. KRL ist in Schulungsmaterial und Lehrbüchern frei dokumentiert, IP-rechtlich unproblematisch. (Hinweis: KUKA Sunrise / iiwa Java-API NICHT als Referenz nehmen — proprietär, nur mit Lizenz zugänglich.)
 
-### Phase 8 — Robustheit & Polish
+- [x] Pilz im MoveIt-Setup als Planning Pipeline aktiviert (`moveit.launch.py`: `planning_pipelines(pipelines=["ompl", "pilz_industrial_motion_planner"])`, `pilz_cartesian_limits.yaml` vorhanden)
+- [x] Neue Step-Typen mit KRL-Vokabular eingeführt: `ptp`, `lin`, `circ` mit `vel`, `acc`, `c_dis` (Blend-Radius in m); `circ` zusätzlich mit `via` (Hilfspunkt). Loader (`program_loader.cpp`) + `crossValidate` erweitert (lin/circ brauchen Pose-Ziele, circ-`via` muss Pose sein)
+- [x] **Backward Compatibility** — bewusst **konservativer** als der ursprüngliche Plan: statt `move_j`/`move_l` intern auf `ptp`/`lin` umzubenennen, **koexistieren** beide Vokabulare. `move_j`/`move_l`/`wait` behalten ihre **validierten** Phase-1/6-Pfade (OMPL bzw. KDL `computeCartesianPath`) **unverändert** (Null-Regressionsrisiko); `ptp`/`lin`/`circ` sind die neuen Pilz-Pfade. Alte Programme laufen ohne Migration weiter; Schema + Snippets markieren `move_j`/`move_l` als *deprecated, prefer ptp/lin*
+- [x] JSON Schema erweitert (`program.schema.json`): `ptp`/`lin`/`circ` + `blendRadius`-Definition parallel zu `move_j`/`move_l`; headless gegen alle Beispielprogramme + Negativtests validiert (jsonschema)
+- [x] Snippets aktualisiert (`r0192.code-snippets`): `ptp`/`lin`/`circ` als Default-Snippets, Programm-Skelett nutzt `ptp`; `move_j`/`move_l` als „(deprecated)" behalten
+- [x] Executor-Routing (sequenziell): `ptp` → Pilz `PTP`, `lin` → Pilz `LIN` (`setPlanningPipelineId("pilz_industrial_motion_planner")` + `setPlannerId`, danach Reset auf `ompl`); `c_dis > 0` wird geloggt + ignoriert (Blending fehlt noch); `circ` zur Laufzeit sauber abgelehnt (Datenmodell steht, kommt mit dem Sequence-Modus — gleiches Muster wie `move_l` vor Phase 6)
+- [x] Executor-Modus „Pilz Sequence" (`runBlendedRun`): bei `blend == true` (neues additives Goal-Feld in `ExecuteProgram.action`) werden zusammenhängende Move-Steps als **ein** `MotionSequenceRequest` an die **`/sequence_move_group`**-Action geschickt (Planner je Step, `blend_radius = c_dis`, letztes Item zwingend 0; `circ`-`via` als „interim"-Path-Constraint; Start-State leer → Pilz verkettet). Wait-Steps trennen eine Sequenz. Cancel bricht das Sequence-Goal ab. Capability `pilz_industrial_motion_planner/MoveGroupSequenceAction` in `moveit.launch.py` ergänzt. Damit ist auch die **`circ`-Laufzeit** frei (im Stop-at-each-point-Modus weiterhin sauber abgelehnt: „circ requires blend mode")
+- [x] UI-Toggle „Blend through (Pilz)" im ProgramPanel (`QCheckBox`, setzt `goal.blend`; während Run gesperrt)
+- [x] Polish (2026-06-13): erstes Sequence-Item bekommt den Live-Robot-State als Start-State → beseitigt das kosmetische `Found empty JointState message`-Log-Rauschen (move_group fährt ohnehin vom Ist-Zustand); CIRC-Fehlermeldung um den Kollinear-/Ebenen-Hinweis erweitert
+- [~] **Echtes Live-Override** auf laufender Trajektorie: **als Limitation eingeordnet, nicht umgesetzt** — MoveIt/Pilz kann eine bereits gesendete Trajektorie nicht ohne Stop+Replan umskalieren. Override wirkt daher (wie dokumentiert) ab dem nächsten Step/der nächsten Sequenz. Echtes Mid-Trajektorien-Override bräuchte einen Stop-und-Replan-Mechanismus (eigener Folge-Task, kein reiner Phase-7-Scope)
+- [x] Demos: `programs/program_blend_demo.yaml` (ptp+ptp mit `c_dis`+lin), `programs/program_circ_demo.yaml` (CIRC-Template); beide schema-valide
+- [x] **Acceptance Blend bestätigt** (manuell gegen move_group, 2026-06-13): `program_blend_demo.yaml` mit `blend: true` → „MoveGroupSequenceAction" + „trajectory_blender_transition_window" + Intersection-Points → **eine** geblendete Trajektorie, SUCCEEDED. circ-Pfad bestätigt erreichbar (Pilz „Generating CIRC trajectory"); das Template scheitert erwartungsgemäß an kollinearen Platzhalter-Punkten → braucht reichbare, nicht-kollineare Bogen-Punkte
+- [x] Headless getestet (2026-06-13, virtuell): Schema-Validierung (alle Programme + 3 Negativtests OK); C++-Loader akzeptiert `program_krl_demo.yaml` (`ptp`/`lin`), lehnt `circ`-ohne-`via`, joint-`via`, joint-Ziel bei `lin` und Fremd-Key `velocity` bei `ptp` mit präzisen Meldungen ab; Build sauber. Demo `programs/program_krl_demo.yaml` (`ptp`+`lin`)
+- [x] **Pilz-Laufzeit bestätigt** (manuell gegen laufende move_group, 2026-06-13): `program_krl_demo.yaml` lief sichtbar über den Pilz-Pfad durch — „Generating PTP trajectory" (ptp) + „Generating LIN trajectory" (lin), beide Ausführungen SUCCEEDED, Programm beendet → State HOLD. (Segfault beim Ctrl-C-Teardown = bekannter Upstream-Bug, harmlos.) **Offen: circ/Blending** (Sequence-Modus)
 
-- [ ] Fehlerbehandlung im Executor (Planung schlägt fehl, Trajektorie schlägt fehl, Notaus während Ausführung)
-- [ ] Unit-Tests für YAML-Parser, Integrationstest für Executor (mit Sim oder ros2_control Mock)
-- [ ] README-Eintrag im Hauptrepo: kurze Bedienanleitung Run-Panel + Engineering-Workflow in VS Code
-- [ ] Roadmap im Haupt-README anpassen (geplantes Web-Interface durch "RViz-Run-Panel + VS-Code-Engineering" ersetzen)
+### Phase 8 — Robustheit & Polish 🚧 in Arbeit (2026-06-13)
+
+- [x] **Unit-Tests für den YAML-Parser** (`test/test_program_loader.cpp`, `ament_add_gtest`): 25 Tests, alle grün — Punkte (joint/pose, Quaternion-Norm, Frame, Keys, Namen, Version), beide Step-Vokabulare (`ptp`/`lin`/`circ`/`move_j`/`move_l`/`wait`, vel/acc/c_dis/via, Defaults), Reject-Pfade (circ-ohne-via, negatives c_dis, Skalierung außer Bereich, Fremd-Keys, leere Steps, …), `crossValidate`, `savePoints`-Round-Trip, `isValidPointName`, `Step::label`. Loader-Quelle wird in den Test einkompiliert (kein Link gegen den Node)
+- [x] README-Eintrag im Hauptrepo aktualisiert: Step-Vokabular-Tabelle (KRL + Legacy), beide Run-Modi (`blend`), `circ`-Nicht-Kollinearität, Blend-CLI-Beispiel
+- [x] Roadmap im Haupt-README angepasst: Programm-System als erledigt eingetragen (ersetzt für die Programmierung das geplante Web-Interface)
+- [x] Fehlerbehandlung Executor — Notaus während Ausführung: bereits robust (der Worker spiegelt `/robot_state`; nach `/e_stop` → DISABLED gibt der Sequence-/Move-Action-Result `!=SUCCEEDED` zurück, der Executor bricht sauber ab und fasst den Zustand **nicht** an). Planungs-/Ausführungsfehler liefern präzise Meldungen (inkl. CIRC-Kollinear-Hinweis)
+- [x] **Dry-Run / Simulationsmodus** (2026-06-13): additives Goal-Feld `dry_run`. `true` = ganzes Programm wird als Pilz-Sequenz **nur geplant** (`planning_options.plan_only`), die geplanten Trajektorien werden auf `/display_planned_path` publiziert und als RViz-Geist animiert (Dauer-getaktet, cancel-responsiv) — **der echte Arm bewegt sich nicht**, **kein** State-Wechsel (kein MOVEIT, Motoren bleiben wie sie sind), Waits werden übersprungen, läuft aus **jedem** Zustand. `circ`/Blending werden mitsimuliert (Sequence-Pfad). UI: Toggle „Simulate (dry run)" im ProgramPanel; Run ist im Dry-Run aus jedem Zustand freigegeben. Löst zugleich die „Vorschau zu schnell/überlappt"-Frage: Simulation = Geist allein, echter Lauf = man schaut auf den echten Arm
+- [ ] Integrationstest für Executor (mit Sim oder ros2_control Mock) — offen (braucht laufende move_group/Controller; v1 über die manuellen Hardware-Läufe abgedeckt)
 
 ### Phase 9 (optional) — Eigene VS-Code-Extension
 
@@ -285,3 +297,17 @@ zwischen Engineering und Operations:
 ## Nutzung dieses Dokuments
 
 Dieses File z.B. als `doku/PROGRAM_IDE_PLAN.md` ins Repo committen. Phasen sequenziell abarbeiten — jeweils Tasks und Acceptance der Phase in den Kickoff-Prompt einsetzen, dem Coding-Agent geben, nach Abschluss Checkboxen abhaken und Acceptance manuell verifizieren. README-Roadmap im Hauptrepo erst am Ende der relevanten Phasen anpassen.
+
+---
+
+## Anhang: Vokabular-Referenzen für spätere Erweiterungen
+
+Wenn ab Phase 7 das Step-Vokabular über die Move-Befehle hinaus erweitert wird (z.B. IO-Operationen, Wartebedingungen, Greifer-Befehle, Frame-/Tool-Konzepte), sind diese öffentlich dokumentierten Industrie-Sprachen als Inspiration sinnvoll:
+
+- **KUKA KRL** — Move-Befehle (`PTP`, `LIN`, `CIRC`), `WAIT FOR`, `OUT`, Frame-Konzepte (`$BASE`, `$TOOL`). Sehr gut dokumentiert in Schulungsmaterial und Lehrbüchern. **Direkter Nutzen für Pilz**, daher Hauptreferenz ab Phase 7.
+- **URScript** (Universal Robots) — Manual frei online verfügbar, breites Befehlsspektrum (Force-Modi, IO, Conditional Waits), pythonische Lesbarkeit. Gute Referenz wenn das Vokabular über reine Bewegungen hinaus wachsen soll.
+- **ABB RAPID** — Sehr ausgereift, breit dokumentiert; gute Referenz für fortgeschrittene Konzepte wie Speed-Data, Zone-Data, Tool-Data, falls das System mal ein "professionelles" Datentyp-Modell bekommen soll.
+
+**Nicht als Referenz nehmen**: KUKA Sunrise / LBR iiwa Java-API (RoboticsAPI). Proprietär, nur mit Sunrise.Workbench-Lizenz zugänglich. Der Java-Stack würde außerdem nicht in eine ROS-2-Architektur passen.
+
+**Rechtliche Grenze**: Befehlsnamen, Parameter-Konventionen und Konzepte zu übernehmen ist üblich und legitim — APIs sind in dieser Form nicht durch Copyright geschützt. Direkte Implementierungen, Originaldokumentation oder Code-Snippets aus proprietären Quellen NICHT 1:1 übernehmen.

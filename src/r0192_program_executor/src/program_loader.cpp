@@ -87,6 +87,16 @@ double scalingOrDefault(const YAML::Node & node, double fallback, const std::str
   return v;
 }
 
+// Blend radius c_dis (m): non-negative, 0 (the default) means "stop at point".
+double blendRadiusOrZero(const YAML::Node & node, const std::string & file,
+                         const std::string & where)
+{
+  if (!node) return 0.0;
+  const double v = asNumber(node, file, where, "c_dis");
+  if (v < 0.0) fail(file, where, "'c_dis' (blend radius, m) must be >= 0");
+  return v;
+}
+
 Point parseJointPoint(const YAML::Node & node, const std::string & file,
                       const std::string & where)
 {
@@ -225,6 +235,7 @@ Program loadProgram(const std::string & path)
     s.name = node["name"] ? node["name"].as<std::string>() : "";
 
     if (s.type == "move_j" || s.type == "move_l") {
+      // Legacy vocabulary (phase 1/6): velocity/acceleration keys, no blending.
       rejectUnknownKeys(node, {"type", "name", "target", "velocity", "acceleration"},
                         path, where);
       if (!node["target"] || node["target"].as<std::string>("").empty()) {
@@ -234,12 +245,33 @@ Program loadProgram(const std::string & path)
       if (!validName(s.target)) fail(path, where, "invalid target name '" + s.target + "'");
       s.velocity = scalingOrDefault(node["velocity"], def_vel, path, where, "velocity");
       s.acceleration = scalingOrDefault(node["acceleration"], def_acc, path, where, "acceleration");
+    } else if (s.type == "ptp" || s.type == "lin" || s.type == "circ") {
+      // KRL/Pilz vocabulary (phase 7): vel/acc scaling + optional c_dis blend
+      // radius. circ also takes a via (auxiliary) point.
+      std::set<std::string> allowed{"type", "name", "target", "vel", "acc", "c_dis"};
+      if (s.type == "circ") allowed.insert("via");
+      rejectUnknownKeys(node, allowed, path, where);
+      if (!node["target"] || node["target"].as<std::string>("").empty()) {
+        fail(path, where, "'target' (point name) missing or empty");
+      }
+      s.target = node["target"].as<std::string>();
+      if (!validName(s.target)) fail(path, where, "invalid target name '" + s.target + "'");
+      if (s.type == "circ") {
+        if (!node["via"] || node["via"].as<std::string>("").empty()) {
+          fail(path, where, "circ requires a 'via' (auxiliary point) name");
+        }
+        s.via = node["via"].as<std::string>();
+        if (!validName(s.via)) fail(path, where, "invalid via name '" + s.via + "'");
+      }
+      s.velocity = scalingOrDefault(node["vel"], def_vel, path, where, "vel");
+      s.acceleration = scalingOrDefault(node["acc"], def_acc, path, where, "acc");
+      s.c_dis = blendRadiusOrZero(node["c_dis"], path, where);
     } else if (s.type == "wait") {
       rejectUnknownKeys(node, {"type", "name", "duration"}, path, where);
       s.duration = asNumber(node["duration"], path, where, "duration");
       if (s.duration <= 0.0) fail(path, where, "'duration' must be > 0 (seconds)");
     } else {
-      fail(path, where, "'type' must be one of: move_j, move_l, wait");
+      fail(path, where, "'type' must be one of: move_j, move_l, ptp, lin, circ, wait");
     }
     prog.steps.push_back(std::move(s));
   }
@@ -297,17 +329,38 @@ void savePoints(const std::string & path, const PointMap & points)
 
 void crossValidate(const Program & program, const PointMap & points)
 {
+  // Cartesian moves (line/arc) need pose-type points; joint-space moves accept
+  // either. move_l ~ lin, move_j ~ ptp.
+  auto requiresPose = [](const std::string & type) {
+    return type == "move_l" || type == "lin" || type == "circ";
+  };
+  auto isMove = [](const std::string & type) {
+    return type == "move_j" || type == "move_l" ||
+           type == "ptp" || type == "lin" || type == "circ";
+  };
+
   for (std::size_t i = 0; i < program.steps.size(); ++i) {
     const auto & s = program.steps[i];
     const std::string where = "step " + std::to_string(i + 1) + " (" + s.type + ")";
-    if (s.type != "move_j" && s.type != "move_l") continue;
+    if (!isMove(s.type)) continue;
+
     const auto it = points.find(s.target);
     if (it == points.end()) {
       throw std::runtime_error(where + ": references unknown point '" + s.target + "'");
     }
-    if (s.type == "move_l" && it->second.type != Point::Type::kPose) {
-      throw std::runtime_error(where + ": move_l requires a pose-type point ('" +
+    if (requiresPose(s.type) && it->second.type != Point::Type::kPose) {
+      throw std::runtime_error(where + ": " + s.type + " requires a pose-type point ('" +
                                s.target + "' is joint-type)");
+    }
+    if (s.type == "circ") {
+      const auto via = points.find(s.via);
+      if (via == points.end()) {
+        throw std::runtime_error(where + ": references unknown via point '" + s.via + "'");
+      }
+      if (via->second.type != Point::Type::kPose) {
+        throw std::runtime_error(where + ": circ via point '" + s.via +
+                                 "' must be pose-type (is joint-type)");
+      }
     }
   }
 }

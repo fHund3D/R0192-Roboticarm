@@ -154,6 +154,22 @@ ProgramPanel::ProgramPanel(QWidget * parent)
   btn_row->addWidget(stop_btn_);
   root->addLayout(btn_row);
 
+  // --- Run mode: stop at each point vs. Pilz "blend through" ---
+  blend_check_ = new QCheckBox("Blend through (Pilz)");
+  blend_check_->setToolTip(
+    "Off: stop at each point (each move planned separately).\n"
+    "On: consecutive moves run as one Pilz sequence with c_dis blending. "
+    "Required for circ steps.");
+  root->addWidget(blend_check_);
+
+  // --- Simulate (dry run): preview only, the real arm does not move ---
+  dry_run_check_ = new QCheckBox("Simulate (dry run) — preview only, arm does not move");
+  dry_run_check_->setToolTip(
+    "On: plan the whole program and animate it as the RViz ghost only — the real "
+    "arm stays put and the robot state is untouched (works from any state).\n"
+    "Off: run on the real arm.");
+  root->addWidget(dry_run_check_);
+
   // --- Speed override (applies from the NEXT step; mirrors /program_override) ---
   auto * override_row = new QHBoxLayout;
   override_row->addWidget(new QLabel("Override"));
@@ -218,6 +234,8 @@ ProgramPanel::ProgramPanel(QWidget * parent)
   connect(file_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
           this, &ProgramPanel::onFileSelected);
   connect(run_btn_, &QPushButton::clicked, this, &ProgramPanel::onRunClicked);
+  // Dry run relaxes the state gating (preview from any state) — re-evaluate Run.
+  connect(dry_run_check_, &QCheckBox::toggled, this, [this](bool) { updateUiForState(); });
   connect(pause_btn_, &QPushButton::clicked, this, &ProgramPanel::onPauseResumeClicked);
   connect(stop_btn_, &QPushButton::clicked, this, &ProgramPanel::onStopClicked);
   connect(override_slider_, &QSlider::valueChanged, this, &ProgramPanel::onOverrideChanged);
@@ -434,6 +452,8 @@ void ProgramPanel::onRunClicked()
 
   ExecuteProgram::Goal goal;
   goal.program_path = path.toStdString();
+  goal.blend = blend_check_->isChecked();
+  goal.dry_run = dry_run_check_->isChecked();
 
   rclcpp_action::Client<ExecuteProgram>::SendGoalOptions options;
   options.goal_response_callback = [this](const GoalHandle::SharedPtr & gh) {
@@ -683,21 +703,26 @@ void ProgramPanel::updateUiForState()
   using RS = r0192_interfaces::msg::RobotState;
   state_label_->setText(QString("State: %1").arg(stateName(robot_state_)));
 
-  // Run needs a selected file, an idle executor and a state from which the
-  // executor can enter MOVEIT (HOLD; MOVEIT itself is a no-op transition).
-  const bool startable =
-    (robot_state_ == RS::HOLD || robot_state_ == RS::MOVEIT);
+  // A real run needs a state from which the executor can enter MOVEIT (HOLD;
+  // MOVEIT itself is a no-op transition). A dry run only plans + animates, so it
+  // works from any state (the arm never moves).
+  const bool dry = dry_run_check_->isChecked();
+  const bool startable = dry || robot_state_ == RS::HOLD || robot_state_ == RS::MOVEIT;
   run_btn_->setEnabled(!running_ && startable && !selectedFilePath().isEmpty());
-  run_btn_->setToolTip(startable
-                         ? "Execute the selected program (HOLD -> MOVEIT -> HOLD)"
-                         : "Enable the servos first (state must be HOLD)");
+  run_btn_->setToolTip(
+    startable
+      ? (dry ? "Simulate the program — ghost preview only, the arm does not move"
+             : "Execute the selected program (HOLD -> MOVEIT -> HOLD)")
+      : "Enable the servos first (state must be HOLD) — or tick Simulate to preview");
   pause_btn_->setEnabled(running_);
   stop_btn_->setEnabled(running_);
 
-  // Switching files mid-run would desync the step highlight.
+  // Switching files or the run mode mid-run would desync the step highlight.
   file_combo_->setEnabled(!running_);
   browse_btn_->setEnabled(!running_);
   refresh_btn_->setEnabled(!running_);
+  blend_check_->setEnabled(!running_);
+  dry_run_check_->setEnabled(!running_);
 
   // Teaching captures the current position — only meaningful from a defined
   // resting state (HOLD after moves/jog, or directly while jogging).

@@ -7,6 +7,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QCheckBox>
 #include <QPushButton>
 #include <QSlider>
 
@@ -109,6 +110,8 @@ private:
   QPushButton * run_btn_{nullptr};
   QPushButton * pause_btn_{nullptr};
   QPushButton * stop_btn_{nullptr};
+  QCheckBox * blend_check_{nullptr};
+  QCheckBox * dry_run_check_{nullptr};
   QSlider * override_slider_{nullptr};
   QLabel * override_value_{nullptr};
   QLabel * progress_label_{nullptr};

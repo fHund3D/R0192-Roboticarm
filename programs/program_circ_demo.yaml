@@ -1,0 +1,26 @@
+# Pilz CIRC demo (phase 7) — TEMPLATE: run with blend=true (circ needs the
+# sequence mode). An arc moves the EE through the via (interim) point to the
+# target. REQUIREMENTS for a valid arc:
+#   - start (EE after the ptp), via and target must NOT be collinear — three
+#     collinear points have no unique circle plane (Pilz: "Plane for motion is
+#     not properly defined").
+#   - all three reachable, wrist away from the joint_5 = 0 singularity.
+# The pose points below are PLACEHOLDERS that fail this (roughly collinear).
+# Teach three real, non-collinear arc points on your cell (Jog -> Teach as pose)
+# and reference them here.
+#   ros2 action send_goal /execute_program r0192_interfaces/action/ExecuteProgram \
+#     "{program_path: 'program_circ_demo.yaml', blend: true}"
+version: 1
+name: "CIRC demo (template)"
+description: "ptp to a bent-wrist start, then a circular arc via p_test to lin_bent"
+defaults:
+  velocity: 0.2
+  acceleration: 0.2
+steps:
+  - type: ptp
+    target: bent_a
+  - type: circ
+    via: p_test
+    target: lin_bent
+    vel: 0.1
+    acc: 0.1

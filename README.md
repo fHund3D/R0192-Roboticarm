@@ -25,6 +25,7 @@ Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf ein
 - [x] **RViz Jog-Panel / Teach-Pendant** (`r0192_rviz_plugins`) über MoveIt Servo: 3 Modi (Joints / Cartesian / Tool), Speed-Slider, Press-and-Hold
 - [x] **Zentrale Zustandsmaschine** (`robot_state_manager` + `r0192_interfaces`): 5 exklusive Zustände DISABLED / HOLD / JOG / MOVEIT / HOMING via `/set_robot_state` + `/robot_state`
 - [x] **Notaus** (`/e_stop`) — erzwingt DISABLED aus jedem Zustand, latchender Treiber-Torque-Cut (GDS68 `Estop()`, RS05 stop) + Treiber-Reset (`/robot_reset` → `Clear_Errors`) zur Wiederinbetriebnahme
+- [x] **Programm-System** (`r0192_program_executor`) — industrielle Trennung Engineering (YAML in VS Code, JSON-Schema-Validierung) ↔ Operations (RViz-Run-Panel „R0192 Program"). Action `/execute_program`, KRL/Pilz-Steps `ptp`/`lin`/`circ` (+ Legacy `move_j`/`move_l`/`wait`), Stop-at-each-point **und** Pilz-Blend-Modus mit `c_dis`, Pause/Resume/Speed-Override, Punkt-Teach. Ersetzt für die Programmierung das ursprünglich geplante Web-Interface
 - [ ] **Aktuell: Hardware-Test Homing** — Arduino + Magnet an Achse 1 anschließen und end-to-end validieren
 - [ ] **Aktuell: Web-Interface** (`r0192_remote`) — eigenes Bedienpanel auf Basis von `/set_robot_state` + `/robot_state`
 - [ ] Echter Hardware-Notaus (laufenden Homing-Sweep abbrechen, ggf. Power-Cut/Schütz statt nur Treiber-Torque-Aus)
@@ -196,19 +197,40 @@ Das Projekt folgt der industriellen Trennung **Engineering ↔ Operations** (sie
 ```
 programs/
 ├── points.yaml          # Punktdatenbank: benannte Ziele (joint / pose)
-└── program_*.yaml       # Programme: Steps move_j / move_l / wait
+└── program_*.yaml       # Programme: Steps ptp / lin / circ (KRL/Pilz) + wait
 doku/schemas/            # JSON Schemas = Source of Truth (VS Code + Loader)
 ```
 
-**Schreiben in VS Code:** Die empfohlene Extension `redhat.vscode-yaml` (siehe `.vscode/extensions.json`) validiert beide Dateitypen live gegen die Schemas in `doku/schemas/` (Mapping in `.vscode/settings.json`): ungültige Step-Typen/Felder werden markiert, gültige Felder autocompleted, Hover zeigt Doku. Snippets: `r0192-program` (neues Programm), `move_j`, `move_l`, `wait`, `point-joint`, `point-pose`.
+**Schreiben in VS Code:** Die empfohlene Extension `redhat.vscode-yaml` (siehe `.vscode/extensions.json`) validiert beide Dateitypen live gegen die Schemas in `doku/schemas/` (Mapping in `.vscode/settings.json`): ungültige Step-Typen/Felder werden markiert, gültige Felder autocompleted, Hover zeigt Doku. Snippets: `r0192-program` (neues Programm), `ptp`, `lin`, `circ`, `wait`, `point-joint`, `point-pose` (plus `move_j`/`move_l` als deprecated Aliase).
 
-Wichtige Regeln: Programme referenzieren Punkte **nur per Name** aus `points.yaml` (keine Inline-Posen); `velocity`/`acceleration` sind **MoveIt-Skalierungsfaktoren (0, 1]**, keine physikalischen Geschwindigkeiten (kommt mit dem Pilz-Planner).
+**Step-Vokabular:** Zwei koexistierende Sätze, beide gültig:
+
+| Step | Bewegung | Parameter |
+|------|----------|-----------|
+| `ptp` | Punkt-zu-Punkt (Pilz PTP), joint- oder pose-Ziel | `vel`, `acc`, `c_dis` |
+| `lin` | Kartesische Gerade (Pilz LIN), nur pose-Ziel | `vel`, `acc`, `c_dis` |
+| `circ` | Kreisbogen (Pilz CIRC) über `via`-Punkt zum Ziel, beide pose | `via`, `vel`, `acc`, `c_dis` |
+| `wait` | Pause (Sekunden) | `duration` |
+| `move_j` / `move_l` | **deprecated** — Legacy OMPL / KDL, weiterhin lauffähig | `velocity`, `acceleration` |
+
+Wichtige Regeln: Programme referenzieren Punkte **nur per Name** aus `points.yaml` (keine Inline-Posen); `vel`/`acc` (bzw. `velocity`/`acceleration`) sind **MoveIt-Skalierungsfaktoren (0, 1]**, keine physikalischen Geschwindigkeiten; `c_dis` ist der Blend-Radius in Metern (0 = Halt am Punkt), nur im Blend-Modus wirksam.
+
+**Zwei Run-Modi** (Goal-Feld `blend`, im Run-Panel der Toggle „Blend through (Pilz)"):
+- `blend: false` (Default) — *Stop at each point*: jeder Move einzeln geplant/ausgeführt, `c_dis` ignoriert, `circ` abgelehnt.
+- `blend: true` — *Blend through*: zusammenhängende Move-Steps gehen als **eine** Pilz-`MotionSequenceRequest` an `/sequence_move_group` (`blend_radius = c_dis`, letztes Segment hält). Pflicht für `circ`. Für `circ` müssen Start, `via` und Ziel **nicht-kollinear** sein (sonst „Plane for motion is not properly defined"). `wait`-Steps trennen eine Sequenz.
+
+**Simulationsmodus** (Goal-Feld `dry_run`, im Run-Panel der Toggle „Simulate (dry run)"): `dry_run: true` plant das ganze Programm und animiert es **nur als RViz-Geist** (`/display_planned_path`) — der echte Arm bewegt sich **nicht**, der Roboterzustand bleibt unangetastet (kein MOVEIT, Motoren bleiben aus/an wie sie sind), `wait`-Steps werden übersprungen. Läuft aus **jedem** Zustand und ist die saubere Vorschau vor dem echten Lauf. Häkchen raus → echter Lauf auf dem Arm.
 
 **Ausführen** (Arm muss in `HOLD` sein; der Executor schaltet selbst `HOLD → MOVEIT → HOLD`):
 
 ```bash
+# Stop at each point (Default)
 ros2 action send_goal /execute_program \
   r0192_interfaces/action/ExecuteProgram "{program_path: program_demo.yaml}" -f
+
+# Blend through (Pilz-Sequenz mit c_dis-Blending; Pflicht für circ)
+ros2 action send_goal /execute_program \
+  r0192_interfaces/action/ExecuteProgram "{program_path: program_blend_demo.yaml, blend: true}" -f
 ```
 
 Relative Pfade werden gegen `programs/` aufgelöst (Parameter `programs_dir`/`points_file` des Executor-Nodes). Action-Cancel stoppt die laufende Bewegung (`MoveGroupInterface::stop()`) und kehrt sauber nach `HOLD` zurück. Nach einem Notaus (`/e_stop`) fasst der Executor den Zustand nicht an — die Wiederinbetriebnahme läuft wie immer über `/robot_reset` + `/set_robot_state`.
