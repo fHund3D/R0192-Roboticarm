@@ -5,7 +5,7 @@
 
 Der **R0192** ist ein hochpräziser 6-Achsen-Roboterarm, der auf einem hybriden System aus SteadyWin- und RobStride-Aktuatoren basiert. Dieses Repository enthält das vollständige ROS 2 Jazzy-Ökosystem für die CAN-Bus-Kommunikation, die Hardware-Abstraktion, die Bahnplanung via MoveIt 2 sowie ein Arduino-basiertes Hall-Sensor-Homing.
 
-Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf einem **Raspberry Pi 5**. Eine zentrale **Betriebszustands-Maschine** (`robot_state_manager`) koordiniert Motor-Enable, Jogging, MoveIt-Ausführung, Homing und Notaus als sich gegenseitig ausschließende Zustände. Bedient wird der Arm aktuell über ein **RViz-Jog-Panel** (Teach-Pendant); als Produktiv-Bedienpanel ist ein eigenes **Web-Interface** (`r0192_remote`) geplant. Foxglove Studio und RViz dienen als Debug-Werkzeuge. Achsen 1 und 4 sind vollständig in Betrieb; die restlichen Achsen werden nach und nach nachgerüstet.
+Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf einem **Raspberry Pi 5**. Eine zentrale **Betriebszustands-Maschine** (`robot_state_manager`) koordiniert Motor-Enable, Jogging, MoveIt-Ausführung, Homing und Notaus als sich gegenseitig ausschließende Zustände. Bedient wird der Arm über ein **RViz-Jog-Panel**, das gezielt zu einem Teach-Pendant-Ersatz ausgebaut wird (später ggf. durch ein echtes Hardware-Teach-Pendant ersetzbar); ein **Web-Interface** (`r0192_remote`) bleibt eine optionale Zukunftsoption. Foxglove Studio spielt nur eine kleine Rolle zum Debuggen. **Alle sechs Aktuatoren sind inzwischen beschafft und montagebereit**; softwareseitig sind die GDS68- und RS05-Antriebsstränge an je einer Achse verifiziert, die Inbetriebnahme der übrigen Achsen läuft.
 
 ---
 
@@ -27,8 +27,8 @@ Die gesamte Steuerungslogik (MoveIt 2, ros2_control, CAN-Treiber) läuft auf ein
 - [x] **Notaus** (`/e_stop`) — erzwingt DISABLED aus jedem Zustand, latchender Treiber-Torque-Cut (GDS68 `Estop()`, RS05 stop) + Treiber-Reset (`/robot_reset` → `Clear_Errors`) zur Wiederinbetriebnahme
 - [x] **Programm-System** (`r0192_program_executor`) — industrielle Trennung Engineering (YAML in VS Code, JSON-Schema-Validierung) ↔ Operations (RViz-Run-Panel „R0192 Program"). Action `/execute_program`, KRL/Pilz-Steps `ptp`/`lin`/`circ` (+ Legacy `move_j`/`move_l`/`wait`), Stop-at-each-point **und** Pilz-Blend-Modus mit `c_dis`, Pause/Resume/Speed-Override, Punkt-Teach. Ersetzt für die Programmierung das ursprünglich geplante Web-Interface
 - [ ] **Aktuell: Hardware-Test Homing** — Arduino + Magnet an Achse 1 anschließen und end-to-end validieren
-- [ ] **Aktuell: Web-Interface** (`r0192_remote`) — eigenes Bedienpanel auf Basis von `/set_robot_state` + `/robot_state`
-- [ ] Echter Hardware-Notaus (laufenden Homing-Sweep abbrechen, ggf. Power-Cut/Schütz statt nur Treiber-Torque-Aus)
+- [ ] **Aktuell: RViz-Jog-Panel zum Teach-Pendant ausbauen** — bedienerfreundlich möglichst nah an ein echtes Teach-Pendant (später ggf. durch ein Hardware-Pendant ersetzbar); ein Web-Interface (`r0192_remote`) bleibt optionale Zukunftsoption
+- [ ] **Hardware-Notaus über Schütz/Relay** — schaltet die 48-V-Versorgung hart ab (zusätzlich zum latchenden Treiber-Torque-Cut); laufenden Homing-Sweep abbrechen
 - [ ] Echtzeit-Optimierung (RT-Kernel & CPU-Shielding auf RPi 5)
 
 #### Projektstruktur
@@ -98,10 +98,11 @@ Der `robot_state_manager` ist die *Single Source of Truth* für den Betriebszust
 ### Hardware & Mechanik
 - [x] Kinematische Auslegung & Motorauswahl
 - [x] Grobes mechanisches Design (CAD)
-- [x] Beschaffung Primär-Aktuatoren (GIM6010 & RSO5)
+- [x] Beschaffung **aller 6 Aktuatoren** abgeschlossen (4× SteadyWin GIM @ GDS68, 2× RobStride RS05)
 - [ ] Detail-Konstruktion & Optimierung der Steifigkeit
 - [ ] Full-Scale 3D-Druck Prototyping (PLA/PETG)
 - [ ] **Geplant:** Substitution kritischer Strukturbauteile durch CNC-Aluminium
+- [ ] **Steuerungs- & Versorgungsschrank** (Item-/Profil-5-Alu, 20×20) — separates Gehäuse für beide Netzteile, ODrive Regen Clamp & Raspberry Pi als externe Steuerung/Stromversorgung des Arms
 
 ### Elektronik (PCB Design)
 - [x] Schaltungskonzept & Leistungsplanung
@@ -116,16 +117,18 @@ Der `robot_state_manager` ist die *Single Source of Truth* für den Betriebszust
 
 ### Achskonfiguration
 
-> **Aktuell verfügbare Hardware:** Achse 1 (GIM6010-8) und Achse 4 (RS05). Die restlichen Motoren werden zu einem späteren Zeitpunkt nachgekauft.
+> **Alle sechs Aktuatoren sind beschafft.** Achsen 1–4 nutzen SteadyWin-GIM-Motoren am **GDS68**-Treiber (11-bit-Standard-CAN), Achsen 5–6 RobStride **RS05** (29-bit-Extended-CAN). Achse 4 wurde von RS05 auf einen **GIM6010-8** umgestellt (24 V, ohne Bremse — der zuerst beschaffte Motor); Achsen 1–3 sind die 48-V-Varianten **mit Bremse** — sie legen den größten Weg zurück und tragen die größte Last; die Bremse hält sie stromlos in Position und verhindert ein Zusammenfallen des Arms ohne Strom. Achsen 5–6 sind RS05 @ 48 V.
 
-| Achse | Motor | Treiber | Besonderheit | Lagerung | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Axis 1** | [GIM6010-8](https://steadywin.cn/en/pd.jsp?id=116&fromColId=0#_pp=0_757_3) | GDS68 | High Torque Base | [Kreuzlager RU66](https://de.aliexpress.com/item/1005008094900625.html) | ✅ Vorhanden |
-| **Axis 2** | [GIM8108-8](https://steadywin.cn/en/pd.jsp?id=133&fromColId=0#_pp=0_757_3) | GDS68 | Hauptausleger | [Kreuzlager RU42](https://de.aliexpress.com/item/1005008094900625.html) | 🔜 Geplant |
-| **Axis 3** | [GIM6010-8](https://steadywin.cn/en/pd.jsp?id=116&fromColId=0#_pp=0_757_3) | GDS68 | Ellenbogen | - | 🔜 Geplant |
-| **Axis 4** | [RS05](https://github.com/RobStride/Product_Information/tree/main/Product%20Literature/RS05) | Intern | RobStride Dynamics | - | ✅ Vorhanden |
-| **Axis 5** | [RS05](https://github.com/RobStride/Product_Information/tree/main/Product%20Literature/RS05) | Intern | 1:2 Übersetzung (Torque) | [Kreuzlager RU28](https://de.aliexpress.com/item/1005008094900625.html) | 🔜 Geplant |
-| **Axis 6** | [RS05](https://github.com/RobStride/Product_Information/tree/main/Product%20Literature/RS05) | Intern | Endeffektor Rotation | - | 🔜 Geplant |
+| Achse | Motor | Treiber | Spannung / Bremse | Besonderheit | Lagerung | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Axis 1** | [GIM6010-8](https://openelab.de/products/steadywin-gim6010-8-planetengetriebemotor?variant=54009308873041) | GDS68 | 48 V · mit Bremse | High Torque Base | [Kreuzlager RU66](https://de.aliexpress.com/item/1005008094900625.html) | ✅ Vorhanden |
+| **Axis 2** | [GIM8108-8](https://openelab.de/products/steadywin-gim8108-8?variant=54041139609937) | GDS68 | 48 V · mit Bremse | Hauptausleger | [Kreuzlager RU42](https://de.aliexpress.com/item/1005008094900625.html) | ✅ Vorhanden |
+| **Axis 3** | [GIM6010-8](https://openelab.de/products/steadywin-gim6010-8-planetengetriebemotor?variant=54009308873041) | GDS68 | 48 V · mit Bremse | Ellenbogen | - | ✅ Vorhanden |
+| **Axis 4** | [GIM6010-8](https://openelab.de/products/steadywin-gim6010-8-planetengetriebemotor?variant=54009308873041) | GDS68 | 24 V · ohne Bremse | Zuerst beschaffter Motor (ersetzt RS05) | - | ✅ Vorhanden |
+| **Axis 5** | [RS05](https://openelab.de/products/robstride05-qdd-55nm-joint-motor-robotik?variant=52331724931409) | Intern | 48 V | 1:2 Übersetzung (Torque) | [Kreuzlager RU28](https://de.aliexpress.com/item/1005008094900625.html) | ✅ Vorhanden |
+| **Axis 6** | [RS05](https://openelab.de/products/robstride05-qdd-55nm-joint-motor-robotik?variant=52331724931409) | Intern | 48 V | Endeffektor Rotation | - | ✅ Vorhanden |
+
+> **Code-Hinweis:** Achse 4 ist jetzt ein GIM6010-8 am **GDS68**-Treiber (11-bit-Standard-CAN) statt bisher RS05 (29-bit-Extended-CAN). Im Hardware-Interface/Treiber-Mapping ist Achse 4 noch der RS05-Zuordnung zugewiesen — die Code-Migration steht aus.
 
 
 
@@ -134,8 +137,10 @@ Der `robot_state_manager` ist die *Single Source of Truth* für den Betriebszust
 * **CAN-Interface:** MKS CANable Pro (Isoliert), SocketCAN (`can0`)
 * **CAN-Bitrate:** 1 Mbit/s (info: 500 kbit/s GDS68 Werkseinstellung)
 * **Energieversorgung:**
-    * Bus-Spannung: 48V (MeanWell LRS-600N2)
-    * Logik-Spannung: 5V (MeanWell LRS-50)
+    * Bus-Spannung: 48 V — MeanWell LRS-600-48
+    * Logik-Spannung: 5 V — MeanWell LRS-50
+    * Regen-/Bremsenergie: [ODrive Regen Clamp](https://eu.odriverobotics.com/shop/odrive-regen-clamp) am 48-V-Bus — verhindert Überspannung beim Abbremsen/Rückspeisen der Motoren
+* **Steuerungs- & Versorgungsschrank:** separates Gehäuse aus Item-/Profil-5-Aluprofilen (20×20) — nimmt beide Netzteile, die Regen Clamp und den Raspberry Pi auf und bildet die externe Steuerung & Stromversorgung des Arms
 * **Homing-Sensorik:** TLE4905L Hall-Effekt-Sensoren (je 1 Arduino Uno R3 + MCP2515 CAN-Transceiver pro Achse)
 * **Schnittstellen:** XT60PW (Power-Bus), XT30PW (Motor-Abgriff), XH-2A (CAN-Bus)
 
