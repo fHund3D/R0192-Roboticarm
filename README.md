@@ -145,6 +145,28 @@ Der `robot_state_manager` ist die *Single Source of Truth* für den Betriebszust
 * **Homing-Sensorik:** TLE4905L Hall-Effekt-Sensoren (je 1 Arduino Uno R3 + MCP2515 CAN-Transceiver pro Achse)
 * **Schnittstellen:** XT60PW (Power-Bus), XT30PW (Motor-Abgriff), XH-2A (CAN-Bus)
 
+#### Verkabelung
+
+Auslegung mit dem **200%-Kurzzeit-Peak** der Netzteile (48 V: 12,5 A Dauer → ~25 A Peak). Cu hat thermische Trägheit — der Peak ist eher für die **Schutzorgane** (träge Sicherung) relevant als für den Querschnitt.
+
+| Kreis | Querschnitt | Kabeltyp |
+| :--- | :--- | :--- |
+| **48 V Trunk** (Box → Arm-Basis) | 2,5 mm² (≈14 AWG) | Silikon-Litze, feindrähtig (Klasse 5/6) |
+| 48 V → Motor (Abzweig) | 1,0–1,5 mm² | Silikon-Litze (Achse 2 / GIM8108 → 1,5 mm²) |
+| **5 V Logik** | 1,0 mm² (≈18 AWG) | Silikon-Litze (Querschnitt wegen Spannungsabfall, nicht Strom) |
+| Bremse (Achsen 1–3, falls separat) | 0,5–0,75 mm² | Silikon-Litze (wenig Strom, kurzer Inrush) |
+| **CAN** | 2×2×0,34 mm² | geschirmte, verdrillte CAN-Busleitung, **120 Ω** |
+
+**Bewegung an den Gelenken** ist entscheidend für die Lebensdauer:
+
+- **Drehachsen 1, 4, 6** (tordieren) → **torsionsfähige Roboterleitung** (z. B. Lapp ÖLFLEX ROBOT, igus chainflex), keine reine Biege-Schleppkettenleitung.
+- **Biegeachsen 2, 3, 5** → Schleppketten-/Dauerbiege-Leitung genügt.
+- Innerhalb eines Glieds (unbewegt) → einfache Silikon-Litze.
+
+**CAN-Hinweise:** dediziertes 120-Ω-Buskabel (nicht zwei Adern aus dem Powerkabel), `CAN_GND` als Referenz mitführen, Schirm **steuerboxseitig** auf PE/Metallgehäuse (Han-E-Stecker); 48 V und CAN nicht ungeschirmt im selben Mantel bündeln.
+
+**Materialkosten (grob, DE-Retail):** Silikon-Litze für Power/5V/Bremse ist günstig (~30–50 €), CAN-Leitung ~15–25 €. Kostentreiber ist die Torsions-/Roboterleitung an den Drehachsen. Gesamt: **~60–100 €** maker-pragmatisch (Silikon-Litze überall), **~120–220 €** mit Marken-Roboterleitung an den Gelenken; dazu Kleinkram (Aderendhülsen, Schrumpfschlauch, Gewebeschlauch) ~25–50 €.
+
 > **Hinweis zu URDF-Werten:** Alle Gelenkgrenzen, Trägheitsmomente und Schwerpunkte in der URDF sind derzeit Platzhalter und werden nach Abschluss des CAD-Designs mit realen Werten befüllt.
 
 ---
