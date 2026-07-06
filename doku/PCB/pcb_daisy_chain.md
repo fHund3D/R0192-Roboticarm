@@ -17,9 +17,9 @@ Damit ist das Board die Hardware-Entsprechung zum Software-Homing-Node (`microco
 | **48 V-Bus-Durchschleife** | Eingang → Ausgang (Daisy Chain) + Abzweig zum Motor |
 | **5 V-Bus-Durchschleife** | Eingang → Ausgang (Daisy Chain), versorgt Logik |
 | **CAN-Bus-Durchschleife** | CAN_H / CAN_L von Node zu Node, Termination jumperbar |
-| **3,3 V-Erzeugung** | AP2112K-3.3 LDO aus 5 V, versorgt ESP32-Peripherie & Logik |
-| **MCU** | XIAO-ESP32-S3 (gesockelt, tauschbar), CAN via TWAI |
-| **CAN-Transceiver** | TJA1051T, 3,3 V-seitig, S-Pin auf GND (Normalbetrieb) |
+| **3,3 V-Erzeugung** | AP2112K-3.3 LDO aus 5 V, versorgt XIAO (3V3-Pin), Transceiver & Logik |
+| **MCU** | XIAO-ESP32-S3 (gesockelt, tauschbar), CAN via TWAI, versorgt über 3V3-Pin |
+| **CAN-Transceiver** | SN65HVD230, nativer 3,3-V-CAN-Transceiver, Rs auf GND (High-Speed) |
 | **Homing-Sensor** | TLE4905L Hall (Open-Collector), Pegelwandlung via Pull-up |
 | **Erweiterung** | Freie GPIOs (D0/D1/D3) + 3,3 V + 5 V auf Stiftleiste |
 
@@ -28,12 +28,24 @@ Damit ist das Board die Hardware-Entsprechung zum Software-Homing-Node (`microco
 ## Schlüssel-Designentscheidungen
 
 ### MCP2515 eliminiert
-Der ESP32-S3 hat einen integrierten CAN-Controller (TWAI). Dadurch entfallen MCP2515, Quarz, 2× 22 pF und der SPI-Pull-up gegenüber dem Arduino-Prototyp. Der TJA1051T bleibt als physischer Transceiver zwingend erforderlich. Die TX/RX-Pins des ESP32 (D6_TX / D7_RX) werden direkt mit dem TJA1051T verbunden.
+Der ESP32-S3 hat einen integrierten CAN-Controller (TWAI). Dadurch entfallen MCP2515, Quarz, 2× 22 pF und der SPI-Pull-up gegenüber dem Arduino-Prototyp. Der SN65HVD230 bleibt als physischer Transceiver zwingend erforderlich. Die TX/RX-Pins des ESP32 (D6_TX / D7_RX) werden direkt mit dem SN65HVD230 (D / R) verbunden.
 
 > **Firmware-Konsequenz:** Umstieg von `autowp/mcp2515` auf `ESP32-TWAI-CAN` bzw. natives `driver/twai.h`. Das CAN-Protokoll (achsenspezifische CAN-ID, `CMD_ARM` / `RSP_DETECTED` / `RSP_ERROR`) bleibt unverändert. TX/RX-Pin-Zuordnung muss zwischen PCB und Firmware konsistent dokumentiert sein.
 
-### Logik auf 3,3 V — TJA1051 als automatische Pegelanpassung
-Der TJA1051T wird 3,3 V-seitig versorgt. Damit liegen alle Logikpegel (CAN-TX/RX, Sensor) auf 3,3 V → kein Logik-Level-Mismatch (war ein Befund aus dem früheren PCB-Review). Die 3,3 V werden lokal per AP2112K-3.3 aus der durchgeschleiften 5 V-Schiene erzeugt; es ist **kein** 48 V→3,3 V-Wandler nötig, da 5 V ohnehin über den Tether mitgeführt wird (Quelle: MeanWell LRS-50).
+### Echter 3,3-V-Transceiver: SN65HVD230 statt TJA1051
+Der **SN65HVD230** ist ein **nativer 3,3-V-CAN-Transceiver** (V_CC = 3,3 V, Logikpegel referenzieren direkt 3,3 V, spezifiziert bis 1 Mbit/s). Damit liegt der **gesamte** Transceiver auf 3,3 V — passend zum XIAO-ESP32-S3, der mit 3,3-V-Ausgangssignalen arbeitet. Kein 5-V-Pegel, keine Pegelwandlung nötig.
+
+> **Korrektur gegenüber früherem Stand:** Geplant war ein **TJA1051T** „3,3-V-seitig versorgt". Der klassische TJA1051(T) ist aber ein **5-V-Transceiver** (V_CC 4,5–5,5 V) und referenziert seine Logikpegel an V_CC — bei 3,3 V V_CC erzeugt er keine spec-konformen CAN-Pegel, und die Plain-Variante hat keinen separaten Logik-Pin. Korrekt wären entweder TJA1051T**/3** (V_CC = 5 V, VIO = 3,3 V) oder eben der **SN65HVD230** (komplett 3,3 V). Gewählt: **SN65HVD230** — single-rail 3,3 V, keine 5-V-Referenz am Transceiver.
+
+**Pin-Belegung SN65HVD230:**
+
+- **D** (Pin 1, TXD) ← ESP32 D6_TX, **R** (Pin 4, RXD) → ESP32 D7_RX
+- **V_CC** (Pin 3) = 3,3 V, **GND** (Pin 2)
+- **Rs** (Pin 8) **auf GND** → High-Speed-Mode (nötig für 1 Mbit/s; nicht floaten lassen)
+- **Vref** (Pin 5, V_CC/2-Ausgang) **unbenutzt → NC** (NC-Flag im Schaltplan)
+- **CANH** (Pin 7) / **CANL** (Pin 6) → Bus
+
+Die 3,3 V werden lokal per AP2112K-3.3 aus der durchgeschleiften 5 V-Schiene erzeugt; es ist **kein** 48 V→3,3 V-Wandler nötig, da 5 V ohnehin über den Tether mitgeführt wird (Quelle: MeanWell LRS-50).
 
 ### TLE4905L — Open-Collector, Versorgung 5 V, Pull-up auf 3,3 V
 Der TLE4905L benötigt mindestens 3,8 V Versorgung und wird daher aus 5 V betrieben. Sein Open-Collector-Ausgang wird über einen Pull-up (R1, 10 kΩ) auf **3,3 V** gezogen — der High-Pegel wird vom Pull-up bestimmt, nicht von der Sensorversorgung. Das ergibt einen für den ESP32-GPIO sicheren 3,3 V-Pegel und vermeidet, den GPIO mit 5 V zu beschädigen. Entkopplung: 100 nF (C1) direkt am Sensor.
@@ -46,6 +58,13 @@ CAN-Termination (120 Ω) darf **nur an den beiden physischen Busenden** sitzen, 
 ### ESP32 gesockelt
 Der XIAO-ESP32-S3 wird über Buchsenleisten (J12–J15) aufgesteckt, nicht verlötet → einfacher Austausch bei Defekt. Footprints müssen exakt zum XIAO-Rastermaß passen.
 
+### XIAO-Versorgung über den 3V3-Pin (single-rail 3,3 V)
+Der XIAO wird **direkt über den 3V3-Pin (Pin 13) aus der AP2112K-3,3-V-Schiene** versorgt; der **5V/VBUS-Pin (Pin 14) bleibt unverbunden** (NC-Flag). Der 3V3-Pin des XIAO ist bidirektional und von Seeed als geregelter 3,3-V-**Eingang** freigegeben — der Onboard-LDO wird damit umgangen. So läuft das ganze Board single-rail auf 3,3 V (Logik) + 5 V (nur TLE4905L + AP2112K-Eingang).
+
+> **Caveats:**
+> - **USB-Flashen:** Liegt beim Flashen 5 V auf VBUS (USB-C), speist der Onboard-LDO parallel zur AP2112K auf den 3V3-Knoten. Meist tolerierbar; sauberer ist, die Board-3,3 V beim Flashen nicht gleichzeitig anzulegen oder den XIAO zum Flashen abzustecken.
+> - **AP2112K-Budget (600 mA):** Für den reinen CAN-Homing-Node (kein WLAN, ~40–80 mA + ~15 mA Transceiver) reichlich. WLAN-Sendespitzen (~350–500 mA) sind nicht eingeplant — Erweiterungssensorik daher stromsparend halten.
+
 ### Bremse extern
 Die Failsafe-Bremsen sind in den Treibern (GDS68/RS05) integriert und benötigen keine Versorgung/Ansteuerung über dieses Board. Damit entfallen Brake-Spule und Freewheeling-Diode auf dem PCB.
 
@@ -56,8 +75,8 @@ Die Failsafe-Bremsen sind in den Treibern (GDS68/RS05) integriert und benötigen
 | Domäne | Quelle | Versorgt | Stecker |
 | --- | --- | --- | --- |
 | **48 V** | Tether-Bus (durchgeschleift) | Motorabzweig | XT60PW (Bus), XT30PB(2+2)-M (Motor) |
-| **5 V** | Tether-Bus (durchgeschleift) | XIAO (5 V-Pin), TLE4905L, AP2112K-Eingang | XT30PW |
-| **3,3 V** | AP2112K-3.3 (aus 5 V) | TJA1051, Pull-up, Erweiterung | — (on-board) |
+| **5 V** | Tether-Bus (durchgeschleift) | TLE4905L, AP2112K-Eingang (**nicht** XIAO) | XT30PW |
+| **3,3 V** | AP2112K-3.3 (aus 5 V) | XIAO (3V3-Pin), SN65HVD230, Pull-up, Erweiterung | — (on-board) |
 | **GND** | gemeinsam (ein Netz) | alle | über alle Power-Stecker |
 
 ---
@@ -83,7 +102,7 @@ Bewusst unterschiedliche Steckertypen pro Domäne → mechanische Fehlsteck-Sich
 
 **Ein einziges GND-Netz** (`GND`) für das gesamte Board — eine gemeinsame Referenz ist Pflicht (sonst kein CAN). Entscheidend ist die *Layout-Führung*, nicht eine Netztrennung:
 
-- Elektrisch ein Netz, layout-seitig gedankliche Trennung in **Power-GND** (48 V-Rückpfad: XT60-Bus, XT30-Motor, 48 V-Kondensatorbank) und **Signal-GND** (ESP32, TJA1051, TLE4905L, AP2112K + deren Cs).
+- Elektrisch ein Netz, layout-seitig gedankliche Trennung in **Power-GND** (48 V-Rückpfad: XT60-Bus, XT30-Motor, 48 V-Kondensatorbank) und **Signal-GND** (ESP32, SN65HVD230, TLE4905L, AP2112K + deren Cs).
 - Beide treffen sich an **einem Sternpunkt**, idealerweise am 5 V/GND-Eingang bzw. am 48 V-Bulk-Elko.
 - Durchgehende **GND-Massefläche** (Pour), bei 2-Layer typischerweise Bottom.
 - Motor-/Bus-GND mit breitem Kupfer **direkt** zwischen XT-Steckern und Kondensatorbank — nicht quer durch die Logik-Zone.
@@ -100,7 +119,7 @@ Bewusst unterschiedliche Steckertypen pro Domäne → mechanische Fehlsteck-Sich
 | C8 | 10 µF | AP2112K VIN (5 V) | Bulk gegen Lasteinbrüche/Spikes |
 | C5 | 1 µF | AP2112K VIN | HF-Stabilität LDO-Eingang |
 | C6 | 1 µF | AP2112K VOUT | LDO-Stabilität Ausgang |
-| C7 | 100 nF | TJA1051 VCC (3,3 V) | IC-Entkopplung |
+| C7 | 100 nF | SN65HVD230 VCC (3,3 V) | IC-Entkopplung |
 | C1 | 100 nF | TLE4905L VCC | Sensor-Entkopplung |
 
 > **AP2112K-Hinweis:** Absolute-Max VIN = 6,0 V. Bei 5 V-Nominal ist das knapp; C8 (10 µF) dämpft Überschwinger. Optional als zusätzlicher Schutz eine TVS-Diode (z. B. SMAJ5.0A) zwischen 5 V und GND am Eingang.
@@ -122,13 +141,14 @@ ERC: **0 Errors / 0 Warnings** (Stand letzter Review).
 
 Behobene ERC-Punkte:
 - PWR_FLAG auf +48 V, +5 V (Eingänge) und +3,3 V (AP2112K-Ausgang) gesetzt.
-- NC-Flags auf ungenutzte ESP32-Sockel-Pins.
+- NC-Flags auf ungenutzte ESP32-Sockel-Pins **inkl. VBUS/5V-Pin (Pin 14)** des XIAO.
+- NC-Flag auf SN65HVD230 Vref (Pin 5).
 - AP2112K VIN + EN sauber an +5 V verbunden.
-- TJA1051 Pin 8 (S) auf GND (Normalbetrieb) — **nicht von ERC prüfbar, manuell verifiziert**.
 
 Manuell verifiziert (ERC-blind):
-- TX/RX-Zuordnung ESP32 ↔ TJA1051 korrekt.
-- TJA1051 S-Pin auf GND.
+- TX/RX-Zuordnung ESP32 (D6_TX/D7_RX) ↔ SN65HVD230 (D/R) korrekt.
+- SN65HVD230 Rs (Pin 8) auf GND (High-Speed-Mode für 1 Mbit/s).
+- XIAO über 3V3-Pin (Pin 13) versorgt, VBUS (Pin 14) unverbunden.
 
 ---
 
@@ -136,13 +156,15 @@ Manuell verifiziert (ERC-blind):
 
 ### Schaltplan (erledigt)
 - [x] MCP2515 entfernt, ESP32-TWAI genutzt
-- [x] TJA1051 3,3 V-seitig, S-Pin auf GND
-- [x] TX/RX korrekt zugeordnet
+- [x] CAN-Transceiver SN65HVD230 (nativ 3,3 V) statt TJA1051; Rs (Pin 8) auf GND, Vref (Pin 5) NC
+- [x] TX/RX korrekt zugeordnet (ESP32 D6_TX/D7_RX ↔ SN65HVD230 D/R)
+- [x] XIAO über 3V3-Pin (Pin 13) versorgt, VBUS (Pin 14) unverbunden/NC
 - [x] TLE4905L: Vcc 5 V, Pull-up (10 k) auf 3,3 V, 100 nF Entkopplung
 - [x] Termination jumperbar (JP1, 120 Ω)
 - [x] AP2112K mit C5/C6/C8, VIN+EN an 5 V
-- [x] Decoupling: C7 (TJA), C1 (Sensor), 48 V-Bank (C2/C3/C4)
+- [x] Decoupling: C7 (SN65HVD230), C1 (Sensor), 48 V-Bank (C2/C3/C4)
 - [x] PWR_FLAGs gesetzt, ERC sauber
+- [ ] C2/C3 (100 µF) ≥ 63 V (besser 100 V) und C4 (100 nF) ≥ 63 V Spannungsfestigkeit am 48-V-Bus prüfen
 - [ ] Optional: TVS (SMAJ5.0A) am 5 V-Eingang
 
 ### Layout (nächster Schritt)
