@@ -165,6 +165,16 @@ Auslegung mit dem **200%-Kurzzeit-Peak** der Netzteile (48 V: 12,5 A Dauer → ~
 
 **CAN-Hinweise:** dediziertes 120-Ω-Buskabel (nicht zwei Adern aus dem Powerkabel), `CAN_GND` als Referenz mitführen, Schirm **steuerboxseitig** auf PE/Metallgehäuse (Han-E-Stecker); 48 V und CAN nicht ungeschirmt im selben Mantel bündeln.
 
+**Konkrete Kabelauswahl (igus chainflex, Stand 2026-07):** Für das Hobby-Budget bewusst pragmatisch gewählt — eine Power-Kabelsorte für alles, günstige PVC-Busleitung statt teurer Torsionsvariante.
+
+| Verwendung | igus Art-Nr. | Aufbau | Notiz |
+| :--- | :--- | :--- | :--- |
+| Power-Durchschleife 48 V + 5 V (Daisy-Chain) | **CF77.UL.15.04.D** | 4G1,5, PUR | Zwei getrennte Paare: 48 V / 48 V-GND + 5 V / 5 V-GND. GN-YE-Ader als vollwertiger Rückleiter nutzen (zulässig, da einheitliches GND-Netz). Kein gemeinsamer GND-Rückleiter — sonst summiert sich der Rückstrom auf dem Basissegment über 1,5 mm². |
+| CAN-Bus-Durchschleife | **CFBUS.PVC.021** | (2×0,5)C, geschirmt | Biege-/Energieketten-Leitung (PVC), **keine Torsionsleitung**. Torsions-Upgrade (CFROBOT8.PLUS.022, CAN, torsionsfest) bewusst aus Kostengründen zurückgestellt — an rotierenden Gelenken später ggf. nur das kurze Gelenkstück tauschen. |
+| PCB → Motor (Abzweig) | **CF77.UL.15.04.D** | 4G1,5, PUR | Kurz/statisch; nur 48 V + GND genutzt (CAN separat über die Busleitung). Bei hohem Motor-Peak (GIM8108 ~22 A) je 2 Adern parallel für 48 V bzw. GND → ~3 mm². Für Achse 1 (GIM6010 ~18 A) / Achse 4 (RS05 ~11 A) genügt eine Einzelader. |
+
+> **Bezug:** igus liefert auch an Privatkunden über den Online-Shop, ab 1 m Länge ohne Mindestbestellwert. Shop-Preise sind netto — zzgl. MwSt., Kupferzuschlag und Versand. CFBUS.PVC.021 ~3,35 €/m, CF77.UL.15.04.D ~3,52 €/m (zzgl. Zuschläge).
+
 **Materialkosten (grob, DE-Retail):** Silikon-Litze für Power/5V/Bremse ist günstig (~30–50 €), CAN-Leitung ~15–25 €. Kostentreiber ist die Torsions-/Roboterleitung an den Drehachsen. Gesamt: **~60–100 €** maker-pragmatisch (Silikon-Litze überall), **~120–220 €** mit Marken-Roboterleitung an den Gelenken; dazu Kleinkram (Aderendhülsen, Schrumpfschlauch, Gewebeschlauch) ~25–50 €.
 
 > **Hinweis zu URDF-Werten:** Alle Gelenkgrenzen, Trägheitsmomente und Schwerpunkte in der URDF sind derzeit Platzhalter und werden nach Abschluss des CAD-Designs mit realen Werten befüllt.
