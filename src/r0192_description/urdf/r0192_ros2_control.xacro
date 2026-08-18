@@ -36,7 +36,7 @@
              Only joints with real motors (joint_1, joint_4) use these at runtime;
              passthrough joints ignore them. -->
         <joint name="joint_1">
-            <param name="kp">50.0</param>
+            <param name="kp">150.0</param>
             <param name="kd">1.0</param>
             <command_interface name="position"/>
             <command_interface name="velocity"/>
