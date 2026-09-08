@@ -7545,7 +7545,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_ZH_B4B-ZR_1x04_P1.50mm_Vertical"
+		(property "Footprint" "TerminalBlock_Phoenix:TerminalBlock_Phoenix_PTSM-0,5-4-2.5-V-THR_1x04_P2.50mm_Vertical"
 			(at 237.49 218.44 0)
 			(hide yes)
 			(show_name no)
@@ -9023,7 +9023,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_PH_S3B-PH-K_1x03_P2.00mm_Horizontal"
+		(property "Footprint" "TerminalBlock_Phoenix:TerminalBlock_Phoenix_PTSM-0,5-3-2.5-V-THR_1x03_P2.50mm_Vertical"
 			(at 97.79 203.2 0)
 			(hide yes)
 			(show_name no)
@@ -9117,7 +9117,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_AMASS:AMASS_MR30PW-M_1x03_P3.50mm_Horizontal"
+		(property "Footprint" "TerminalBlock_WAGO:TerminalBlock_WAGO_2601-3104_1x04_P3.50mm_Vertical"
 			(at 198.12 85.09 0)
 			(hide yes)
 			(show_name no)
@@ -10115,7 +10115,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "R0192:AMASS_XT30PW_2+2-M_1x04_P5.00mm_Horizontal"
+		(property "Footprint" "TerminalBlock_WAGO:TerminalBlock_WAGO_2601-3104_1x04_P3.50mm_Vertical"
 			(at 370.84 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -10678,7 +10678,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_Micro-Fit_3.0_43650-0300_1x03_P3.00mm_Horizontal"
+		(property "Footprint" "TerminalBlock_Phoenix:TerminalBlock_Phoenix_PTSM-0,5-3-2.5-V-THR_1x03_P2.50mm_Vertical"
 			(at 353.06 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -10783,7 +10783,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_AMASS:AMASS_MR30PW-M_1x03_P3.50mm_Horizontal"
+		(property "Footprint" "TerminalBlock_WAGO:TerminalBlock_WAGO_2601-3104_1x04_P3.50mm_Vertical"
 			(at 198.12 101.6 0)
 			(hide yes)
 			(show_name no)
@@ -10890,7 +10890,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_Micro-Fit_3.0_43650-0300_1x03_P3.00mm_Horizontal"
+		(property "Footprint" "TerminalBlock_Phoenix:TerminalBlock_Phoenix_PTSM-0,5-3-2.5-V-THR_1x03_P2.50mm_Vertical"
 			(at 336.55 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -11554,7 +11554,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal"
+		(property "Footprint" "TerminalBlock_Phoenix:TerminalBlock_Phoenix_PTSM-0,5-2-2,5-V-SMD_1x02-1MP_P2.50mm_Vertical"
 			(at 50.8 133.35 0)
 			(hide yes)
 			(show_name no)
