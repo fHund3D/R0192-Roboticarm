@@ -52,9 +52,9 @@ Datenblätter: `PCB/R0192.pretty/Datenblätter/` (Bauteile) und `.../Kabel/` (CF
 | --- | --- | --- | --- |
 | J12 / J13 Power | WAGO **2601-3104**, Push-in, Top-Entry, 17,5 A / AWG 26–14 | `TerminalBlock_WAGO:TerminalBlock_WAGO_2601-3104_1x04_P3.50mm_Vertical` | CF77.UL.15.04.D, alle 4 Adern, 1,5 mm², 21 A/Ader (igus) — Bus zieht max. 12,5 A |
 | J4 Motor (CANH/CANL/GND/48 V) | WAGO **2601-3104**, Push-in, Top-Entry, 17,5 A / AWG 26–14 | `TerminalBlock_WAGO:TerminalBlock_WAGO_2601-3104_1x04_P3.50mm_Vertical` | 1,5 mm² Power + 0,5 mm² CAN im selben Block |
-| J1 / J2 CAN | Phoenix **PTSM 0,5/3-2,5-V-THR**, Push-in, Top-Entry, 6 A / 160 V | `TerminalBlock_Phoenix:TerminalBlock_Phoenix_PTSM-0,5-3-2.5-V-THR_1x03_P2.50mm_Vertical` | CFBUS.PVC.021, 0,5 mm² — **am Maximum der Klemme** |
-| J5 Hall | dieselbe PTSM 0,5/3 | dito | 0,25 mm² empfohlen |
-| J16 Bremse | dieselbe PTSM 0,5/3 (nur 2 Pole belegt, 3. = Reserve + NC-Flag) | dito | 0,25 mm² feindrähtig |
+| J1 / J2 CAN | Phoenix **PTSM 0,5/3-2,5-V-THR**, Push-in, Top-Entry, 6 A / 160 V, **0,14–0,5 mm² (AWG 26–20)** | `TerminalBlock_Phoenix:TerminalBlock_Phoenix_PTSM-0,5-3-2.5-V-THR_1x03_P2.50mm_Vertical` | CFBUS.PVC.021, 0,5 mm² — **am Maximum der Klemme** |
+| J5 Hall | dieselbe PTSM 0,5/3 | dito | **0,25 mm²** — 0,14 mm² läge genau auf der Untergrenze |
+| J16 Bremse | dieselbe PTSM 0,5/3 (nur 2 Pole belegt, 3. = Reserve + NC-Flag) | dito | **0,25 mm²** feindrähtig — die vorhandenen 0,081 mm² (AWG 28) liegen **unter** dem Klemmenminimum |
 | J6 UART-Debug | Stiftleiste 1×04 (Dupont) | `Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical` | — |
 
 Eine einzige PTSM-Bestellnummer deckt J1/J2/J5/J16 ab (~21 Stück für sechs Boards); Kleinmengen über die Phoenix-SAMPLE-Nummer **1701101**, die Suffixe `R44`/`R32` sind Gurtware.
