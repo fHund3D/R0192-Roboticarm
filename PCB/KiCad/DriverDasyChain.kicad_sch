@@ -2844,7 +2844,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Switch:SW_SPST"
+		(symbol "Switch:SW_SPDT"
 			(pin_names
 				(offset 0)
 				(hide yes)
@@ -2855,7 +2855,7 @@
 			(in_pos_files yes)
 			(duplicate_pin_numbers_are_jumpers no)
 			(property "Reference" "SW"
-				(at 0 3.175 0)
+				(at 0 5.08 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -2864,8 +2864,8 @@
 					)
 				)
 			)
-			(property "Value" "SW_SPST"
-				(at 0 -2.54 0)
+			(property "Value" "SW_SPDT"
+				(at 0 -5.08 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -2886,6 +2886,17 @@
 				)
 			)
 			(property "Datasheet" ""
+				(at 0 -7.62 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Switch, single pole double throw"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2896,7 +2907,7 @@
 					)
 				)
 			)
-			(property "Description" "Single Pole Single Throw (SPST) switch"
+			(property "ki_keywords" "switch single-pole double-throw spdt ON-ON"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2907,21 +2918,10 @@
 					)
 				)
 			)
-			(property "ki_keywords" "switch lever"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(symbol "SW_SPST_0_0"
+			(symbol "SW_SPDT_0_1"
 				(circle
 					(center -2.032 0)
-					(radius 0.508)
+					(radius 0.4572)
 					(stroke
 						(width 0)
 						(type default)
@@ -2932,7 +2932,7 @@
 				)
 				(polyline
 					(pts
-						(xy -1.524 0.254) (xy 1.524 1.778)
+						(xy -1.651 0.254) (xy 1.651 2.286)
 					)
 					(stroke
 						(width 0)
@@ -2943,8 +2943,19 @@
 					)
 				)
 				(circle
-					(center 2.032 0)
-					(radius 0.508)
+					(center 2.032 2.54)
+					(radius 0.4572)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 2.032 -2.54)
+					(radius 0.4572)
 					(stroke
 						(width 0)
 						(type default)
@@ -2954,9 +2965,20 @@
 					)
 				)
 			)
-			(symbol "SW_SPST_1_1"
+			(symbol "SW_SPDT_1_1"
+				(rectangle
+					(start -3.175 3.81)
+					(end 3.175 -3.81)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
 				(pin passive line
-					(at -5.08 0 0)
+					(at 5.08 2.54 180)
 					(length 2.54)
 					(name "A"
 						(effects
@@ -2974,7 +2996,7 @@
 					)
 				)
 				(pin passive line
-					(at 5.08 0 180)
+					(at -5.08 0 0)
 					(length 2.54)
 					(name "B"
 						(effects
@@ -2984,6 +3006,24 @@
 						)
 					)
 					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 5.08 -2.54 180)
+					(length 2.54)
+					(name "C"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -3975,9 +4015,9 @@
 		)
 		(uuid "210d1bce-c156-42b0-9429-0ebafa1ebb89")
 	)
-	(text "UART Ausgang \nfür möglich Debuging"
+	(text "UART Ausgang \nfür möglich Debuging\n220 Ohm um 5V \nStrom begrenze\n"
 		(exclude_from_sim no)
-		(at 210.82 198.755 0)
+		(at 210.82 200.025 0)
 		(effects
 			(font
 				(size 0.889 0.889)
@@ -4406,6 +4446,16 @@
 	)
 	(wire
 		(pts
+			(xy 233.68 189.865) (xy 233.68 196.85)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "02861a7f-cb81-4bc0-8bd3-646a7561b0f8")
+	)
+	(wire
+		(pts
 			(xy 320.04 71.755) (xy 320.04 81.915)
 		)
 		(stroke
@@ -4536,7 +4586,7 @@
 	)
 	(wire
 		(pts
-			(xy 243.205 160.655) (xy 242.57 160.655)
+			(xy 243.205 156.845) (xy 242.57 156.845)
 		)
 		(stroke
 			(width 0)
@@ -4766,16 +4816,6 @@
 	)
 	(wire
 		(pts
-			(xy 233.68 189.865) (xy 233.68 210.185)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3bff2f14-7508-4eee-89a9-9cce413382a4")
-	)
-	(wire
-		(pts
 			(xy 325.12 136.525) (xy 327.66 136.525)
 		)
 		(stroke
@@ -4843,6 +4883,16 @@
 			(type default)
 		)
 		(uuid "482db479-0359-4c0b-951c-b9cf34581334")
+	)
+	(wire
+		(pts
+			(xy 231.14 204.47) (xy 231.14 214.63)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "48d05b01-d319-4e17-b1b3-be4bcd8d32d4")
 	)
 	(wire
 		(pts
@@ -5186,7 +5236,7 @@
 	)
 	(wire
 		(pts
-			(xy 236.22 207.645) (xy 236.22 210.185)
+			(xy 236.22 212.09) (xy 236.22 214.63)
 		)
 		(stroke
 			(width 0)
@@ -5246,16 +5296,6 @@
 	)
 	(wire
 		(pts
-			(xy 231.14 189.865) (xy 231.14 210.185)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8ba5da36-cc13-49b9-b269-77cccc07908c")
-	)
-	(wire
-		(pts
 			(xy 220.98 175.895) (xy 262.89 175.895)
 		)
 		(stroke
@@ -5266,7 +5306,7 @@
 	)
 	(wire
 		(pts
-			(xy 228.6 207.645) (xy 228.6 210.185)
+			(xy 228.6 212.09) (xy 228.6 214.63)
 		)
 		(stroke
 			(width 0)
@@ -5553,6 +5593,16 @@
 			(type default)
 		)
 		(uuid "bcc13454-0bbe-4952-9a89-5f91985cc8b7")
+	)
+	(wire
+		(pts
+			(xy 233.68 204.47) (xy 233.68 214.63)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bcf65bb9-8375-4e64-962d-1a9be2f21fc4")
 	)
 	(wire
 		(pts
@@ -5856,6 +5906,16 @@
 	)
 	(wire
 		(pts
+			(xy 232.41 159.385) (xy 232.41 160.655)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e8c9ff70-83fd-48ab-8e51-40fa5c0755f3")
+	)
+	(wire
+		(pts
 			(xy 196.85 84.455) (xy 196.85 81.915)
 		)
 		(stroke
@@ -5893,6 +5953,16 @@
 			(type default)
 		)
 		(uuid "ec59a868-56c1-4ed8-a829-4145457c5bac")
+	)
+	(wire
+		(pts
+			(xy 231.14 189.865) (xy 231.14 196.85)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ed1b525a-7a13-4ed7-99f4-535466d06b74")
 	)
 	(wire
 		(pts
@@ -6338,7 +6408,7 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x04")
-		(at 231.14 215.265 90)
+		(at 231.14 219.71 90)
 		(mirror x)
 		(unit 1)
 		(body_style 1)
@@ -6349,7 +6419,7 @@
 		(dnp no)
 		(uuid "00ba64a5-bb26-46bd-89f6-e58bbebf569f")
 		(property "Reference" "J6"
-			(at 228.854 220.345 90)
+			(at 228.854 224.79 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -6360,7 +6430,7 @@
 			)
 		)
 		(property "Value" "Conn_01x04"
-			(at 237.998 218.059 90)
+			(at 237.998 222.504 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -6371,7 +6441,7 @@
 			)
 		)
 		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical"
-			(at 231.14 215.265 0)
+			(at 231.14 219.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6382,7 +6452,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 231.14 215.265 0)
+			(at 231.14 219.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6393,7 +6463,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 231.14 215.265 0)
+			(at 231.14 219.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6404,7 +6474,7 @@
 			)
 		)
 		(property "Note" "nur Platzhalter -> nicht auflöten"
-			(at 231.14 215.265 90)
+			(at 231.14 219.71 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8142,8 +8212,7 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x03")
-		(at 91.44 200.025 270)
-		(mirror x)
+		(at 91.44 200.025 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -8153,7 +8222,7 @@
 		(dnp no)
 		(uuid "30a4c572-9104-4911-93e0-a19c51b78e96")
 		(property "Reference" "J5"
-			(at 99.06 200.025 90)
+			(at 97.155 199.39 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8164,7 +8233,7 @@
 			)
 		)
 		(property "Value" "Conn_01x03"
-			(at 106.68 202.565 90)
+			(at 96.52 201.295 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8238,7 +8307,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 228.6 207.645 0)
+		(at 228.6 212.09 0)
 		(mirror x)
 		(unit 1)
 		(body_style 1)
@@ -8247,10 +8316,9 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "358f498b-a828-47ac-ac9f-ff8cb52039c8")
 		(property "Reference" "#PWR043"
-			(at 228.6 201.295 0)
+			(at 228.6 205.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8261,7 +8329,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 228.6 202.565 0)
+			(at 227.33 207.645 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8271,7 +8339,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 228.6 207.645 0)
+			(at 228.6 212.09 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8282,7 +8350,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 228.6 207.645 0)
+			(at 228.6 212.09 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8293,7 +8361,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 228.6 207.645 0)
+			(at 228.6 212.09 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9286,7 +9354,7 @@
 	)
 	(symbol
 		(lib_id "power:+3.3V")
-		(at 236.22 207.645 0)
+		(at 236.22 212.09 0)
 		(mirror y)
 		(unit 1)
 		(body_style 1)
@@ -9295,10 +9363,9 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "696b0160-ee59-47cb-8b51-45437ee051da")
 		(property "Reference" "#PWR024"
-			(at 236.22 211.455 0)
+			(at 236.22 215.9 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9309,7 +9376,7 @@
 			)
 		)
 		(property "Value" "+3.3V"
-			(at 236.22 202.565 0)
+			(at 236.855 207.645 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -9319,7 +9386,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 236.22 207.645 0)
+			(at 236.22 212.09 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9330,7 +9397,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 236.22 207.645 0)
+			(at 236.22 212.09 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9341,7 +9408,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
-			(at 236.22 207.645 0)
+			(at 236.22 212.09 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9628,6 +9695,89 @@
 		)
 	)
 	(symbol
+		(lib_id "Switch:SW_SPDT")
+		(at 237.49 159.385 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "6d0213ab-69f5-4871-a390-fb6a8b7fc073")
+		(property "Reference" "SW2"
+			(at 237.49 150.495 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SW_SPDT"
+			(at 237.49 153.035 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Button_Switch_SMD:SW_SPDT_PCM12"
+			(at 237.49 159.385 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 237.49 167.005 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Switch, single pole double throw"
+			(at 237.49 159.385 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "3"
+			(uuid "fcdface4-71a6-4f77-b70e-2f21a77fc1a6")
+		)
+		(pin "1"
+			(uuid "8d0bbf92-4452-4321-8886-05a7d0ef7e22")
+		)
+		(pin "2"
+			(uuid "9a91fbad-04ab-44fe-8648-cc2fb6e5994a")
+		)
+		(instances
+			(project "DriverDasyChain"
+				(path "/8859a34b-ea14-4e3d-ac6b-f472ecbb3df1"
+					(reference "SW2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Connector_Generic:Conn_01x03")
 		(at 330.2 130.175 270)
 		(mirror x)
@@ -9815,7 +9965,7 @@
 	)
 	(symbol
 		(lib_id "power:+3.3V")
-		(at 243.205 160.655 270)
+		(at 243.205 156.845 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -9826,7 +9976,7 @@
 		(fields_autoplaced yes)
 		(uuid "7c4cb0df-92fc-4b68-8582-36c34b7c2725")
 		(property "Reference" "#PWR09"
-			(at 239.395 160.655 0)
+			(at 239.395 156.845 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9837,7 +9987,7 @@
 			)
 		)
 		(property "Value" "+3.3V"
-			(at 247.015 160.6549 90)
+			(at 247.015 156.8449 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -9848,7 +9998,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 243.205 160.655 0)
+			(at 243.205 156.845 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9859,7 +10009,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 243.205 160.655 0)
+			(at 243.205 156.845 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9870,7 +10020,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
-			(at 243.205 160.655 0)
+			(at 243.205 156.845 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10204,88 +10354,6 @@
 			(project "DriverDasyChain"
 				(path "/8859a34b-ea14-4e3d-ac6b-f472ecbb3df1"
 					(reference "C8")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Switch:SW_SPST")
-		(at 237.49 160.655 0)
-		(mirror y)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "9379aa91-0181-457b-a948-dfce68132737")
-		(property "Reference" "SW3"
-			(at 234.315 154.94 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "SW_SPST"
-			(at 234.315 157.48 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "Button_Switch_SMD:SW_DIP_SPSTx01_Slide_Copal_CHS-01A_W5.08mm_P1.27mm_JPin"
-			(at 237.49 160.655 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 237.49 160.655 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Single Pole Single Throw (SPST) switch"
-			(at 237.49 160.655 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "ecdbbbf0-b4b5-496f-9f1f-440a015b5702")
-		)
-		(pin "1"
-			(uuid "78e200fa-5005-48e3-935f-5ebf6bb34675")
-		)
-		(instances
-			(project "DriverDasyChain"
-				(path "/8859a34b-ea14-4e3d-ac6b-f472ecbb3df1"
-					(reference "SW3")
 					(unit 1)
 				)
 			)
@@ -11800,6 +11868,88 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 233.68 200.66 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c438a85a-6a4a-414f-974a-e8102ca8025a")
+		(property "Reference" "R5"
+			(at 236.22 199.3899 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "220"
+			(at 236.22 201.9299 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
+			(at 231.902 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 233.68 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 233.68 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "3bef0a52-1157-4455-8844-889ee06a6a83")
+		)
+		(pin "2"
+			(uuid "6d5e69e0-dc6d-4772-a466-232f529a5919")
+		)
+		(instances
+			(project "DriverDasyChain"
+				(path "/8859a34b-ea14-4e3d-ac6b-f472ecbb3df1"
+					(reference "R5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 308.61 97.155 0)
 		(unit 1)
@@ -12032,6 +12182,88 @@
 			(project "DriverDasyChain"
 				(path "/8859a34b-ea14-4e3d-ac6b-f472ecbb3df1"
 					(reference "#PWR010")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 231.14 200.66 0)
+		(mirror x)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "cfef78f5-605e-45ff-90bc-67bd511cae86")
+		(property "Reference" "R14"
+			(at 229.87 199.39 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "220"
+			(at 229.235 201.93 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
+			(at 229.362 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 231.14 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 231.14 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "d7a7057f-e3c4-456a-9e13-8707cc0f9c1d")
+		)
+		(pin "1"
+			(uuid "37b45f82-8eea-40ac-bf33-2dc31dac97d7")
+		)
+		(instances
+			(project "DriverDasyChain"
+				(path "/8859a34b-ea14-4e3d-ac6b-f472ecbb3df1"
+					(reference "R14")
 					(unit 1)
 				)
 			)
@@ -12459,7 +12691,6 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "e2d180ac-2610-48e5-ab0c-dc973fd8087b")
 		(property "Reference" "#PWR08"
 			(at 230.505 156.845 0)
@@ -12473,7 +12704,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 227.965 156.8449 90)
+			(at 227.33 156.845 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
