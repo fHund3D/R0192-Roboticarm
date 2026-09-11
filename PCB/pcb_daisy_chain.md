@@ -15,15 +15,15 @@ Datenblätter: `PCB/R0192.pretty/Datenblätter/` (Bauteile) und `.../Kabel/` (CF
 | --- | --- |
 | Power-Durchschleife | J12 / J10 (4-polig): +5 V / GND / GND / +48 V. Bulk C2/C3 = 2× 100 µF, C4 100 nF |
 | 3,3 V-Erzeugung | U1 AP2112K-3.3 aus 5 V (C8 10 µ / C5 1 µ / C6 2,2 µ), EN an VIN, D3 SMAJ5.0CA am Eingang (bidirektional) |
-| MCU | U2 XIAO-ESP32-S3 (Footprint `R0192:XIAO-ESP32-S3-DIP`, THT-Sockel), Versorgung über **3V3-Pin**, VBUS = NC |
+| MCU | U2 XIAO-ESP32-S3 (Footprint `R0192:XIAO-ESP32-S3-DIP`, THT-Sockel), Versorgung über **3V3-Pin**, trennbar über SW2 (PCM12SMTR) — beim Flashen über USB öffnen, VBUS = NC |
 | CAN-Transceiver | U4 SN65HVD230 (nativ 3,3 V), Rs auf GND (High-Speed), Vref NC, C7 100 nF |
 | CAN-Bus | J1/J2 (CANH/CANL/SHLD), Schirm hybrid über R6 1 M ‖ C11 100 n; R10 (0 Ω) = harte Schirmauflage, **nur auf einem Board bestücken** |
-| Terminierung | **Split-Termination**: R13 + R12 je 60,4 Ω in Reihe über den Bus, Mittelpunkt über C13 4,7 nF auf GND. Zuschaltbar über SW2 (**2-polig**, je ein Pol pro Zweig) — nur an den zwei physischen Busenden einschalten |
+| Terminierung | **Split-Termination**: R13 + R12 je 60,4 Ω in Reihe über den Bus, Mittelpunkt über C13 4,7 nF auf GND. Zuschaltbar über SW1 (CTS 219-2LPSTJ, **2-polig**, je ein Pol pro Zweig) — nur an den zwei physischen Busenden einschalten |
 | Motorabzweig | J4: CANH, CANL, GND, +48 V (Steckertyp s. u.) |
 | Homing-Sensor | J5: 5 V / OUT / GND. R1 4,7 k Pull-up auf **3,3 V**, C10 1 nF, R9 6,8 k Serienschutz |
 | Bremsen-Endstufe | J3 + F1 (PPTC) + Q2 + D1, Gate über U3 74AHCT1G125 (3,3 V → 5 V) |
 | Status-LED | D4 (rot oder grün, 0603) + **R11 470 Ω** an **D2**, active high |
-| UART-Debug | J6: GND / D6 / D7 / +3,3 V |
+| UART-Debug | J6: GND / D6 / D7 / +3,3 V, TX/RX über R5 / R14 (220 Ω in Serie). Adapter-VCC **nicht** an Pin 4 (= 3,3-V-Schiene) |
 
 ---
 
@@ -116,7 +116,7 @@ LÖSEN:      PWM 100 %, 100–200 ms  →  PWM ~10,4 % halten  →  danach Motor
 SCHLIESSEN: PWM 0 %  (Anker fällt in ~20 ms)
 ```
 
-**F1 = Bourns MF-RHT050-2** (PPTC, 0,5 A Halte- / 1,0 A Auslösestrom, **60 V**, ~0,41 Ω) — Symbol `Device:Polyfuse`, Footprint `Fuse:Fuse_Bourns_MF-RHT050` (radial THT).
+**F1 = Littelfuse 60R050XU** (PPTC, 0,5 A Halte- / 1,0 A Auslösestrom, **60 V**) — Symbol `Device:Polyfuse`, Footprint `R0192:Fuse_Littelfuse_60R050XU` (radial THT, RM 5,1 mm, eigenes STEP-Modell). Die ursprünglich vorgesehene Bourns MF-RHT050-2 ist laut Datenblatt nur für **30 V** spezifiziert und damit an 48 V ungeeignet.
 
 | Betriebsfall | Strom | Verhalten |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ SCHLIESSEN: PWM 0 %  (Anker fällt in ~20 ms)
 | Anzug | 1,41 A für 150 ms | weit unter der Auslösezeit, geht durch |
 | FET durchlegiert | 1,41 A dauerhaft = 2,8× I_hold | trippt im Sekundenbereich — lange vor den ~35 s bis zur Isolationsgrenze der Spule |
 
-Der PTC diskriminiert also über die **Dauer**, nicht über den Strom — Anzugspuls und Fehlerstrom sind gleich groß. **Die 60 V sind die bindende Spec**: gängige SMD-PPTCs sind auf 6–30 V spezifiziert und können an einer 48-V-Schiene beim Auslösen durchzünden. Die 0,41 Ω gegen 34 Ω Spulenwiderstand sind 1,2 %, irrelevant.
+Der PTC diskriminiert also über die **Dauer**, nicht über den Strom — Anzugspuls und Fehlerstrom sind gleich groß. **Die 60 V sind die bindende Spec**: gängige SMD-PPTCs sind auf 6–30 V spezifiziert und können an einer 48-V-Schiene beim Auslösen durchzünden. Der PTC-Widerstand (Größenordnung 1 Ω) gegen 34 Ω Spulenwiderstand ist vernachlässigbar.
 
 **Schaltverluste sind unkritisch:** während der PWM-Phase fließen nur 147 mA (nicht 1,41 A), bei ~0,5 µs Flanken sind das ~35 mW bei 10 kHz. Der 74AHCT1G125 reicht, ein Gate-Treiber ist nicht nötig.
 
@@ -170,7 +170,7 @@ CANH ──[SW2 Pol A]── R13 60,4Ω ──┬── R12 60,4Ω ──[SW2 Po
 
 Das gibt die Common-Mode-Dämpfung und -Referenz, die ohne eigene CAN-GND-Ader sonst fehlt. Eckfrequenz `f_c = 1/(2π · (60‖60) · 4,7 nF) ≈ 1,1 MHz` — passend für 1 Mbit/s (TI/Bosch empfehlen 4,7–10 nF).
 
-- **SW2 muss 2-polig sein** (`Switch:SW_DIP_x02`, Footprint `Button_Switch_SMD:SW_DIP_SPSTx02_Slide_Copal_CHS-02A_W5.08mm_P1.27mm_JPin`), je ein Pol pro Zweig. Mit einem 1-poligen Schalter bliebe bei offenem Schalter `CANH → 60 Ω → 4,7 nF → GND` hängen (bei 10 MHz ~63 Ω gegen GND, vier nicht terminierte Boards parallel ~16 Ω) — eine einseitige HF-Last auf CANH und damit genau die Unsymmetrie, gegen die die Split-Termination antritt. Der 2-polige Copal hat dieselbe Pad-Spanne (x = ±2,54), nur zwei Reihen bei y = ±0,635, also **+1,27 mm** Bauhöhe.
+- **SW1 muss 2-polig sein** (`Switch:SW_DIP_x02`, bestückt: **CTS 219-2LPSTJ**, Footprint `Button_Switch_SMD:SW_DIP_SPSTx02_Slide_6.7x6.64mm_W6.73mm_P2.54mm_LowProfile_JPin`), je ein Pol pro Zweig. Mit einem 1-poligen Schalter bliebe bei offenem Schalter `CANH → 60 Ω → 4,7 nF → GND` hängen (bei 10 MHz ~63 Ω gegen GND, vier nicht terminierte Boards parallel ~16 Ω) — eine einseitige HF-Last auf CANH und damit genau die Unsymmetrie, gegen die die Split-Termination antritt. Gewählt wurde der CTS 219-2LPSTJ (Raster 2,54 mm, 6,7 × 6,6 mm) statt des kleineren Copal CHS-02 (Raster 1,27 mm), weil er ohne Footprint-Wechsel auf das bestehende Layout passt.
 - **60,4 Ω, 1 % (E96)** — nicht 60 Ω (kein E-Reihen-Wert) und nicht 5 %: ungleiche Hälften wandeln Common Mode in Differential Mode um.
 - **C13 als C0G/NP0**, nicht X7R (DC-Bias-/Temperaturdrift verschiebt die Eckfrequenz).
 
@@ -194,6 +194,85 @@ CAN hat keine eigene GND-Ader (J1/J2 führen nur H/L/Schirm) — die Referenz ko
 **D3 (SMAJ5.0CA, SMA/DO-214AC):** ausgewählt über Sperrspannung und Pulsenergie, **nicht** über den Laststrom — im Normalbetrieb führt sie keinen Strom. Die **CA-Variante ist bidirektional**, damit ist die Einbaurichtung egal (bei der unidirektionalen SMAJ5.0A müsste Pin 1 die Kathode sein, und das Symbol zeigt das nicht an).
 
 Was sie leistet: Transienten und ESD wegstecken, und falls 48 V auf die 5-V-Schiene gelangen, als **Crowbar** in den Kurzschluss gehen und das Netzteil in die Strombegrenzung werfen. Sie klemmt bei ~9,2 V und hält den AP2112K (Abs-Max VIN 6,0 V) bei dauerhafter Überspannung **nicht** am Leben — das ist eine bewusst akzeptierte Grenze.
+
+---
+
+## Stückliste (BOM) — Bestellstand 2026-09-11
+
+Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsquellen: Mouser-Projekte `R0192` und `R0192_Kleine_Komponenten`, WAGO/Netzteil/Crimpzange bei Reichelt.
+
+### Kondensatoren
+
+| Ref | Wert | Hersteller | Herst.-Nr. | Bestell-Nr. | je Board | bestellt |
+| --- | --- | --- | --- | --- | ---: | ---: |
+| C1, C7, C9, C11, C12 | 100 nF 50 V X7R 0603 | Yageo | CC0603KPX7R9BB104 | Mouser 603-CC603KPX7R9BB104 | 5 | 35 |
+| C4 | 100 nF **100 V** X7R 0805 | Yageo | CC0805KKX7R0BB104 | Mouser 603-CC805KKX7R0BB104 | 1 | 10 |
+| C5 | 1 µF 25 V X5R 0603 | Samsung | CL10A105KA8NFNC | Mouser 187-CL10A105KA8NFNC | 1 | 10 |
+| C6 | 2,2 µF 16 V X5R 0603 | Samsung | CL10A225KO8NNNC | Mouser 187-CL10A225KO8NNNC | 1 | 10 |
+| C8 | 10 µF 25 V X5R 0805 | Samsung | CL21A106KAYNNNG | Mouser 187-CL21A106KAYNNNG | 1 | 10 |
+| C10 | 1 nF 50 V **C0G** 0603 | Murata | GRM1885C1H102JA01D | Mouser 81-GRM39C102J50 | 1 | 10 |
+| C13 | 4,7 nF 50 V **C0G** 0603 | Murata | GRM1885C1H472JA01D | Mouser 81-GRM1885C1H472JA1D | 1 | 10 |
+| C2, C3 | 100 µF **100 V** Elko, Ø10 × 20 mm, RM 5 | Nichicon | UVR2A101MPD1TD | Mouser 647-UVR2A101MPD1TO | 2 | 15 |
+
+### Widerstände (Yageo RC0603, 1 %, 1/10 W)
+
+| Ref | Wert | Herst.-Nr. | Bestell-Nr. | je Board | bestellt |
+| --- | --- | --- | --- | ---: | ---: |
+| R1 | 4,7 kΩ | RC0603FR-074K7L | Mouser 603-RC0603FR-074K7L | 1 | 10 |
+| R2 | 22 Ω | RC0603FR-1322RL | Mouser 603-RC0603FR-1322RL | 1 | 10 |
+| R3, R4 | 10 kΩ | RC0603FR-0710KL | Mouser 603-RC0603FR-0710KL | 2 | 15 |
+| R5, R14 | 220 Ω (UART-Serienwiderstände J6) | RC0603FR-07220RL | Mouser 603-RC0603FR-07220RL | 2 | 15 |
+| R6 | 1 MΩ | RC0603FR-071ML | Mouser 603-RC0603FR-071ML | 1 | 10 |
+| R7 | 150 kΩ | RC0603FR-07150KL | Mouser 603-RC0603FR-07150KL | 1 | 10 |
+| R8, R9 | 6,8 kΩ | RC0603FR-076K8L | Mouser 603-RC0603FR-076K8L | 2 | 15 |
+| R10 | 0 Ω (5 %), **nur auf einem Board** (Steuerungsende) | RC0603JR-070RL | Mouser 603-RC0603JR-070RL | 0–1 | 10 |
+| R11 | 470 Ω | RC0603FR-07470RL | Mouser 603-RC0603FR-07470RL | 1 | 10 |
+| R12, R13 | 60,4 Ω | RC0603FR-0760R4L | Mouser 603-RC0603FR-0760R4L | 2 | 15 |
+
+### Halbleiter, Schutz, Schalter
+
+| Ref | Funktion | Hersteller | Herst.-Nr. | Bestell-Nr. | je Board | bestellt |
+| --- | --- | --- | --- | --- | ---: | ---: |
+| D1 | Freilaufdiode, ultrafast 200 V / 1 A, SMA | Diotec | US1D | Mouser 637-US1D | 1 | 10 |
+| D3 | TVS 5 V bidirektional, SMA | Littelfuse | SMAJ5.0CA | Mouser 576-SMAJ5.0CA | 1 | 10 |
+| D4 | Status-LED rot, 0603 | Lite-On | LTST-C191KRKT | Mouser 859-LTST-C191KRKT | 1 | 10 |
+| Q2 | N-MOSFET 100 V, 0,125 Ω @ V_GS 5 V, TO-252 | Infineon | IRLR3410TRPBF | Mouser 942-IRLR3410TRPBF | 1 | 10 |
+| U1 | LDO 3,3 V / 600 mA, SOT-23-5 | Diodes Inc. | AP2112K-3.3TRG1 | Mouser 621-AP2112K-3.3TRG1 | 1 | 10 |
+| U2 | XIAO ESP32-S3 (Stiftleisten lose beiliegend) | Seeed Studio | 113991114 | Mouser 713-113991114 | 1 | 6 |
+| U3 | Puffer 74AHCT1G125, SOT-25 | Diodes Inc. | 74AHCT1G125QW5-7 | Mouser 621-74AHCT1G125QW5-7 | 1 | 10 |
+| U4 | CAN-Transceiver 3,3 V, SOIC-8 | Texas Instruments | SN65HVD230DR | Mouser 595-SN65HVD230DR | 1 | 10 |
+| F1 | PPTC **60 V**, 0,5 A hold / 1 A trip, radial RM 5,1 | Littelfuse | 60R050XU | Mouser 576-60R050XU | 1 | 10 |
+| SW1 | Split-Termination, DIP 2-polig, Low Profile, J-Bend | CTS | 219-2LPSTJ | Mouser 774-219-2LPSTJ | 1 | 10 |
+| SW2 | 3,3-V-Trennung zum XIAO, Schiebeschalter SPDT 300 mA | C&K | PCM12SMTR | Mouser 611-PCM12SMTR | 1 | 7 |
+
+### Steckverbinder (Platine)
+
+| Ref | Funktion | Hersteller | Herst.-Nr. | Bestell-Nr. | je Board | bestellt |
+| --- | --- | --- | --- | --- | ---: | ---: |
+| J1, J2 | CAN-Bus, Push-in 3-polig, RM 2,5 | Phoenix Contact | PTSM 0,5/3-2,5-V THR R44 (1770966) | Mouser 651-1770966 | 2 | 15 |
+| J3, J5 | Bremse / Hallsensor, JST PH 3-polig vertikal | JST | B3B-PH-K-S-GW | Mouser 306-B3BPHKSGW | 2 | 15 |
+| J4, J10, J12 | Motorabzweig / Power, Hebelklemme 4-polig, RM 3,5 | WAGO | 2601-3104 | Reichelt WAGO 2601-3104 | 3 | 20 |
+| J6 | UART-Debug, Stiftleiste 1×4, RM 2,54 | Würth Elektronik | 61300411121 | Mouser 710-61300411121 | 1 | 10 |
+
+### Kabelseite & Werkzeug (nicht auf der Platine)
+
+| Teil | Verwendung | Hersteller | Herst.-Nr. | Bestell-Nr. | bestellt |
+| --- | --- | --- | --- | --- | ---: |
+| PH-Gehäuse 3-polig | Gegenstecker J3 / J5 | JST | PHR-3 | Mouser 306-PHR-3 | 15 |
+| PH-Crimpkontakt AWG 30–24 | J3 (2 Pins) + J5 (3 Pins) | JST | SPH-002T-P0.5S | Mouser 306-SPH-002T-P0.5S | 100 |
+| Aderendhülse unisoliert 0,5 mm² × 6 mm | J1 / J2 (CAN + Schirm-Pigtail) | Altech | 2216.0 (H0.50/6) | Mouser 845-2216.0 | 50 |
+| Aderendhülse unisoliert 1,5 mm² × 10 mm | J4 / J10 / J12 Power-Adern | Altech | 2222.0 | Mouser 845-2222.0 | 100 |
+| Crimpzange Aderendhülsen 0,25–6 mm² | Aderendhülsen | — | CRIMPZANGE AEH | Reichelt | 1 |
+| 5-V-Netzteil 90 W / 18 A | 5-V-Schiene (einmal pro Arm) | MEAN WELL | LRS-100-5 | Reichelt MW LRS-100-5 | 1 |
+
+**Bereits vorhanden:** Hallsensoren TLE49x5L und Magnete Ø 4 × 2 mm (Reichelt MAGNET 4.2). **Typ prüfen:** Homing-Ablauf und Firmware setzen einen **TLE4905L** (unipolarer Schalter) voraus; ein **TLE4935L** (bipolarer Latch) gibt mit nur einem Magneten nach dem Überfahren nicht wieder frei.
+
+**Hinweise zur BOM**
+
+- **Schaltplan-Werte nachziehen:** D1 steht noch auf `US2DA`, F1 auf `Polyfuse` mit Footprint `Fuse:Fuse_Bourns_MF-RHT050` → `60R050XU` / `R0192:Fuse_Littelfuse_60R050XU` (inkl. eigenem STEP-Modell), D4 `LED` → rot, Q2 → `IRLR3410`.
+- **Aderendhülsen:** Die WAGO 2601 ist für 8–9 mm Abisolierlänge ausgelegt; steht die 10-mm-Hülse sichtbar über das Gehäuse, nach dem Crimpen auf ~8 mm kürzen. Die CAN-Adern in **J4 ohne Hülse** klemmen (0,5 × 6 mm ist dort zu kurz; feindrähtig ohne Hülse ist zulässig). Isolierte Hülsen passen nicht: WAGO nimmt isolierte Hülsen nur bis 0,75 mm², PTSM gar nicht.
+- **Altech 2222.0:** Mouser beschreibt sie als „H100/10“; nach Altech-Nummernschema (2219/2220 = 1,0 mm², 2221/2222 = 1,5 mm²) ist es die 1,5-mm²-Hülse — beim Auspacken kurz gegenprüfen.
+- **Nicht bestellt / nicht nötig:** Buchsenleisten für den XIAO (wird direkt gelötet), CAN-TVS und Serien-PTC in der 5-V-Einspeisung (noch offene Schaltplan-Punkte, s. u.).
 
 ---
 
@@ -228,16 +307,16 @@ Was sie leistet: Transienten und ESD wegstecken, und falls 48 V auf die 5-V-Schi
 - [ ] **Serienelement vor D3 in die 5-V-Einspeisung** (PPTC 0,5 A oder 1-A-Sicherung). Ohne das kann die SMAJ5.0CA ihre Crowbar-Rolle nicht überleben: bei 48 V auf der 5-V-Schiene müsste sie 12,5 A × 9 V ≈ 112 W verheizen und stirbt — ob kurz oder offen ist Glückssache, und „offen" heißt 48 V auf allem. Realistischer Fehlerfall: die 4-polige WAGO verkehrt herum gesteckt.
 - [ ] **C2/C3 auf `Device:C_Polarized`** umstellen — Symbol ist ungepolt (`Device:C`), Footprint ist ein Elko (`CP_Radial_D10.0mm_P5.00mm`). Ohne Polaritätsmarkierung im Bestückungsdruck, und bei verpolter 48-V-Einspeisung fliegen beide. Verpolschutz gibt es auf dem Board keinen.
 - [ ] **R10 aus dem Value-Feld** (`DNP`) ins DNP-Attribut verschieben, sonst steht ein Widerstand mit Wert „DNP" in der BOM.
-- [ ] **J6 (UART): 2× ~220 Ω in TX/RX** — ein versehentlich angesteckter 5-V-USB-Serial-Adapter grillt sonst den ESP32.
-- [ ] **XIAO-3V3-Backfeed** dokumentieren oder entschärfen: U1 treibt den 3V3-Pin: beim Flashen über USB kämpfen AP2112K und XIAO-LDO gegeneinander. Entweder „beim Flashen 5 V aus" oder ein 0-Ω-Trennpunkt in der 3V3-Zuleitung.
+- [x] **J6 (UART): 2× 220 Ω in TX/RX** (R5 / R14) — ein versehentlich angesteckter 5-V-USB-Serial-Adapter grillt sonst den ESP32.
+- [x] **XIAO-3V3-Backfeed** über **SW2** (PCM12SMTR, 300 mA) entschärft — beim Flashen über USB öffnen. Hintergrund: U1 treibt den 3V3-Pin: beim Flashen über USB kämpfen AP2112K und XIAO-LDO gegeneinander. Entweder „beim Flashen 5 V aus" oder ein 0-Ω-Trennpunkt in der 3V3-Zuleitung.
 - [ ] Netz `F1.1 / J3.1` (48 V hinter der Sicherung) benennen (`BRAKE_48V`) — im Layout sonst nicht unterscheidbar vom ungeschützten 48 V.
-- [x] **PPTC auf die 48-V-Seite verlegt** (jetzt F1), Symbol `Device:Polyfuse`, Footprint `Fuse_Bourns_MF-RHT050` zugewiesen. *Rest:* Value-Feld noch auf `MF-RHT050-2` setzen (steht auf „Polyfuse“).
+- [x] **PPTC auf die 48-V-Seite verlegt** (jetzt F1), Symbol `Device:Polyfuse`, Footprint `Fuse_Bourns_MF-RHT050` zugewiesen. *Rest:* auf Littelfuse **60R050XU** (60 V) umstellen — Footprint `R0192:Fuse_Littelfuse_60R050XU` zuweisen und Value-Feld auf `60R050XU` setzen (steht auf „Polyfuse“).
 - [x] **J12/J10 auf `Conn_01x04` umgestellt**, Belegung +5 V | GND | GND | +48 V verdrahtet.
 - [x] **CAN-Pinreihenfolge der Treiber geklärt:** GDS68 und RS05 sind unterschiedlich belegt → kein einmaliger Schaltplan-Tausch möglich, wird pro Achse an der Klemme verdrahtet.
 - [ ] **TVS/Zener (~68 V) vom Schaltknoten nach GND** — nur nötig, wenn die gemessene Spuleninduktivität > ~380 mH liegt (darunter reicht D1 allein für ein Einfallen unter 20 ms). Schützt zusätzlich den Sense-Teiler vor Flyback-Spitzen.
 - [x] **Sense-Teiler entschärft:** R8 = 6,8 k → 48 V × 6,8/156,8 = 2,08 V, sauber linear. *Nebenbei:* 0 V bei PWM = 0 heißt „FET durchlegiert **oder** Bremsleitung unterbrochen" — beides Fehler, aber nicht unterscheidbar.
 - [x] **R11 = 470 Ω** eingetragen (~3 mA an roter/grüner 0603-LED).
-- [ ] MPNs in die Value-Felder: **Q2** (IRLR3410? R_DS(on) bei **V_GS = 5 V** prüfen), **D4** (rote oder grüne 0603-LED — **kein Blau/Weiß**, V_f ≈ 3,0 V lässt an 3,3 V kaum Headroom), **F1** (MF-RHT050-2).
+- [ ] MPNs in die Value-Felder (Teile ausgewählt und bestellt, siehe BOM): **Q2** IRLR3410 (R_DS(on) = 0,125 Ω bei V_GS = 5 V, geprüft), **D4** LTST-C191KRKT (rot), **F1** 60R050XU, **D1** US1D (steht noch auf `US2DA`).
 - [x] **TVS auf SMAJ5.0CA (D3) gewechselt** — bidirektional, Einbaurichtung damit egal.
 - [x] C2/C3 mit Note „mind. 100 V spannungsfest“ versehen.
 - [ ] **C4 ≥ 100 V** noch vermerken.
