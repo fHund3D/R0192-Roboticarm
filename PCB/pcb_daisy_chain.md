@@ -20,7 +20,7 @@ Datenblätter: `PCB/R0192.pretty/Datenblätter/` (Bauteile) und `.../Kabel/` (CF
 | CAN-Bus | J1/J2 (CANH/CANL/SHLD), Schirm hybrid über R6 1 M ‖ C11 100 n; R10 (0 Ω) = harte Schirmauflage, **nur auf einem Board bestücken** |
 | Terminierung | **Split-Termination**: R13 + R12 je 60,4 Ω in Reihe über den Bus, Mittelpunkt über C13 4,7 nF auf GND. Zuschaltbar über SW1 (CTS 219-2LPSTJ, **2-polig**, je ein Pol pro Zweig) — nur an den zwei physischen Busenden einschalten |
 | Motorabzweig | J4: CANH, CANL, GND, +48 V (Steckertyp s. u.) |
-| Homing-Sensor | J5: 5 V / OUT / GND. R1 4,7 k Pull-up auf **3,3 V**, C10 1 nF, R9 6,8 k Serienschutz |
+| Homing-Sensor | J5: 5 V / GND / OUT (Pin 1–3). R1 4,7 k Pull-up auf **3,3 V**, C10 1 nF, R9 6,8 k Serienschutz |
 | Bremsen-Endstufe | J3 + F1 (PPTC) + Q2 + D1, Gate über U3 74AHCT1G125 (3,3 V → 5 V) |
 | Status-LED | D4 (rot oder grün, 0603) + **R11 470 Ω** an **D2**, active high |
 | UART-Debug | J6: GND / D6 / D7 / +3,3 V, TX/RX über R5 / R14 (220 Ω in Serie). Adapter-VCC **nicht** an Pin 4 (= 3,3-V-Schiene) |
@@ -212,7 +212,7 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 | C8 | 10 µF 25 V X5R 0805 | Samsung | CL21A106KAYNNNG | Mouser 187-CL21A106KAYNNNG | 1 | 10 |
 | C10 | 1 nF 50 V **C0G** 0603 | Murata | GRM1885C1H102JA01D | Mouser 81-GRM39C102J50 | 1 | 10 |
 | C13 | 4,7 nF 50 V **C0G** 0603 | Murata | GRM1885C1H472JA01D | Mouser 81-GRM1885C1H472JA1D | 1 | 10 |
-| C2, C3 | 100 µF **100 V** Elko, Ø10 × 20 mm, RM 5 | Nichicon | UVR2A101MPD1TD | Mouser 647-UVR2A101MPD1TO | 2 | 15 |
+| C2, C3, C14 | 100 µF **100 V** Elko, Ø10 × 20 mm, RM 5 | Nichicon | UVR2A101MPD1TD | Mouser 647-UVR2A101MPD1TO | 3 | 15 (**für 6 Boards 18 nötig, 3+ nachbestellen**) |
 
 ### Widerstände (Yageo RC0603, 1 %, 1/10 W)
 
@@ -244,6 +244,7 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 | F1 | PPTC **60 V**, 0,5 A hold / 1 A trip, radial RM 5,1 | Littelfuse | 60R050XU | Mouser 576-60R050XU | 1 | 10 |
 | SW1 | Split-Termination, DIP 2-polig, Low Profile, J-Bend | CTS | 219-2LPSTJ | Mouser 774-219-2LPSTJ | 1 | 10 |
 | SW2 | 3,3-V-Trennung zum XIAO, Schiebeschalter SPDT 300 mA | C&K | PCM12SMTR | Mouser 611-PCM12SMTR | 1 | 7 |
+| *neu (z. B. D2)* | CAN-TVS 12 V, 2 Leitungen bidirektional gegen GND, SOT-23 | Nexperia | PESD12VL2BT,215 | Mouser 771-PESD12VL2BT215 | 1 | **noch bestellen** |
 
 ### Steckverbinder (Platine)
 
@@ -269,10 +270,10 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 
 **Hinweise zur BOM**
 
-- **Schaltplan-Werte nachziehen:** D1 steht noch auf `US2DA`, F1 auf `Polyfuse` mit Footprint `Fuse:Fuse_Bourns_MF-RHT050` → `60R050XU` / `R0192:Fuse_Littelfuse_60R050XU` (inkl. eigenem STEP-Modell), D4 `LED` → rot, Q2 → `IRLR3410`.
+- **Schaltplan-Werte nachziehen:** D4 steht noch auf `LED` → `LTST-C191KRKT` (rot).
 - **Aderendhülsen:** Die WAGO 2601 ist für 8–9 mm Abisolierlänge ausgelegt; steht die 10-mm-Hülse sichtbar über das Gehäuse, nach dem Crimpen auf ~8 mm kürzen. Die CAN-Adern in **J4 ohne Hülse** klemmen (0,5 × 6 mm ist dort zu kurz; feindrähtig ohne Hülse ist zulässig). Isolierte Hülsen passen nicht: WAGO nimmt isolierte Hülsen nur bis 0,75 mm², PTSM gar nicht.
 - **Altech 2222.0:** Mouser beschreibt sie als „H100/10“; nach Altech-Nummernschema (2219/2220 = 1,0 mm², 2221/2222 = 1,5 mm²) ist es die 1,5-mm²-Hülse — beim Auspacken kurz gegenprüfen.
-- **Nicht bestellt / nicht nötig:** Buchsenleisten für den XIAO (wird direkt gelötet), CAN-TVS und Serien-PTC in der 5-V-Einspeisung (noch offene Schaltplan-Punkte, s. u.).
+- **Nicht bestellt / nicht nötig:** Buchsenleisten für den XIAO (wird direkt gelötet), Serien-PTC in der 5-V-Einspeisung (noch offener Schaltplan-Punkt, s. u.).
 
 ---
 
@@ -298,31 +299,34 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 
 **Schaltplan**
 - [x] **XIAO-Insel aufgelöst:** J7/J8/J9/J11 gelöscht, Signale direkt an U2. Netzliste geprüft — D0 Bremse, D1 Hall, D2 LED, D3 Sense, D6/D7 UART, D9/D10 CAN, 3V3/GND versorgt, D4/D5/D8/VBUS mit NC-Flag.
-- [ ] **Zwei leere Labels löschen** bei (83.82, 156.21) — deckungsgleich unter `Brake Gate` — und (111.76, 215.9), auf dem `TLE4905L Out`-Netz. Zwei Labels mit gleichem (leerem) Text verschmelzen Hallsensor-Ausgang und MOSFET-Gate zu **einem** Netz; im letzten PCB-Sync war das `/<NO NET>` mit genau 7 Pads (`J5, R1, C10, R9` + `Q2.G, R2, R4`). Deshalb wirken die neuen Labels nicht. In KiCad: draufklicken → „Clarify Selection" → das Label ohne Namen löschen, oder Selection Filter auf *Labels* und einen Rahmen ziehen.
-- [ ] Leeres `text`-Objekt bei (365.76, 128.27) entfernen (harmlos, aber Müll).
-- [ ] **Status-LED-Label korrigieren:** heißt `GPIO D5 (XIAO-ESP32-S3)`, hängt aber an U2.3 = GPIO3 = **D2**. Da D5 ein NC-Flag hat, ist D2 die Absicht → Label auf `GPIO D2` umbenennen (Vorteil: D4/D5 bleiben als SDA/SCL frei).
-- [ ] `U1.4 (NC)` hat kein No-Connect-Flag → ERC-Rauschen.
-- [ ] **Split-Termination fertigstellen:** SW2 auf **2-polig** (`Switch:SW_DIP_x02`, `SW_DIP_SPSTx02_Slide_Copal_CHS-02A_W5.08mm_P1.27mm_JPin`), je ein Pol pro Zweig; R12/R13 auf **60,4 Ω 1 %** (E96); C13 als **C0G**. Notiztext im Rahmen („120 Ohm → aktivierbarer Abschlusswiderstand") anpassen.
-- [ ] **CAN-TVS** (NUP2105L / PESD2CANFD, SOT-23) am J1/J2-Knoten ergänzen.
+- [x] **Zwei leere Labels löschen** bei (83.82, 156.21) — deckungsgleich unter `Brake Gate` — und (111.76, 215.9), auf dem `TLE4905L Out`-Netz. Zwei Labels mit gleichem (leerem) Text verschmelzen Hallsensor-Ausgang und MOSFET-Gate zu **einem** Netz; im letzten PCB-Sync war das `/<NO NET>` mit genau 7 Pads (`J5, R1, C10, R9` + `Q2.G, R2, R4`). Deshalb wirken die neuen Labels nicht. In KiCad: draufklicken → „Clarify Selection" → das Label ohne Namen löschen, oder Selection Filter auf *Labels* und einen Rahmen ziehen. *Geprüft 2026-09-11:* keine leeren Labels mehr, `TLE4905L Out` und `BRAKE GATE` sind getrennte Netze.
+- [x] Leeres `text`-Objekt entfernt (auch das zweite bei (359.41, 125.095)).
+- [x] **Status-LED-Label korrigieren:** heißt `GPIO D5 (XIAO-ESP32-S3)`, hängt aber an U2.3 = GPIO3 = **D2**. Da D5 ein NC-Flag hat, ist D2 die Absicht → Label auf `GPIO D2` umbenennen (Vorteil: D4/D5 bleiben als SDA/SCL frei). *Erledigt:* Label `GPIO D2`, Netz R11 ↔ U2.3.
+- [x] `U1.4 (NC)` hat kein No-Connect-Flag → ERC-Rauschen. *Erledigt:* ERC meldet keine unverbundenen Pins mehr.
+- [x] **Split-Termination fertigstellen:** SW2 auf **2-polig** (`Switch:SW_DIP_x02`, `SW_DIP_SPSTx02_Slide_Copal_CHS-02A_W5.08mm_P1.27mm_JPin`), je ein Pol pro Zweig; R12/R13 auf **60,4 Ω 1 %** (E96); C13 als **C0G**. Notiztext im Rahmen („120 Ohm → aktivierbarer Abschlusswiderstand") anpassen. *Erledigt:* SW1 = CTS 219-2LPSTJ (2-polig), R12/R13 = 60,4 Ω 1 %, C13 C0G bestellt. *Rest:* Notiztext im CAN-Rahmen steht noch auf „120 Ohm -> aktivierbarer Abschlusswiderstand“.
+- [ ] **CAN-TVS** (NUP2105L / PESD2CANFD, SOT-23) am J1/J2-Knoten ergänzen. *Empfehlung:* **Nexperia PESD12VL2BT,215** (Mouser 771-PESD12VL2BT215), 12 V V_RWM, V_BR 14,2–16,7 V, 19 pF, 200 W, SOT-23. Pin 1 = CANH, Pin 2 = CANL, Pin 3 = GND (jede Leitung gegen GND, **nicht** CANH–CANL). Symbol `Power_Protection:NUP2105L` (gleiche Pinbelegung, Value ändern), Footprint `Package_TO_SOT_SMD:SOT-23`. Die übliche NUP2105L (24 V, V_BR ≥ 26,2 V) klemmt erst oberhalb der −4/+16-V-Grenze des SN65HVD230. Noch nicht im Schaltplan, noch nicht bestellt.
 - [ ] **Serienelement vor D3 in die 5-V-Einspeisung** (PPTC 0,5 A oder 1-A-Sicherung). Ohne das kann die SMAJ5.0CA ihre Crowbar-Rolle nicht überleben: bei 48 V auf der 5-V-Schiene müsste sie 12,5 A × 9 V ≈ 112 W verheizen und stirbt — ob kurz oder offen ist Glückssache, und „offen" heißt 48 V auf allem. Realistischer Fehlerfall: die 4-polige WAGO verkehrt herum gesteckt.
-- [ ] **C2/C3 auf `Device:C_Polarized`** umstellen — Symbol ist ungepolt (`Device:C`), Footprint ist ein Elko (`CP_Radial_D10.0mm_P5.00mm`). Ohne Polaritätsmarkierung im Bestückungsdruck, und bei verpolter 48-V-Einspeisung fliegen beide. Verpolschutz gibt es auf dem Board keinen.
+- [x] **C2/C3 auf `Device:C_Polarized`** umstellen — Symbol ist ungepolt (`Device:C`), Footprint ist ein Elko (`CP_Radial_D10.0mm_P5.00mm`). Ohne Polaritätsmarkierung im Bestückungsdruck, und bei verpolter 48-V-Einspeisung fliegen beide. Verpolschutz gibt es auf dem Board keinen. *Erledigt.* 3D-Modell: KiCad hat Ø 10 × 20 mm nur mit RM 7,5 — daher Footprint `CP_Radial_D10.0mm_P5.00mm` behalten und im 3D-Modell **Scale Z = 2,0** setzen (das KiCad-Modell ist trotz „height=16mm“ nur ~10 mm hoch → 20 mm, per Render geprüft).
 - [ ] **R10 aus dem Value-Feld** (`DNP`) ins DNP-Attribut verschieben, sonst steht ein Widerstand mit Wert „DNP" in der BOM.
 - [x] **J6 (UART): 2× 220 Ω in TX/RX** (R5 / R14) — ein versehentlich angesteckter 5-V-USB-Serial-Adapter grillt sonst den ESP32.
+- [x] J6-Note „nur Platzhalter -> nicht auflöten“ entfernt — J6 wird bestückt.
 - [x] **XIAO-3V3-Backfeed** über **SW2** (PCM12SMTR, 300 mA) entschärft — beim Flashen über USB öffnen. Hintergrund: U1 treibt den 3V3-Pin: beim Flashen über USB kämpfen AP2112K und XIAO-LDO gegeneinander. Entweder „beim Flashen 5 V aus" oder ein 0-Ω-Trennpunkt in der 3V3-Zuleitung.
-- [ ] Netz `F1.1 / J3.1` (48 V hinter der Sicherung) benennen (`BRAKE_48V`) — im Layout sonst nicht unterscheidbar vom ungeschützten 48 V.
-- [x] **PPTC auf die 48-V-Seite verlegt** (jetzt F1), Symbol `Device:Polyfuse`, Footprint `Fuse_Bourns_MF-RHT050` zugewiesen. *Rest:* auf Littelfuse **60R050XU** (60 V) umstellen — Footprint `R0192:Fuse_Littelfuse_60R050XU` zuweisen und Value-Feld auf `60R050XU` setzen (steht auf „Polyfuse“).
+- [x] Netz `F1.1 / J3.1` (48 V hinter der Sicherung) benennen (`BRAKE_48V`) — im Layout sonst nicht unterscheidbar vom ungeschützten 48 V. *Erledigt:* Label `BRAKE +48V`.
+- [x] **PPTC auf die 48-V-Seite verlegt** (jetzt F1), Symbol `Device:Polyfuse`, Footprint `Fuse_Bourns_MF-RHT050` zugewiesen. Value auf Littelfuse **60R050XU** (60 V) umgestellt. Footprint `R0192:Fuse_Littelfuse_60R050XU` zugewiesen (steht auf „Polyfuse“).
 - [x] **J12/J10 auf `Conn_01x04` umgestellt**, Belegung +5 V | GND | GND | +48 V verdrahtet.
 - [x] **CAN-Pinreihenfolge der Treiber geklärt:** GDS68 und RS05 sind unterschiedlich belegt → kein einmaliger Schaltplan-Tausch möglich, wird pro Achse an der Klemme verdrahtet.
 - [ ] **TVS/Zener (~68 V) vom Schaltknoten nach GND** — nur nötig, wenn die gemessene Spuleninduktivität > ~380 mH liegt (darunter reicht D1 allein für ein Einfallen unter 20 ms). Schützt zusätzlich den Sense-Teiler vor Flyback-Spitzen.
 - [x] **Sense-Teiler entschärft:** R8 = 6,8 k → 48 V × 6,8/156,8 = 2,08 V, sauber linear. *Nebenbei:* 0 V bei PWM = 0 heißt „FET durchlegiert **oder** Bremsleitung unterbrochen" — beides Fehler, aber nicht unterscheidbar.
 - [x] **R11 = 470 Ω** eingetragen (~3 mA an roter/grüner 0603-LED).
-- [ ] MPNs in die Value-Felder (Teile ausgewählt und bestellt, siehe BOM): **Q2** IRLR3410 (R_DS(on) = 0,125 Ω bei V_GS = 5 V, geprüft), **D4** LTST-C191KRKT (rot), **F1** 60R050XU, **D1** US1D (steht noch auf `US2DA`).
+- [x] MPNs in die Value-Felder: **D1** US1D, **F1** 60R050XU, **Q2** IRLR3410TRPBF (R_DS(on) = 0,125 Ω bei V_GS = 5 V, geprüft).
+- [ ] **D4** Value steht noch auf `LED` → `LTST-C191KRKT` (rot).
 - [x] **TVS auf SMAJ5.0CA (D3) gewechselt** — bidirektional, Einbaurichtung damit egal.
 - [x] C2/C3 mit Note „mind. 100 V spannungsfest“ versehen.
 - [ ] **C4 ≥ 100 V** noch vermerken.
 - [x] **C6 auf 2,2 µF** angehoben (DC-Derating am LDO-Ausgang).
 - [ ] Note für J4 fehlt noch (Leiterquerschnitt Motorabzweig, 1,5 mm² Power + 0,5 mm² CAN).
 - [ ] Sicherung / Inrush-Begrenzung im 48-V-Pfad erwägen (2× 100 µF pro Board × 6 Boards = 1,2 mF beim Hot-Plug).
+- [ ] **ERC aufräumen:** 245× `endpoint_off_grid` (Pins/Drahtenden neben dem Raster) und Symbolbibliothek `Seeed_Studio_XIAO_Series` nicht gefunden (verweist auf alten OneDrive-Pfad).
 - [ ] **Mis-Plug-Risiko J4 ↔ J10/J12**: dreimal dieselbe WAGO 2601-3104 mit drei Belegungen. Motorkabel in J10 legt CANH auf +5 V. Bestückungsdruck allein reicht bei 6 Boards × 3 Klemmen nicht — unterschiedliche Kabellängen oder anderer Typ für J4.
 
 **Auslegung**

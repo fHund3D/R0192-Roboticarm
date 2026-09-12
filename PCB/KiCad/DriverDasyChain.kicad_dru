@@ -1,0 +1,5 @@
+(version 1)
+(rule "Power-Klemmen massiv an Flaechen"
+	(condition "A.Type == 'Pad' && (A.memberOfFootprint('J10') || A.memberOfFootprint('J12') || A.memberOfFootprint('J4'))")
+	(constraint zone_connection solid))
+
