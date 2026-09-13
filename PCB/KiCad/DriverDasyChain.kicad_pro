@@ -632,14 +632,6 @@
       {
         "netclass": "PWR_3V3",
         "pattern": "+3.3V"
-      },
-      {
-        "netclass": "CAN",
-        "pattern": "CAN"
-      },
-      {
-        "netclass": "HV_Brake",
-        "pattern": "HV_Brake"
       }
     ]
   },

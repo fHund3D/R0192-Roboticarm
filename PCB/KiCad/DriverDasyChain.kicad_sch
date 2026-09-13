@@ -4552,7 +4552,7 @@
 		)
 		(uuid "06406e3a-a4b7-420b-b7cc-57d9858c985e")
 	)
-	(text "XIAO-ESP32-S3\nMicrocontroller zum steuern\n3.3V als Spannungsversorung \nJ9 und J11 nur Platzhalter"
+	(text "XIAO-ESP32-S3\nMicrocontroller zum steuern\n3.3V als Spannungsversorung \nund SWT zum 3.3V zu USB 5V"
 		(exclude_from_sim no)
 		(at 151.13 148.59 0)
 		(effects
@@ -4622,7 +4622,7 @@
 	)
 	(text "Hallsensor (TLE4905L)"
 		(exclude_from_sim no)
-		(at 62.23 199.39 0)
+		(at 59.69 199.39 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -4630,7 +4630,7 @@
 		)
 		(uuid "557172bb-bef6-4d77-bfed-54fdd414a185")
 	)
-	(text "Anschluss für Bremse vom Motor\nBreme an (default)\nBremse aus (10.5V kurz)\nBremse aus halten (5V lang)\nPWM von 48V \n48V fällt aus -> Bremse an\nGPIO D3 -> misst falls MOSFET durchgebrannt (Spannungsteiler)\nSpannungsteiler -> max 5V bei 80V Versorung (können nicht anliegen)\nC12 -> \"lässt\" kein PVM durch zur Spannnungsmessung\nGPIO D0 -> 3.3V (PWM) -> 3.3V Treiber 5V -> 5V MOSFET schaltet 48V\nD1 -> Freilaufdiode\nTH1 -> Stromschutz (0.64A)\nC4 -> Entkopplung (PWM)"
+	(text "Anschluss für Bremse vom Motor\nBreme an (default)\nBremse aus (48 V / 100 % für ~150 ms)\nBremse aus halten (5V lang)\nPWM von 48V \n48V fällt aus -> Bremse an\nGPIO D3 -> misst falls MOSFET durchgebrannt (Spannungsteiler)\nSpannungsteiler -> max 5V bei 80V (150 k / 6,8 k → 2,08 V bei 48 V)\nC12 -> \"lässt\" kein PVM durch zur Spannnungsmessung\nGPIO D0 -> 3.3V (PWM) -> 3.3V Treiber 5V -> 5V MOSFET schaltet 48V\nD1 -> Freilaufdiode\nF1 -> Stromschutz (60R050XU)\nC4 -> Entkopplung (PWM)"
 		(exclude_from_sim no)
 		(at 21.59 120.65 0)
 		(effects
@@ -4674,7 +4674,7 @@
 		)
 		(uuid "86986307-44b2-493e-9f30-5ccaae9a1b7a")
 	)
-	(text "Canubs Ein - und Ausgang\nJ4 Ausgang zu Motor (48V, GND, CANH und CANL)\nCanbus vom ESP32-S3\nShilding mit 1M Ohm und 100nF (und Kabelanschluss)\nKann auf GND überbrückt werden mit DNP\n120 Ohm -> aktivierbarer Abschlusswiderstand\n"
+	(text "Canubs Ein - und Ausgang\nJ4 Ausgang zu Motor (48V, GND, CANH und CANL)\nCanbus vom ESP32-S3\nShilding mit 1M Ohm und 100nF (und Kabelanschluss)\nKann auf GND überbrückt werden mit DNP\nSplit 2× 60,4 Ω + C13 -> aktivierbarer Abschlusswiderstand\n"
 		(exclude_from_sim no)
 		(at 271.78 133.35 0)
 		(effects
@@ -4708,7 +4708,7 @@
 		)
 		(uuid "b59ebc23-0962-4adc-a311-08cd0e9f704f")
 	)
-	(text "5V zu 3.3V Logik\nD2 als Schutz Überspannung\nImax = 600mA"
+	(text "5V zu 3.3V Logik\nD3 als Schutz Überspannung\nImax = 600mA"
 		(exclude_from_sim no)
 		(at 271.78 76.2 0)
 		(effects
@@ -4730,7 +4730,7 @@
 		)
 		(uuid "d569dac0-7f84-4ad0-970d-74e0f4880aef")
 	)
-	(text "LED für Statusanzeige"
+	(text "LED für Statusanzeige\n(Rot)"
 		(exclude_from_sim no)
 		(at 167.64 203.2 0)
 		(effects
@@ -4752,9 +4752,9 @@
 		)
 		(uuid "f89602ca-a318-4565-b55b-7b38ba0bc61a")
 	)
-	(text "Anschluss für den Hallsensor (TLE4905L)\nZuständig für Homing\n5V, GND und Ausgang \n1k Widerstand -> Strombegrenzung (Schutz)\n4,7k Widerstand -> Pullup zu 3,3V"
+	(text "Anschluss für den Hallsensor (TLE4905L)\nZuständig für Homing\n5V, GND und Ausgang \nR9 6,8 k Widerstand -> Strombegrenzung (Schutz)\n4,7k Widerstand -> Pullup zu 3,3V"
 		(exclude_from_sim no)
-		(at 53.34 205.74 0)
+		(at 50.165 205.74 0)
 		(effects
 			(font
 				(size 0.889 0.889)
@@ -7020,7 +7020,7 @@
 		(dnp no)
 		(polyline
 			(pts
-				(xy 142.24 200.66) (xy 52.07 200.66) (xy 52.07 240.03) (xy 142.24 240.03)
+				(xy 142.24 200.66) (xy 48.895 200.66) (xy 48.895 240.03) (xy 142.24 240.03)
 			)
 			(stroke
 				(width 0)
@@ -7214,6 +7214,17 @@
 		)
 		(property "Description" "Unpolarized capacitor"
 			(at 30.48 165.1 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Note" "mind. 100V Spannungsfest"
+			(at 30.48 165.1 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9525,10 +9536,9 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "41c2a4a2-d213-4e37-8cdd-0914a12e0d54")
 		(property "Reference" "D4"
-			(at 193.3575 207.01 0)
+			(at 193.04 208.915 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -9537,8 +9547,8 @@
 				)
 			)
 		)
-		(property "Value" "LED"
-			(at 193.3575 209.55 0)
+		(property "Value" "LTST-C191KRKT"
+			(at 193.675 210.82 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -9980,6 +9990,17 @@
 		)
 		(property "Description" "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
 			(at 363.22 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Note" "Leiterquerschnitt Motorabzweig, 1,5 mm² Power + 0,5 mm² CAN"
+			(at 363.22 134.62 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11026,7 +11047,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "869747ba-d119-4021-a9cf-92723045f255")
 		(property "Reference" "R10"
 			(at 320.04 135.89 90)
