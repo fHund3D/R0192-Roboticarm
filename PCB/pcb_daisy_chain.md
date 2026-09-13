@@ -135,19 +135,20 @@ Der PTC diskriminiert also über die **Dauer**, nicht über den Strom — Anzugs
 
 **Warum keine TVS/Zener am Schaltknoten:**
 
-- **Parallel zu D1** (Schaltknoten → GND, Durchbruch über der Busspannung) leitet sie im Normalbetrieb nie: D1 klemmt den Drain bei ~48,7 V (mit Regen Clamp höchstens ~50,7 V). Sie schützt nur Q2, falls D1 fehlt oder offen ist, siehe Option unten.
+- **Parallel zu D1** (Schaltknoten → GND, Durchbruch über der Busspannung) leitet sie im Normalbetrieb nie: D1 klemmt den Drain bei ~48,7 V (mit Regen Clamp höchstens ~50,7 V). Sie schützt nur Q2, falls D1 fehlt oder offen ist, siehe D5 unten.
 - **Anstelle von D1** passt sie zwar auf den SMA-Footprint, aber die Halte-PWM funktioniert dann nicht mehr. In jeder Aus-Phase muss der Spulenstrom über die TVS abgebaut werden, die Spule sieht −20 V (68 V − 48 V) statt −0,7 V. Mittlere Spulenspannung bei 10,4 % Duty: 0,104 × 48 V − 0,896 × 20 V ≈ −13 V. Der Strom bricht zusammen und die Bremse fällt ein. Halten ginge erst ab ~37 % Duty, und dann verheizt die TVS dauerhaft ~6 W (68 V × 147 mA × 63 %). Das überlebt keine SMA-TVS, und der Vorteil des Economizers ist weg.
 - Schnelleres Einfallen bräuchte eine Zener in Reihe zu D1 **plus** einen zweiten (High-Side-)Schalter, der den Zener-Pfad nur beim Einfallen freigibt. Das ist ein Thema für V2.
 
-**Option: TVS als Q2-Schutz (D5, als DNP vorsehen).** Sie nützt nur, wenn D1 fehlt oder offen ist (z. B. Lötfehler). Ohne Freilaufpfad liefe der Drain beim Abschalten über die 100 V von Q2 hinaus.
+**D5: TVS als Q2-Schutz (umgesetzt 2026-09-13, DNP).** Sie nützt nur, wenn D1 fehlt oder offen ist (z. B. Lötfehler). Ohne Freilaufpfad liefe der Drain beim Abschalten über die 100 V von Q2 hinaus.
 
 | | |
 | --- | --- |
 | Bauteil | **Littelfuse SMAJ58A** (unidirektional), Mouser **576-SMAJ58A** |
 | Daten | V_RWM 58 V, V_BR ≥ 64,4 V, V_C 93,6 V bei 4,3 A, 400 W Pulsleistung, DO-214AC |
-| Symbol / Footprint | `Diode:SMAJ58A` / `Diode_SMD:D_SMA`, wie D1/D3. Das 3D-Modell `D_SMA.step` ist in der KiCad-Bibliothek enthalten |
-| Anschluss | Kathode an `BRAKE Out` (Q2-Drain), Anode an GND |
-| Platz | senkrecht rechts neben Q2, zwischen J3 (Unterkante y ≈ 104,3) und J5/C1 (Oberkante y ≈ 107,8 / 109,8), etwa bei x 179,5 / y 108. Kathode kurz zur Drain-Fläche von Q2, Anode an die GND-Via bei 176,4 / 106,1 oder an eine eigene Via |
+| Symbol / Footprint | `Diode:SMAJ58A` / `Diode_SMD:D_SMA` mit 3D-Modell `D_SMA.step`, DNP-Attribut gesetzt. Die Pins heißen im KiCad-Symbol `A1`/`A2`; maßgeblich ist die Pad-Nummer: Pad 1 = Kathode (Band im Bestückungsdruck) |
+| Anschluss | Pad 1 (Kathode) an `BRAKE Out`, Pad 2 (Anode) an GND, per Netzliste geprüft |
+| Platz | senkrecht zwischen D1 und J3/F1 (x 177,7 / y 91,6). Kathode über eine 1,5-mm-Bahn direkt von D1 (Drain-Knoten), Anode über 1,5 mm auf die GND-Via bei 176,5 / 87,1. F1 sitzt dafür jetzt oberhalb (y ≈ 86) |
+| Einlöten | Kathodenband nach unten, Richtung D1/Q2 (Pad 1 bei y 93,6) |
 
 **Warum 58 V:** Die Sperrspannung muss über dem Bus inklusive Regen Clamp (~50 V) liegen, die Klemmspannung unter den 100 V von Q2. Ohne D1 kann die Bremse bei 10,4 % Duty nicht halten (s. oben), der Fehler fällt also sofort auf. Die TVS muss dann vor allem die eine Abschaltung aus der Anzugsphase abfangen. Das ist Notfallschutz, kein Dauerbetrieb. Unidirektional reicht, weil der Drain wegen der Body-Diode von Q2 nie unter −0,7 V fällt.
 
@@ -320,7 +321,7 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 | SW1 | Split-Termination, DIP 2-polig, Low Profile, J-Bend | CTS | 219-2LPSTJ | Mouser 774-219-2LPSTJ | 1 | 10 |
 | SW2 | 3,3-V-Trennung zum XIAO, Schiebeschalter SPDT 300 mA | C&K | PCM12SMTR | Mouser 611-PCM12SMTR | 1 | 7 |
 | D2 | CAN-TVS 12 V, 2 Leitungen bidirektional gegen GND, SOT-23 | Nexperia | PESD12VL2BT,215 | Mouser 771-PESD12VL2BT215 | 1 | **noch bestellen** |
-| D5 (optional, DNP) | TVS 58 V unidirektional, Q2-Schutz bei fehlendem D1, SMA | Littelfuse | SMAJ58A | Mouser 576-SMAJ58A | 0–1 | — |
+| D5 (DNP) | TVS 58 V unidirektional, Q2-Schutz bei fehlendem D1, SMA | Littelfuse | SMAJ58A | Mouser 576-SMAJ58A | 0 (DNP) | **noch bestellen** (Reserve) |
 
 ### Steckverbinder (Platine)
 
@@ -377,6 +378,7 @@ Die alte Vorgabe hier („In2 bräuchte ~25 mm Breite") kam aus der IPC-2221-Lei
 - Bremsen-Schaltknoten klein (Q2 / D1 / J3 / F1 eng beieinander). Brems-PWM liegt rechts, CAN links: Das Trennkonzept ist im Layout eingehalten.
 - THT-Pads von J10/J12/J4 massiv angebunden (Custom-Rule `Power-Klemmen massiv an Flaechen` in `.kicad_dru`), kein Lagenwechsel im 48-V- und GND-Pfad.
 - Bremskanal 1,5 mm auf F.Cu (≥ 2 A).
+- D5 (SMAJ58A, DNP) zwischen D1 und J3 ergänzt, F1 dafür nach oben verschoben. `BRAKE +48V` läuft als 1,5-mm-Bahn rechts an D5 vorbei zu J3.1.
 - D3 direkt an J12.1, wo die 5 V ankommen.
 - 48-V-Clearance 0,5 mm (Netclass `HV_Bus_48V` und Zonen), DRC-Minima eingetragen (Clearance und Track 0,15 mm). Nachgeprüft: Alle 48-V-führenden Netze haben außen ≥ 0,5 mm, auch die Bremsnetze. Die Netzklassen `CAN`/`HV_Brake` haben kein Pattern mehr, das Layout hält die Abstände aber ohnehin ein. Einordnung nach IPC-2221B für 31–50 V: innen (B1) 0,1 mm, außen unbeschichtet (B2) 0,6 mm, außen mit Polymerbeschichtung (B4) 0,13 mm. 0,5 mm mit Lötstopplack ist ok.
 - PCB synchron zum Schaltplan (DRC-Parität sauber), In2-Zonen vorhanden, In1-Zone deckt die ganze Platine ab, keine entarteten Punkte mehr auf Edge.Cuts.
@@ -387,7 +389,7 @@ Die alte Vorgabe hier („In2 bräuchte ~25 mm Breite") kam aus der IPC-2221-Lei
 
 ## Fertigung
 
-**Empfehlung: JLCPCB.** Für ein 4-Lagen-Board unter 100 × 100 mm ist das der günstigste Weg. Bis 150 € Warenwert zieht JLCPCB die Einfuhrumsatzsteuer schon beim Bestellen ein (IOSS), bei DHL fallen also keine Zollgebühren an. Alternativen: **AISLER** (Aachen, Fertigung in Europa, kein Import, dafür teurer) und **PCBWay** (ähnlich wie JLCPCB).
+**Gewählt: JLCPCB.** Für ein 4-Lagen-Board unter 100 × 100 mm ist das der günstigste Weg. Bis 150 € Warenwert zieht JLCPCB die Einfuhrumsatzsteuer schon beim Bestellen ein (IOSS), bei DHL fallen also keine Zollgebühren an. Alternativen: **AISLER** (Aachen, Fertigung in Europa, kein Import, dafür teurer) und **PCBWay** (ähnlich wie JLCPCB).
 
 | Option | Wert |
 | --- | --- |
@@ -410,11 +412,12 @@ Beim Hochladen fragt JLCPCB, wo die Auftragsnummer auf den Bestückungsdruck sol
 
 ## Offene Punkte
 
-Stand 2026-09-13: ERC 0 Fehler / 1 Warnung; Notiztexte, Values (D4), Notes (C2/C3/C4/C14/J4) und das DNP-Attribut von R10 sind aktuell. Erledigte Punkte sind gelöscht, ihre Begründungen stehen in den Abschnitten oben.
+Stand 2026-09-13: ERC 0 Fehler / 4 Warnungen, DRC 0 offene Pads (nur Silk-/Courtyard-Meldungen). Notiztexte, Values (D4), Notes (C2/C3/C4/C14/J4) und die DNP-Attribute von R10 und D5 sind aktuell. Erledigte Punkte sind gelöscht, ihre Begründungen stehen in den Abschnitten oben.
 
 **Schaltplan / Layout**
 
 - [ ] **ERC-Warnung Bibliothekspfad:** `sym-lib-table` zeigt für `Seeed_Studio_XIAO_Series` noch auf den alten OneDrive-Pfad. Harmlos, weil das Symbol im Schaltplan eingebettet ist. Sauber wäre, die `.kicad_sym` ins Repo zu legen (neben `R0192.pretty`) und per `${KIPRJMOD}` einzubinden.
+- [ ] **3 ERC-Warnungen `endpoint_off_grid` an D5:** Pin 2 und die GND-Leitung (x 55,2–62,9 mm / y 147,3 mm) liegen neben dem 1,27-mm-Raster. D5 und das GND-Symbol aufs Raster schieben. Dabei im Brake-Notiztext `D5 -> TVS, Q2-Schutz falls D1 fehlt (DNP)` ergänzen.
 
 **Auslegung / Entscheidungen**
 
@@ -425,9 +428,9 @@ Stand 2026-09-13: ERC 0 Fehler / 1 Warnung; Notiztexte, Values (D4), Notes (C2/C
 
 **Bestellung**
 
-- [ ] D2 PESD12VL2BT,215 (Mouser 771-PESD12VL2BT215), 6 Stück + Reserve.
+- [ ] Mouser: D2 PESD12VL2BT,215 (771-PESD12VL2BT215), 6 Stück + Reserve, und D5 SMAJ58A (576-SMAJ58A), einige als Reserve.
 - [ ] 3+ UVR2A101MPD nachbestellen (für 6 Boards sind 18 nötig, 15 bestellt).
-- [ ] PCB bestellen (s. „Fertigung"): Zonen neu füllen, DRC, Gerber und Bohrdaten exportieren, im Gerber-Viewer des Fertigers prüfen.
+- [ ] PCB bei JLCPCB bestellen (s. „Fertigung"): Zonen neu füllen, DRC, Gerber und Bohrdaten exportieren, im Gerber-Viewer des Fertigers prüfen.
 
 **Bring-up**
 

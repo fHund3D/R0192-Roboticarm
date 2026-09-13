@@ -4784,9 +4784,9 @@
 		)
 		(uuid "557172bb-bef6-4d77-bfed-54fdd414a185")
 	)
-	(text "Anschluss für Bremse vom Motor\nBreme an (default)\nBremse aus (48 V / 100 % für ~150 ms)\nBremse aus halten (5V lang)\nPWM von 48V \n48V fällt aus -> Bremse an\nGPIO D3 -> misst falls MOSFET durchgebrannt (Spannungsteiler)\nSpannungsteiler -> max 5V bei 80V (150 k / 6,8 k → 2,08 V bei 48 V)\nC12 -> \"lässt\" kein PVM durch zur Spannnungsmessung\nGPIO D0 -> 3.3V (PWM) -> 3.3V Treiber 5V -> 5V MOSFET schaltet 48V\nD1 -> Freilaufdiode\nF1 -> Stromschutz (60R050XU)\nC4 -> Entkopplung (PWM)"
+	(text "Anschluss für Bremse vom Motor\nBreme an (default)\nBremse aus (48 V / 100 % für ~150 ms)\nBremse aus halten (5V lang)\nPWM von 48V \n48V fällt aus -> Bremse an\nGPIO D3 -> misst falls MOSFET durchgebrannt (Spannungsteiler)\nSpannungsteiler -> max 5V bei 80V (150 k / 6,8 k → 2,08 V bei 48 V)\nC12 -> \"lässt\" kein PVM durch zur Spannnungsmessung\nGPIO D0 -> 3.3V (PWM) -> 3.3V Treiber 5V -> 5V MOSFET schaltet 48V\nD1 -> Freilaufdiode\nF1 -> Stromschutz (60R050XU)\nC4 -> Entkopplung (PWM)\nD5 -> TVS, Q2-Schutz falls D1 fehlt (DNP)"
 		(exclude_from_sim no)
-		(at 21.59 120.65 0)
+		(at 21.59 121.92 0)
 		(effects
 			(font
 				(size 0.889 0.889)
@@ -5530,7 +5530,7 @@
 	)
 	(wire
 		(pts
-			(xy 62.865 147.32) (xy 67.31 147.32)
+			(xy 63.5 147.32) (xy 67.31 147.32)
 		)
 		(stroke
 			(width 0)
@@ -6480,7 +6480,7 @@
 	)
 	(wire
 		(pts
-			(xy 55.245 147.32) (xy 46.99 147.32)
+			(xy 55.88 147.32) (xy 46.99 147.32)
 		)
 		(stroke
 			(width 0)
@@ -14428,7 +14428,7 @@
 	)
 	(symbol
 		(lib_id "Diode:SMAJ58A")
-		(at 59.055 147.32 0)
+		(at 59.69 147.32 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -14439,7 +14439,7 @@
 		(fields_autoplaced yes)
 		(uuid "e998e9f2-68ef-4850-8a5c-5b31af1959de")
 		(property "Reference" "D5"
-			(at 59.055 140.97 0)
+			(at 59.69 140.97 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14449,7 +14449,7 @@
 			)
 		)
 		(property "Value" "SMAJ58A"
-			(at 59.055 143.51 0)
+			(at 59.69 143.51 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14459,7 +14459,7 @@
 			)
 		)
 		(property "Footprint" "Diode_SMD:D_SMA"
-			(at 59.055 152.4 0)
+			(at 59.69 152.4 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14470,7 +14470,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.littelfuse.com/media?resourcetype=datasheets&itemid=75e32973-b177-4ee3-a0ff-cedaf1abdb93&filename=smaj-datasheet"
-			(at 57.785 147.32 0)
+			(at 58.42 147.32 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14481,7 +14481,7 @@
 			)
 		)
 		(property "Description" "400W unidirectional Transient Voltage Suppressor, 58.0Vr, SMA(DO-214AC)"
-			(at 59.055 147.32 0)
+			(at 59.69 147.32 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
