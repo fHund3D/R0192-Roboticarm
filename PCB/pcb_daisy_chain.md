@@ -135,9 +135,21 @@ Der PTC diskriminiert also über die **Dauer**, nicht über den Strom — Anzugs
 
 **Warum keine TVS/Zener am Schaltknoten:**
 
-- **Parallel zu D1** (Schaltknoten → GND, Durchbruch über der Busspannung) wäre sie wirkungslos: D1 klemmt den Drain bei ~48,7 V, eine 68-V-TVS leitet also nie.
+- **Parallel zu D1** (Schaltknoten → GND, Durchbruch über der Busspannung) leitet sie im Normalbetrieb nie: D1 klemmt den Drain bei ~48,7 V (mit Regen Clamp höchstens ~50,7 V). Sie schützt nur Q2, falls D1 fehlt oder offen ist, siehe Option unten.
 - **Anstelle von D1** passt sie zwar auf den SMA-Footprint, aber die Halte-PWM funktioniert dann nicht mehr. In jeder Aus-Phase muss der Spulenstrom über die TVS abgebaut werden, die Spule sieht −20 V (68 V − 48 V) statt −0,7 V. Mittlere Spulenspannung bei 10,4 % Duty: 0,104 × 48 V − 0,896 × 20 V ≈ −13 V. Der Strom bricht zusammen und die Bremse fällt ein. Halten ginge erst ab ~37 % Duty, und dann verheizt die TVS dauerhaft ~6 W (68 V × 147 mA × 63 %). Das überlebt keine SMA-TVS, und der Vorteil des Economizers ist weg.
 - Schnelleres Einfallen bräuchte eine Zener in Reihe zu D1 **plus** einen zweiten (High-Side-)Schalter, der den Zener-Pfad nur beim Einfallen freigibt. Das ist ein Thema für V2.
+
+**Option: TVS als Q2-Schutz (D5, als DNP vorsehen).** Sie nützt nur, wenn D1 fehlt oder offen ist (z. B. Lötfehler). Ohne Freilaufpfad liefe der Drain beim Abschalten über die 100 V von Q2 hinaus.
+
+| | |
+| --- | --- |
+| Bauteil | **Littelfuse SMAJ58A** (unidirektional), Mouser **576-SMAJ58A** |
+| Daten | V_RWM 58 V, V_BR ≥ 64,4 V, V_C 93,6 V bei 4,3 A, 400 W Pulsleistung, DO-214AC |
+| Symbol / Footprint | `Diode:SMAJ58A` / `Diode_SMD:D_SMA`, wie D1/D3. Das 3D-Modell `D_SMA.step` ist in der KiCad-Bibliothek enthalten |
+| Anschluss | Kathode an `BRAKE Out` (Q2-Drain), Anode an GND |
+| Platz | senkrecht rechts neben Q2, zwischen J3 (Unterkante y ≈ 104,3) und J5/C1 (Oberkante y ≈ 107,8 / 109,8), etwa bei x 179,5 / y 108. Kathode kurz zur Drain-Fläche von Q2, Anode an die GND-Via bei 176,4 / 106,1 oder an eine eigene Via |
+
+**Warum 58 V:** Die Sperrspannung muss über dem Bus inklusive Regen Clamp (~50 V) liegen, die Klemmspannung unter den 100 V von Q2. Ohne D1 kann die Bremse bei 10,4 % Duty nicht halten (s. oben), der Fehler fällt also sofort auf. Die TVS muss dann vor allem die eine Abschaltung aus der Anzugsphase abfangen. Das ist Notfallschutz, kein Dauerbetrieb. Unidirektional reicht, weil der Drain wegen der Body-Diode von Q2 nie unter −0,7 V fällt.
 
 **Einfallzeit mit D1:** Der Strom klingt mit τ = L/R ab, die Bremse fällt bei ~60 mA. Aus dem Haltezustand (147 mA) dauert das t ≈ τ · ln(147/60) ≈ 0,9 τ. Für < 20 ms darf die Spule also bis ~0,78 H haben (R ≈ 35 Ω). Die alte Grenze „~380 mH" galt für 24-V-Dauerbetrieb mit ~450 mA (ln(450/60) ≈ 2). Direkt aus der Anzugsphase (1,41 A) wären es ≈ 3,2 τ, dort also nur bis ~0,22 H. Der Economizer beschleunigt das Einfallen damit deutlich. Einfallzeit beim Bring-up messen.
 
@@ -204,6 +216,8 @@ Das gibt die Common-Mode-Dämpfung und -Referenz, die ohne eigene CAN-GND-Ader s
 | 3,3 V | U1 AP2112K-3.3 (600 mA) | XIAO, SN65HVD230, Pull-up |
 | GND | ein gemeinsames Netz | alles |
 
+**Rückspeisung beim Abbremsen:** Das Netzteil kann keinen Strom aufnehmen. Ein zentraler **ODrive Regen Clamp** am Bus begrenzt die Spannung auf ~50 V. Damit bleiben alle Bauteile mit Abstand unter ihren Grenzen: F1 60 V, SMAJ58A (falls bestückt) 58 V Sperrspannung, GDS68 max. 72 V laut Handbuch, Q2 und Elkos 100 V. Die Ausgangsspannung des 48-V-Netzteils muss klar unter der Clamp-Schwelle liegen, sonst arbeitet der Clamp dauerhaft und heizt.
+
 CAN hat keine eigene GND-Ader (J1/J2 führen nur H/L/Schirm) — die Referenz kommt über die durchgehende Power-GND. **Muss über alle Boards durchgängig sein.** Rechnung und Begründung siehe „CAN-Bus: Referenz, Schirm, Terminierung" oben.
 
 **D3 (SMAJ5.0CA, SMA/DO-214AC):** ausgewählt über Sperrspannung und Pulsenergie, **nicht** über den Laststrom — im Normalbetrieb führt sie keinen Strom. Die **CA-Variante ist bidirektional**, damit ist die Einbaurichtung egal (bei der unidirektionalen SMAJ5.0A müsste Pin 1 die Kathode sein, und das Symbol zeigt das nicht an).
@@ -239,13 +253,22 @@ Mehr µF helfen also kaum. Entscheidend sind **Rippelstrom-Belastbarkeit, Impeda
 
 Quellen: Nichicon-Kataloge UVR und UHE (CAT.8100M).
 
-**Empfehlung:**
+**Entscheidung (2026-09-13): UVR2A101MPD bleiben.** Die UHE kostet etwa das Doppelte. Für die Belastung reicht die UVR, die UHE wäre nur die robustere Wahl bei dauerhaft hoher Last im warmen Gehäuse.
 
-1. **Auf UHE2A820MPD wechseln.** Gleicher Footprint, 3 × 82 µF = 246 µF reichen, weil die µF nicht der Engpass sind. Wegen 105 °C und spezifizierter Impedanz ist sie im warmen Gehäuse die robustere Wahl. Die bestellten UVR funktionieren für erste Tests.
-2. **Nicht** auf Polymer- oder Ultra-Low-ESR-Kondensatoren gehen. Mit der Leitungsinduktivität zwischen den Boards bilden sie einen kaum gedämpften Schwingkreis, und beim Zuschalten kann die Spannung auf bis zu ~2× überschwingen (96 V; F1 ist nur für 60 V ausgelegt, Q2 und die Elkos für 100 V). Der ESR der Alu-Elkos dämpft das.
-3. 48 V nie unter Spannung stecken, sondern zentral schalten (Schütz/Netzteil).
-4. Die J4-Adern +48 V/GND kurz und verdrillt zum Treiber führen: Jeder Zentimeter Schleifenfläche liegt zwischen Elko und Brücke.
-5. *Optional:* Hat der Treiber an den Leistungs-MOSFETs gar keine Keramikkondensatoren, 1–2 × MLCC 2,2–4,7 µF / 100 V (X7R, 1210) direkt an seinen Versorgungspads nachrüsten. Die MHz-Anteile der Schaltflanken kann nur ein Kondensator unmittelbar an der Brücke liefern, nicht das Board über die Leitung.
+**Zwei kleinere Elkos statt C14? Lohnt sich nicht.** Innerhalb einer Serie hängt der ESR an der Gesamtkapazität, nicht an der Stückzahl: Bei der UVR ist tan δ für alle 100-V-Werte 0,08, also ist ESR ∝ 1/C. Werte aus dem UVR-Katalog:
+
+| Variante | C gesamt | Rippelstrom gesamt (85 °C / 120 Hz) | Bauhöhe |
+| --- | ---: | ---: | ---: |
+| 1 × UVR2A101MPD, Ø10 × 20 (jetzt) | 100 µF | 370 mA | 20 mm |
+| 2 × UVR2A470MPD, Ø10 × 12,5 | 94 µF | 460 mA | 12,5 mm |
+| 2 × UVR2A330MPD, Ø8 × 11,5 | 66 µF | 360 mA | 11,5 mm |
+
+Der ESR bleibt praktisch gleich. Die 47-µF-Variante bringt ~25 % mehr Rippelstrom bei gleichem Durchmesser, die Ø-8-Variante hat weniger Kapazität, also *weniger* Reserve. Einziger echter Vorteil wäre die geringere Bauhöhe. Dafür müsste die dicht belegte Mitte (C14 zwischen C2/C3 und J6) umgeroutet werden. Die wirksamen Hebel liegen woanders:
+
+1. **J4-Adern +48 V/GND kurz und verdrillt** zum Treiber führen: Jeder Zentimeter Schleifenfläche liegt zwischen Elko und Brücke.
+2. *Am Treiber:* Hat der GDS68 an den Leistungs-MOSFETs gar keine Keramikkondensatoren, 1–2 × MLCC 2,2–4,7 µF / 100 V (X7R, 1210) direkt an seinen Versorgungspads nachrüsten. Die MHz-Anteile der Schaltflanken kann nur ein Kondensator unmittelbar an der Brücke liefern, nicht das Board über die Leitung.
+3. **Keine Polymer- oder Ultra-Low-ESR-Kondensatoren** auf dem Bus: Mit der Leitungsinduktivität zwischen den Boards bilden sie einen kaum gedämpften Schwingkreis, und beim Zuschalten schwingt die Spannung auf bis zu ~2× über. Der ESR der Alu-Elkos dämpft das.
+4. 48 V nie unter Spannung stecken, sondern zentral schalten (Schütz/Netzteil).
 
 ---
 
@@ -264,7 +287,7 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 | C8 | 10 µF 25 V X5R 0805 | Samsung | CL21A106KAYNNNG | Mouser 187-CL21A106KAYNNNG | 1 | 10 |
 | C10 | 1 nF 50 V **C0G** 0603 | Murata | GRM1885C1H102JA01D | Mouser 81-GRM39C102J50 | 1 | 10 |
 | C13 | 4,7 nF 50 V **C0G** 0603 | Murata | GRM1885C1H472JA01D | Mouser 81-GRM1885C1H472JA1D | 1 | 10 |
-| C2, C3, C14 | 100 µF **100 V** Elko, Ø10 × 20 mm, RM 5 | Nichicon | UVR2A101MPD1TD | Mouser 647-UVR2A101MPD1TO | 3 | 15 (**für 6 Boards 18 nötig**; Alternative UHE2A820MPD, s. „48-V-Pufferkondensatoren") |
+| C2, C3, C14 | 100 µF **100 V** Elko, Ø10 × 20 mm, RM 5 | Nichicon | UVR2A101MPD1TD | Mouser 647-UVR2A101MPD1TO | 3 | 15 (**für 6 Boards 18 nötig, 3+ nachbestellen**) |
 
 ### Widerstände (Yageo RC0603, 1 %, 1/10 W)
 
@@ -297,6 +320,7 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 | SW1 | Split-Termination, DIP 2-polig, Low Profile, J-Bend | CTS | 219-2LPSTJ | Mouser 774-219-2LPSTJ | 1 | 10 |
 | SW2 | 3,3-V-Trennung zum XIAO, Schiebeschalter SPDT 300 mA | C&K | PCM12SMTR | Mouser 611-PCM12SMTR | 1 | 7 |
 | D2 | CAN-TVS 12 V, 2 Leitungen bidirektional gegen GND, SOT-23 | Nexperia | PESD12VL2BT,215 | Mouser 771-PESD12VL2BT215 | 1 | **noch bestellen** |
+| D5 (optional, DNP) | TVS 58 V unidirektional, Q2-Schutz bei fehlendem D1, SMA | Littelfuse | SMAJ58A | Mouser 576-SMAJ58A | 0–1 | — |
 
 ### Steckverbinder (Platine)
 
@@ -361,6 +385,29 @@ Die alte Vorgabe hier („In2 bräuchte ~25 mm Breite") kam aus der IPC-2221-Lei
 
 ---
 
+## Fertigung
+
+**Empfehlung: JLCPCB.** Für ein 4-Lagen-Board unter 100 × 100 mm ist das der günstigste Weg. Bis 150 € Warenwert zieht JLCPCB die Einfuhrumsatzsteuer schon beim Bestellen ein (IOSS), bei DHL fallen also keine Zollgebühren an. Alternativen: **AISLER** (Aachen, Fertigung in Europa, kein Import, dafür teurer) und **PCBWay** (ähnlich wie JLCPCB).
+
+| Option | Wert |
+| --- | --- |
+| Lagen / Dicke | 4 / 1,6 mm, FR-4 |
+| Menge | **10** (das Minimum von 5 reicht nicht für 6 Boards, 10 kosten kaum mehr) |
+| Kupfer außen / innen | 1 oz / **0,5 oz** (Standard; real ~15 µm → J10→J12 ≈ 2,9 mΩ, laut Rechnung im Layout-Stand ausreichend) |
+| Oberfläche | HASL bleifrei (gut zum Handlöten) oder ENIG |
+| Stackup | Standard-Stackup, keine Impedanzkontrolle nötig. Lagenreihenfolge F.Cu / In1 (GND) / In2 (48 V) / B.Cu bestätigen |
+| Design-Regeln | Vias 0,6/0,3 mm, Leiterbahn/Abstand ≥ 0,15 mm: im Standardbereich |
+
+Beim Hochladen fragt JLCPCB, wo die Auftragsnummer auf den Bestückungsdruck soll. Wer sie nicht will, wählt die Option zum Positionieren oder Entfernen.
+
+**Export aus KiCad:**
+
+1. Zonen neu füllen (`B`), DRC laufen lassen.
+2. *Datei → Fertigungsunterlagen → Gerber:* F.Cu, In1.Cu, In2.Cu, B.Cu, F.Mask, B.Mask, F.Silkscreen, B.Silkscreen, Edge.Cuts. Danach *Bohrdateien erzeugen* (Excellon, mm).
+3. Alles in ein ZIP packen, hochladen und im Gerber-Viewer des Fertigers alle vier Kupferlagen, die Bohrungen und den Umriss prüfen.
+
+---
+
 ## Offene Punkte
 
 Stand 2026-09-13: ERC 0 Fehler / 1 Warnung; Notiztexte, Values (D4), Notes (C2/C3/C4/C14/J4) und das DNP-Attribut von R10 sind aktuell. Erledigte Punkte sind gelöscht, ihre Begründungen stehen in den Abschnitten oben.
@@ -368,23 +415,19 @@ Stand 2026-09-13: ERC 0 Fehler / 1 Warnung; Notiztexte, Values (D4), Notes (C2/C
 **Schaltplan / Layout**
 
 - [ ] **ERC-Warnung Bibliothekspfad:** `sym-lib-table` zeigt für `Seeed_Studio_XIAO_Series` noch auf den alten OneDrive-Pfad. Harmlos, weil das Symbol im Schaltplan eingebettet ist. Sauber wäre, die `.kicad_sym` ins Repo zu legen (neben `R0192.pretty`) und per `${KIPRJMOD}` einzubinden.
-- [ ] *Optional:* R10-Value von `DNP` auf `0R` ändern. Das DNP-Attribut ist gesetzt, aber auf dem einen Board am Steuerungsende wird R10 bestückt, und dort sollte der Wert stimmen.
-- [ ] *Optional:* Netznamen mit Leerzeichen und Klammern (`GPIO D3 (XIAO-ESP32-S3)`) umbenennen — nach dem Routing nur noch kosmetisch.
-- [ ] *Optional:* U1 (AP2112K) mehr Kupfer am GND-Pin geben, falls WLAN genutzt wird. Ohne WLAN (~100 mA, ~0,17 W) ist das unkritisch.
 
 **Auslegung / Entscheidungen**
 
-- [ ] **Bulk-Elkos:** UVR behalten oder auf UHE2A820MPD (gleicher Footprint) wechseln, siehe „48-V-Pufferkondensatoren".
-- [ ] **Rückspeisung beim Abbremsen:** Die LRS-600N2 kann keinen Strom aufnehmen. GDS68 laut Handbuch: Nennspannung 15–48 V, **max. 72 V**. Überspannungsschwelle (`dc_bus_overvoltage_trip_level`) und Rückspeisestrom (`dc_max_negative_current`) sind konfigurierbar. An die oberen zwei Pads der 5-Pin-Schnittstelle lässt sich ein **Bremswiderstand** anschließen; dieselben Pads sind alternativ der Bremsausgang, den hier das Daisy-Board übernimmt. Das schwächste Bauteil auf dem Board ist F1 (60 V): Überspannungsschwelle ≤ ~56 V setzen, `dc_max_negative_current` auf allen Treibern prüfen, bei Bedarf Bremswiderstände vorsehen.
 - [ ] **Not-Aus-Verzögerung der Bremsen:** Nach dem Trennen der 48 V halten die Buskondensatoren die Bremsen noch einige hundert Millisekunden offen (s. „Sicherheit" im Bremsen-Abschnitt). Entscheiden: Firmware setzt beim Not-Aus sofort PWM = 0, und/oder das Schütz trennt auch die 5 V.
 - [ ] **48 V nie unter Spannung stecken** (~1,8 mF Buskapazität, Überschwingen durch Leitungsinduktivität). Zentral am Netzteil bzw. über das Schütz schalten; eine Inrush-Begrenzung gehört, falls überhaupt, dorthin und nicht auf jedes Board.
 - [ ] Haltemoment unter Payload an **Achse 2/3** verifizieren (~6,4 N·m Bremse vs. 7,5 N·m Motor-Nennmoment), kalt und warm.
-- [ ] Im Bestückungsplan festhalten: **R10 nur auf einem Board** (Steuerungsende), Split-Termination nur an den zwei Busenden.
+- [ ] Im Bestückungsplan festhalten: **R10 bleibt DNP** (bei Bedarf von Hand am Steuerungsende nachlöten, nie auf mehreren Boards), Split-Termination nur an den zwei Busenden.
 
 **Bestellung**
 
 - [ ] D2 PESD12VL2BT,215 (Mouser 771-PESD12VL2BT215), 6 Stück + Reserve.
-- [ ] Bulk-Elkos: Für 6 Boards fehlen 3 UVR, bei einem Wechsel 18 + Reserve UHE2A820MPD.
+- [ ] 3+ UVR2A101MPD nachbestellen (für 6 Boards sind 18 nötig, 15 bestellt).
+- [ ] PCB bestellen (s. „Fertigung"): Zonen neu füllen, DRC, Gerber und Bohrdaten exportieren, im Gerber-Viewer des Fertigers prüfen.
 
 **Bring-up**
 
