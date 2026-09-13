@@ -13,12 +13,13 @@ Datenblätter: `PCB/R0192.pretty/Datenblätter/` (Bauteile) und `.../Kabel/` (CF
 
 | Block | Umsetzung |
 | --- | --- |
-| Power-Durchschleife | J12 / J10 (4-polig): +5 V / GND / GND / +48 V. Bulk C2/C3 = 2× 100 µF, C4 100 nF |
+| Power-Durchschleife | J12 / J10 (4-polig): +5 V / GND / GND / +48 V. Bulk C2/C3/C14 = 3× 100 µF / 100 V, C4 100 nF / 100 V |
 | 3,3 V-Erzeugung | U1 AP2112K-3.3 aus 5 V (C8 10 µ / C5 1 µ / C6 2,2 µ), EN an VIN, D3 SMAJ5.0CA am Eingang (bidirektional) |
 | MCU | U2 XIAO-ESP32-S3 (Footprint `R0192:XIAO-ESP32-S3-DIP`, THT-Sockel), Versorgung über **3V3-Pin**, trennbar über SW2 (PCM12SMTR) — beim Flashen über USB öffnen, VBUS = NC |
 | CAN-Transceiver | U4 SN65HVD230 (nativ 3,3 V), Rs auf GND (High-Speed), Vref NC, C7 100 nF |
 | CAN-Bus | J1/J2 (CANH/CANL/SHLD), Schirm hybrid über R6 1 M ‖ C11 100 n; R10 (0 Ω) = harte Schirmauflage, **nur auf einem Board bestücken** |
 | Terminierung | **Split-Termination**: R13 + R12 je 60,4 Ω in Reihe über den Bus, Mittelpunkt über C13 4,7 nF auf GND. Zuschaltbar über SW1 (CTS 219-2LPSTJ, **2-polig**, je ein Pol pro Zweig) — nur an den zwei physischen Busenden einschalten |
+| CAN-TVS | D2 PESD12VL2BT (Symbol `NUP2105L`), CANH und CANL je gegen GND, sitzt direkt vor U4 |
 | Motorabzweig | J4: CANH, CANL, GND, +48 V (Steckertyp s. u.) |
 | Homing-Sensor | J5: 5 V / GND / OUT (Pin 1–3). R1 4,7 k Pull-up auf **3,3 V**, C10 1 nF, R9 6,8 k Serienschutz |
 | Bremsen-Endstufe | J3 + F1 (PPTC) + Q2 + D1, Gate über U3 74AHCT1G125 (3,3 V → 5 V) |
@@ -98,12 +99,14 @@ Summe über alle sieben Stecker: **1199 → 887 mm²**, also ~310 mm² gespart.
 **Topologie** (netzlisten-verifiziert):
 
 ```
-+48V ── F1 (PPTC) ─┬── J3.1 ─── [Bremsspule 34Ω] ── J3.2 ───┬── Q2 Drain
-                   │                                        │
-                   └────────── D1 (K→F1-Knoten, A→Drain) ────┤  Freilauf
-                                                             ├── R7 150k ── D3 (Sense) ── R8 6,8k ── GND
-                                                        Q2 Source ── GND
++48V ─┬── F1 (PPTC) ── J3.1 ─── [Bremsspule 34Ω] ── J3.2 ───┬── Q2 Drain
+      │                                                     │
+      └──────────── D1 (K→+48V vor F1, A→Drain) ────────────┤  Freilauf
+                                                            ├── R7 150k ── GPIO D3 (Sense) ── R8 6,8k ── GND
+                                                       Q2 Source ── GND
 ```
+
+**D1-Kathode** hängt laut Netzliste (Stand 2026-09-13) am ungesicherten +48 V, **nicht** am Knoten zwischen F1 und J3.1. Das funktioniert: Der Freilaufstrom fließt zusätzlich durch F1, dessen ~1 Ω gegen 34 Ω Spule das Abklingen nur minimal beschleunigt. Der Lehrbuchplatz wäre direkt über der Spule (K an `BRAKE +48V`), dann ist die Freilaufschleife unabhängig von F1. Optional.
 
 F1 sitzt bewusst auf der **48-V-Seite**: nur dort liegt auch ein Masseschluss einer der beiden Kabeladern hinter dem Schutz. Hinter der Spule wäre ein Kurzschluss der 48-V-Ader gegen Gehäuse gar nicht begrenzt.
 
@@ -161,7 +164,7 @@ Gegenüber dem Budget des SN65HVD230 — Betrieb −2 … +7 V, **Absolut-Maximu
 **Split-Termination** (statt einem 120-Ω-Widerstand):
 
 ```
-CANH ──[SW2 Pol A]── R13 60,4Ω ──┬── R12 60,4Ω ──[SW2 Pol B]── CANL
+CANH ──[SW1 Pol A]── R13 60,4Ω ──┬── R12 60,4Ω ──[SW1 Pol B]── CANL
                                  │
                                 C13 4,7 nF (C0G)
                                  │
@@ -174,7 +177,7 @@ Das gibt die Common-Mode-Dämpfung und -Referenz, die ohne eigene CAN-GND-Ader s
 - **60,4 Ω, 1 % (E96)** — nicht 60 Ω (kein E-Reihen-Wert) und nicht 5 %: ungleiche Hälften wandeln Common Mode in Differential Mode um.
 - **C13 als C0G/NP0**, nicht X7R (DC-Bias-/Temperaturdrift verschiebt die Eckfrequenz).
 
-**Bus-Schutz.** Bei −4 / +16 V Absolut-Maximum an den Busklemmen und 48 V in derselben WAGO-Klemme wie CANH/CANL (J4) gehört an jedes Board ein **CAN-TVS** (NUP2105L / PESD2CANFD o. ä., SOT-23) am J1/J2-Knoten. Galvanische Isolation (ISO1042 + isolierter DC/DC) wäre bei 6 Knoten und ~2–3 m Bus Overkill.
+**Bus-Schutz.** Bei −4 / +16 V Absolut-Maximum an den Busklemmen und 48 V in derselben WAGO-Klemme wie CANH/CANL (J4) gehört an jedes Board ein **CAN-TVS** (NUP2105L / PESD2CANFD o. ä., SOT-23) am J1/J2-Knoten. *Umgesetzt:* D2 PESD12VL2BT. Sie sitzt nicht am J1/J2-Knoten, sondern ~7 mm vor U4 am Ende der Stichleitung (GND-Via direkt daneben). Für den Schutz des Transceivers ist das gleichwertig. Galvanische Isolation (ISO1042 + isolierter DC/DC) wäre bei 6 Knoten und ~2–3 m Bus Overkill.
 
 **Stichleitungen** bei 1 Mbit/s kurz halten: Abzweig J4 → Motortreiber möglichst < 30 cm. Die Gesamtlänge ist unkritisch (1 Mbit/s erlaubt 40 m).
 
@@ -244,7 +247,7 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 | F1 | PPTC **60 V**, 0,5 A hold / 1 A trip, radial RM 5,1 | Littelfuse | 60R050XU | Mouser 576-60R050XU | 1 | 10 |
 | SW1 | Split-Termination, DIP 2-polig, Low Profile, J-Bend | CTS | 219-2LPSTJ | Mouser 774-219-2LPSTJ | 1 | 10 |
 | SW2 | 3,3-V-Trennung zum XIAO, Schiebeschalter SPDT 300 mA | C&K | PCM12SMTR | Mouser 611-PCM12SMTR | 1 | 7 |
-| *neu (z. B. D2)* | CAN-TVS 12 V, 2 Leitungen bidirektional gegen GND, SOT-23 | Nexperia | PESD12VL2BT,215 | Mouser 771-PESD12VL2BT215 | 1 | **noch bestellen** |
+| D2 | CAN-TVS 12 V, 2 Leitungen bidirektional gegen GND, SOT-23 | Nexperia | PESD12VL2BT,215 | Mouser 771-PESD12VL2BT215 | 1 | **noch bestellen** |
 
 ### Steckverbinder (Platine)
 
@@ -277,21 +280,39 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 
 ---
 
-## Layout-Vorgaben (noch offen)
+## Layout-Stand (geprüft 2026-09-13)
 
-- GND-Pour, Sternpunkt zwischen Power-GND (Bus-/Motorklemmen, Q2-Source, 48-V-Bulk) und Signal-GND (MCU, U4, U1, TLE4905L). Beide GND-Pins von J12/J10 breit auf die Massefläche führen.
-- **Bremsen-Schaltknoten-Loop klein** (Q2 / Spule / D1 eng), gepulste 48 V **weg von den CAN-Leitungen**.
-- **48-V-Bus auf 12,5 A** (LRS-600N2-Limit) — und das schließt Tracks aus. IPC-2221, 1 oz außen, 20 K Anstieg: **~8 mm** für 12,5 A (10 K → ~11 mm). Die Netclass `Power` steht auf 2,0 mm ≈ 4 A, also **3–4× zu schmal**. Deshalb: +48 V und GND als **Pours**, bevorzugt auf F.Cu/B.Cu parallel (je ~4 mm äquivalent). In2.Cu ist im Standard-4-Lagen-Stackup meist **0,5 oz** — dort bräuchte man ~25 mm Breite, also nicht der richtige Ort für den Durchschleifstrom.
-- **THT-Pads von J10/J12/J4 auf `solid connection`** statt Thermal Relief — die Wärmefalle schnürt sonst genau den 12,5-A-Pfad ab.
-- Lagenwechsel im 48-V-/GND-Pfad vermeiden: eine 0,8/0,4-Via trägt ~1,5–2 A, sonst braucht es ≥ 10 Stück.
-- Motorabzweig auf Einzelmotor-Peak, Bremsenkanal ≥ 2 A.
-- Entkopplungs-Cs direkt an den IC-Pins. **U1 (SOT-23-5) großzügig Kupfer geben**: ~150 mA × 1,7 V = 0,26 W, ohne Fläche ~50 K Anstieg im Gelenkgehäuse.
-- **D3 ans Board-Ende bei J12/J10**, wo die 5 V ankommen — eine TVS wirkt dort, wo sie sitzt, nicht neben dem LDO.
-- **48-V-Clearance auf 0,5 mm** anheben (IPC-2221 fordert nur 0,1 mm, aber Staub/Kondensat im Arm). Und die DRC-Constraints stehen auf `min_clearance: 0.0` / `min_track_width: 0.0` — echte Minima eintragen, sonst fängt der DRC nichts ab.
-- **Netznamen mit Leerzeichen und Klammern** (`GPIO D3 (XIAO-ESP32-S3)`) vor dem Routen umbenennen (`BRAKE_PWM`, `HALL_IN`, `BRAKE_SENSE`, `BRAKE_SW`, `LED`, `CAN_TX/RX`) — sonst sind Netclass-Patterns und Custom-DRC-Rules unangenehm.
-- Platinenumriss: **⌀70 mm Kreis** (Mitte 150/100, r 35), 4× M2 auf r = 26 mm. Auf `Edge.Cuts` liegen noch **acht entartete `point`-Objekte auf (148, 96.5)** — löschen.
-- GND-Zone auf In1.Cu ist ein willkürliches Achteck, das nicht zum Kreis passt → neu ziehen. Auf **In2.Cu existiert noch gar keine Zone** (48 V / 5 V / 3,3 V als getrennte Pours).
-- Das `.kicad_pcb` ist **nicht mit dem Schaltplan synchronisiert**: F1 fehlt komplett, die TVS heißt dort noch `D2`, und es gibt ein Kollisionsnetz `/GPIO D5#`. Vor dem Routen *Update PCB from Schematic*.
+Geprüft mit `kicad-cli` (ERC; DRC mit Schaltplan-Parität und neu gefüllten Zonen) und einer Widerstandsrechnung der In2-Flächen (Gitter 0,1 mm auf den gefüllten Zonenpolygonen aus pcbnew).
+
+**DRC:** 0 unverbundene Pads, 0 Footprint- und Paritätsfehler. Übrig bleiben 6× Silk-Überlappung C2/C14, 6× Silk am Platinenrand (J10/J12/U2-USB), 1× Texthöhe 0,7 mm („USB-C") und 2× Courtyard H3↔J12 / H4↔J10. Bei den Courtyards Schraubenkopf und Unterlegscheibe gegen das WAGO-Gehäuse mechanisch prüfen.
+
+**Lagen:** F.Cu Signale · In1 GND (eine durchgehende Fläche) · In2 +48 V mit eingeschnittener +5-V-Fläche · B.Cu GND + 3,3-V-Insel + wenige Signale. Im KiCad-Stackup stehen alle Lagen auf 35 µm. **Innenlagen-Kupfer beim Fertiger prüfen**, viele Standard-4-Lagen-Aufbauten haben innen 0,5 oz. Die Rechnung unten deckt beide Fälle ab.
+
+**48 V auf In2 — nachgerechnet:**
+
+| Pfad | R (35 µm) | R (17,5 µm) | Verlust bei 12,5 A (17,5 µm) | engste Stelle (äquiv. Breite) |
+| --- | ---: | ---: | ---: | ---: |
+| J10.4 → J12.4 | 1,2 mΩ | 2,5 mΩ | ~0,38 W | ~5 mm |
+| J10.4 → J4.4 | 1,1 mΩ | 2,2 mΩ | ~0,34 W | ~6 mm |
+| J12.4 → J4.4 | 1,3 mΩ | 2,6 mΩ | ~0,40 W | ~5,5 mm |
+| +5 V: J10.1 → J12.1 | 3,0 mΩ | 6,1 mΩ | bei ~1 A: ~6 mW | ~2 mm |
+
+Die alte Vorgabe hier („In2 bräuchte ~25 mm Breite") kam aus der IPC-2221-Leiterbahnformel. Die gilt für lange, isolierte Bahnen und ist für eine ganze Lage viel zu konservativ: Die Verluste verteilen sich über ~2500 mm². Die Stromdichte-Spitzen (~2,5 A/mm bei 12,5 A) liegen nur lokal an der unteren Ecke des 5-V-Stegs zwischen J10 und J12 (≈ x 150 / y 82) und an den Pad-Kanten. **48 V ausschließlich auf In2 ist damit in Ordnung, auch bei 0,5 oz.** Optionale Verbesserung: Den 5-V-Steg zwischen J10.1 und J12.1 als ~2-mm-Bahn auf F.Cu oder B.Cu führen. Dann läuft der 48-V-Pfad J10→J12 ohne Umweg.
+
+**Umgesetzt:**
+- [x] GND: In1 vollflächig plus B.Cu-Pour. Ein gemeinsamer GND statt Sternpunkt ist bei dieser Größe mit durchgehender Innenlage die bessere Lösung.
+- [x] Bremsen-Schaltknoten klein (Q2 / D1 / J3 / F1 eng beieinander). Brems-PWM liegt rechts, CAN links: Das Trennkonzept ist im Layout eingehalten.
+- [x] THT-Pads von J10/J12/J4 massiv angebunden (Custom-Rule `Power-Klemmen massiv an Flaechen` in `.kicad_dru`), kein Lagenwechsel im 48-V- und GND-Pfad.
+- [x] Bremskanal 1,5 mm auf F.Cu (≥ 2 A).
+- [x] D3 direkt an J12.1, wo die 5 V ankommen.
+- [x] 48-V-Clearance 0,5 mm (Netclass `HV_Bus_48V` und Zonen), DRC-Minima eingetragen (Clearance und Track 0,15 mm). Nachgeprüft: Alle 48-V-führenden Netze haben außen ≥ 0,5 mm. Einordnung nach IPC-2221B für 31–50 V: innen (B1) 0,1 mm, außen unbeschichtet (B2) 0,6 mm, außen mit Polymerbeschichtung (B4) 0,13 mm. 0,5 mm mit Lötstopplack ist ok.
+- [x] PCB synchron zum Schaltplan (DRC-Parität sauber), In2-Zonen vorhanden, In1-Zone deckt die ganze Platine ab, keine entarteten Punkte mehr auf Edge.Cuts.
+- [x] Platinenumriss: Kreis Ø 70 mm (Mitte 150/100) mit Abflachungen → 66,05 × 64 mm, 4× M2.
+
+**Noch offen / optional:**
+- [ ] Die Netclass-Patterns `CAN` und `HV_Brake` passen auf kein Netz: Die Netze heißen `/CANH`, `/CANL`, `/BRAKE +48V` und `/BRAKE Out` und landen alle in `Default`. Patterns z. B. auf `/CAN*` und `/BRAKE*` ändern. Das Layout hält die Werte bereits ein, es ist also reine Aufräumarbeit.
+- [ ] Netznamen mit Leerzeichen und Klammern (`GPIO D3 (XIAO-ESP32-S3)`): nach dem Routing nur noch kosmetisch.
+- [ ] U1 (AP2112K) hat kaum Kupferfläche. Bei ~100 mA auf 3,3 V sind das ~0,17 W, unkritisch. Mit WLAN-Sendespitzen des ESP32 wird es deutlich mehr: dann den GND-Pin breiter anbinden oder WLAN aus lassen.
 
 ---
 
@@ -303,9 +324,9 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 - [x] Leeres `text`-Objekt entfernt (auch das zweite bei (359.41, 125.095)).
 - [x] **Status-LED-Label korrigieren:** heißt `GPIO D5 (XIAO-ESP32-S3)`, hängt aber an U2.3 = GPIO3 = **D2**. Da D5 ein NC-Flag hat, ist D2 die Absicht → Label auf `GPIO D2` umbenennen (Vorteil: D4/D5 bleiben als SDA/SCL frei). *Erledigt:* Label `GPIO D2`, Netz R11 ↔ U2.3.
 - [x] `U1.4 (NC)` hat kein No-Connect-Flag → ERC-Rauschen. *Erledigt:* ERC meldet keine unverbundenen Pins mehr.
-- [x] **Split-Termination fertigstellen:** SW2 auf **2-polig** (`Switch:SW_DIP_x02`, `SW_DIP_SPSTx02_Slide_Copal_CHS-02A_W5.08mm_P1.27mm_JPin`), je ein Pol pro Zweig; R12/R13 auf **60,4 Ω 1 %** (E96); C13 als **C0G**. Notiztext im Rahmen („120 Ohm → aktivierbarer Abschlusswiderstand") anpassen. *Erledigt:* SW1 = CTS 219-2LPSTJ (2-polig), R12/R13 = 60,4 Ω 1 %, C13 C0G bestellt. *Rest:* Notiztext im CAN-Rahmen steht noch auf „120 Ohm -> aktivierbarer Abschlusswiderstand“.
-- [ ] **CAN-TVS** (NUP2105L / PESD2CANFD, SOT-23) am J1/J2-Knoten ergänzen. *Empfehlung:* **Nexperia PESD12VL2BT,215** (Mouser 771-PESD12VL2BT215), 12 V V_RWM, V_BR 14,2–16,7 V, 19 pF, 200 W, SOT-23. Pin 1 = CANH, Pin 2 = CANL, Pin 3 = GND (jede Leitung gegen GND, **nicht** CANH–CANL). Symbol `Power_Protection:NUP2105L` (gleiche Pinbelegung, Value ändern), Footprint `Package_TO_SOT_SMD:SOT-23`. Die übliche NUP2105L (24 V, V_BR ≥ 26,2 V) klemmt erst oberhalb der −4/+16-V-Grenze des SN65HVD230. Noch nicht im Schaltplan, noch nicht bestellt.
-- [ ] **Serienelement vor D3 in die 5-V-Einspeisung** (PPTC 0,5 A oder 1-A-Sicherung). Ohne das kann die SMAJ5.0CA ihre Crowbar-Rolle nicht überleben: bei 48 V auf der 5-V-Schiene müsste sie 12,5 A × 9 V ≈ 112 W verheizen und stirbt — ob kurz oder offen ist Glückssache, und „offen" heißt 48 V auf allem. Realistischer Fehlerfall: die 4-polige WAGO verkehrt herum gesteckt.
+- [x] **Split-Termination fertigstellen:** SW2 auf **2-polig** (`Switch:SW_DIP_x02`, `SW_DIP_SPSTx02_Slide_Copal_CHS-02A_W5.08mm_P1.27mm_JPin`), je ein Pol pro Zweig; R12/R13 auf **60,4 Ω 1 %** (E96); C13 als **C0G**. Notiztext im Rahmen („120 Ohm → aktivierbarer Abschlusswiderstand") anpassen. *Erledigt:* SW1 = CTS 219-2LPSTJ (2-polig), R12/R13 = 60,4 Ω 1 %, C13 C0G bestellt. *Rest:* Notiztext im CAN-Rahmen, siehe Punkt „Notiztexte im Schaltplan veraltet“.
+- [x] **CAN-TVS** (NUP2105L / PESD2CANFD, SOT-23) ergänzen. *Erledigt 2026-09-13:* D2 ist in Schaltplan und Layout (neben U4), die Pinbelegung ist per Netzliste geprüft. **Bestellung noch offen.** *Empfehlung:* **Nexperia PESD12VL2BT,215** (Mouser 771-PESD12VL2BT215), 12 V V_RWM, V_BR 14,2–16,7 V, 19 pF, 200 W, SOT-23. Pin 1 = CANH, Pin 2 = CANL, Pin 3 = GND (jede Leitung gegen GND, **nicht** CANH–CANL). Symbol `Power_Protection:NUP2105L` (gleiche Pinbelegung, Value ändern), Footprint `Package_TO_SOT_SMD:SOT-23`. Die übliche NUP2105L (24 V, V_BR ≥ 26,2 V) klemmt erst oberhalb der −4/+16-V-Grenze des SN65HVD230.
+- [ ] **Serienelement vor D3 in die 5-V-Einspeisung** (PPTC 0,5 A oder 1-A-Sicherung). Ohne das kann die SMAJ5.0CA ihre Crowbar-Rolle nicht überleben: bei 48 V auf der 5-V-Schiene müsste sie 12,5 A × 9 V ≈ 112 W verheizen und stirbt — ob kurz oder offen ist Glückssache, und „offen" heißt 48 V auf allem. Realistischer Fehlerfall: die 4-polige WAGO verkehrt herum gesteckt. **Wichtig für die Umsetzung:** Das Serienelement darf nicht im Durchschleifpfad J10.1 ↔ J12.1 sitzen, sonst begrenzt es die 5 V aller nachfolgenden Boards. Es gehört in den lokalen Abzweig, und D3 muss dahinter sitzen. Im aktuellen Layout holen sich U1 (Via 163,3/90,2), U3/C9 (Via 162,7/102,7) und J5 (Via 171,3/110,3) die 5 V direkt aus der In2-Fläche. Dafür braucht es also ein eigenes lokales Netz (z. B. `+5V_LOC`) und eine kleine Layoutänderung.
 - [x] **C2/C3 auf `Device:C_Polarized`** umstellen — Symbol ist ungepolt (`Device:C`), Footprint ist ein Elko (`CP_Radial_D10.0mm_P5.00mm`). Ohne Polaritätsmarkierung im Bestückungsdruck, und bei verpolter 48-V-Einspeisung fliegen beide. Verpolschutz gibt es auf dem Board keinen. *Erledigt.* 3D-Modell: KiCad hat Ø 10 × 20 mm nur mit RM 7,5 — daher Footprint `CP_Radial_D10.0mm_P5.00mm` behalten und im 3D-Modell **Scale Z = 2,0** setzen (das KiCad-Modell ist trotz „height=16mm“ nur ~10 mm hoch → 20 mm, per Render geprüft).
 - [ ] **R10 aus dem Value-Feld** (`DNP`) ins DNP-Attribut verschieben, sonst steht ein Widerstand mit Wert „DNP" in der BOM.
 - [x] **J6 (UART): 2× 220 Ω in TX/RX** (R5 / R14) — ein versehentlich angesteckter 5-V-USB-Serial-Adapter grillt sonst den ESP32.
@@ -325,9 +346,10 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 - [ ] **C4 ≥ 100 V** noch vermerken.
 - [x] **C6 auf 2,2 µF** angehoben (DC-Derating am LDO-Ausgang).
 - [ ] Note für J4 fehlt noch (Leiterquerschnitt Motorabzweig, 1,5 mm² Power + 0,5 mm² CAN).
-- [ ] Sicherung / Inrush-Begrenzung im 48-V-Pfad erwägen (2× 100 µF pro Board × 6 Boards = 1,2 mF beim Hot-Plug).
-- [ ] **ERC aufräumen:** 245× `endpoint_off_grid` (Pins/Drahtenden neben dem Raster) und Symbolbibliothek `Seeed_Studio_XIAO_Series` nicht gefunden (verweist auf alten OneDrive-Pfad).
-- [ ] **Mis-Plug-Risiko J4 ↔ J10/J12**: dreimal dieselbe WAGO 2601-3104 mit drei Belegungen. Motorkabel in J10 legt CANH auf +5 V. Bestückungsdruck allein reicht bei 6 Boards × 3 Klemmen nicht — unterschiedliche Kabellängen oder anderer Typ für J4.
+- [ ] Sicherung / Inrush-Begrenzung im 48-V-Pfad erwägen (3× 100 µF pro Board × 6 Boards = 1,8 mF beim Hot-Plug).
+- [ ] **ERC aufräumen:** ~~245× `endpoint_off_grid`~~ *erledigt (ERC 2026-09-13: 0 Fehler, 1 Warnung)*. Rest: Die Symbolbibliothek `Seeed_Studio_XIAO_Series` verweist noch auf den alten OneDrive-Pfad. Da das Symbol im Schaltplan eingebettet ist, ist das harmlos. Sauber wäre, die `.kicad_sym` ins Repo zu legen (neben `R0192.pretty`) und per `${KIPRJMOD}` einzubinden.
+- [x] **Mis-Plug-Risiko J4 ↔ J10/J12**, *bewertet 2026-09-13:* Vertauschen ist gutartig, weil Pin 3 (GND) und Pin 4 (+48 V) an allen drei Klemmen gleich liegen. Motorkabel in J10/J12 → CANH auf +5 V, CANL auf GND. Powerkabel in J4 → +5 V auf CANH, GND auf CANL. Beides legt den Bus lahm, zerstört aber nichts (SN65HVD230 Abs-Max +16 V, PESD12VL2BT klemmt erst oberhalb ~14 V). **Gefährlich ist nur eine umgekehrte Aderreihenfolge** (48 V auf Pin 1): in J10/J12 siehe 5-V-Serienelement, in J4 liegen dann 48 V auf CANH. Abhilfe: Aderfarben pro Pin festlegen und im Kabelplan dokumentieren.
+- [ ] **Notiztexte im Schaltplan veraltet** (sie werden mitgedruckt): XIAO-Rahmen „J9 und J11 nur Platzhalter“ (gelöscht) · Brake-Rahmen „TH1 -> Stromschutz (0.64A)“ (jetzt F1 60R050XU), „Bremse aus (10.5V kurz)“ (jetzt 48 V / 100 % für ~150 ms), „Spannungsteiler -> max 5V bei 80V“ (150 k / 6,8 k → 2,08 V bei 48 V) · 5-V-Rahmen „D2 als Schutz Überspannung“ (jetzt D3, D2 ist die CAN-TVS) · Hall-Rahmen „1k Widerstand -> Strombegrenzung“ (jetzt R9 6,8 k) · CAN-Rahmen „120 Ohm -> aktivierbarer Abschlusswiderstand“ (jetzt Split 2× 60,4 Ω + C13).
 
 **Auslegung**
 - [x] **Wellenimpedanz der CFBUS.PVC.021 geklärt:** laut igus-Datenblatt **120 ± 12 Ω**, explizit als CAN-Bus-Typ gelistet (Profibus ist `.001` mit 150 Ω). Terminierung bleibt 120 Ω gesamt.
@@ -335,6 +357,8 @@ Bezeichner laut Schaltplan-BOM, Mengen für **6 Boards** plus Reserve. Bezugsque
 - [ ] Im Bestückungsplan festhalten: **R10 nur auf einem Board** (Steuerungsende), Split-Termination nur auf den zwei Busenden.
 - [ ] Haltemoment unter Payload an **Achse 2/3** verifizieren (~6,4 N·m Bremse vs. 7,5 N·m Motor-Nennmoment), kalt und warm.
 - [ ] Spuleninduktivität messen → entscheidet über die TVS und die PWM-Frequenz.
+- [ ] **Bulk-Elkos C2/C3/C14:** Die Nichicon UVR ist ein Standard-Elko, kein Low-ESR-Typ (ESR in der Größenordnung ~1 Ω bei 120 Hz). Sie fängt langsame Einbrüche über die Kabelinduktivität ab. Schnelle Stromspitzen der Motoren liefern die Eingangskondensatoren im Treiber. Sollen die Board-Elkos wirklich Spitzen puffern, auf einen Low-ESR-Typ gleicher Größe wechseln.
+- [ ] **Rückspeisung beim Abbremsen:** Die LRS-600N2 kann keinen Strom aufnehmen, die Busspannung steigt also, wenn Motoren generatorisch bremsen. Das schwächste Bauteil auf diesem Board ist F1 (60 V). Prüfen, ob die GDS68 selbst begrenzen, sonst zentral am Netzteil einen Brems-Chopper oder eine TVS vorsehen.
 
 **Bring-up**
 - [ ] Kurzschlusstest 48 V / 5 V / 3,3 V gegen GND, 3,3 V-Rail messen
