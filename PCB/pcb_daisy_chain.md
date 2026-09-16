@@ -62,6 +62,8 @@ Datenblätter: `PCB/R0192.pretty/Datenblätter/` (Bauteile) und `.../Kabel/` (CF
 
 Zweimal dieselbe 3-polige B3B-PH-K, an J3 bleibt ein Pin frei — nützlich als Reserve, falls eine Bremsader durch Biegewechsel bricht. **Fehlerrichtung ist gutartig:** verliert die Bremsleitung Kontakt, fällt die Bremse ein (stromlos geschlossen).
 
+**J3 Pin 3 bleibt bewusst unbelegt (entschieden 2026-09-15).** GPIO D5 (GPIO6) auf diesen Pin zu legen wurde geprüft und verworfen. Die Bremsadern werden selbst in das PHR-3-Gehäuse gecrimpt: Landet eine Ader in Position 3, liegt die Spule zwischen `BRAKE +48V` und dem GPIO, und bis zu 48 V / 34 Ω ≈ 1,4 A fließen über die Schutzdiode in die 3,3-V-Schiene (XIAO und ggf. U4 defekt, F1 löst erst nach Sekunden aus). Dazu kommen der 2-mm-Nachbar `BRAKE Out` (0–48 V im PWM-Takt), der fehlende ESD-Schutz und eine 44 mm lange Bahn am Schaltknoten entlang. Freie GPIOs (D4, D5, D8) gehören, falls je gebraucht, auf die Logikseite, z. B. als Testpad oder DNP-Stiftleiste neben dem XIAO. Namenshinweis: „D5" als Bauteil ist die TVS-Diode, der Pin heißt „GPIO D5".
+
 PTSM nur noch für J1/J2 → 12 Stück für sechs Boards; Kleinmengen über die Phoenix-SAMPLE-Nummer **1701101**, die Suffixe `R44`/`R32` sind Gurtware.
 
 **Flächenbilanz gegenüber dem alten Steckerkonzept** — trotz Klemmen und einem Pol mehr an J12/J10 wird es kleiner:
@@ -391,33 +393,121 @@ Die alte Vorgabe hier („In2 bräuchte ~25 mm Breite") kam aus der IPC-2221-Lei
 
 **Gewählt: JLCPCB.** Für ein 4-Lagen-Board unter 100 × 100 mm ist das der günstigste Weg. Bis 150 € Warenwert zieht JLCPCB die Einfuhrumsatzsteuer schon beim Bestellen ein (IOSS), bei DHL fallen also keine Zollgebühren an. Alternativen: **AISLER** (Aachen, Fertigung in Europa, kein Import, dafür teurer) und **PCBWay** (ähnlich wie JLCPCB).
 
-| Option | Wert |
-| --- | --- |
-| Lagen / Dicke | 4 / 1,6 mm, FR-4 |
-| Menge | **10** (das Minimum von 5 reicht nicht für 6 Boards, 10 kosten kaum mehr) |
-| Kupfer außen / innen | 1 oz / **0,5 oz** (Standard; real ~15 µm → J10→J12 ≈ 2,9 mΩ, laut Rechnung im Layout-Stand ausreichend) |
-| Oberfläche | HASL bleifrei (gut zum Handlöten) oder ENIG |
-| Stackup | Standard-Stackup, keine Impedanzkontrolle nötig. Lagenreihenfolge F.Cu / In1 (GND) / In2 (48 V) / B.Cu bestätigen |
-| Design-Regeln | Vias 0,6/0,3 mm, Leiterbahn/Abstand ≥ 0,15 mm: im Standardbereich |
+**Bestellkonfiguration PCB (Stand 2026-09-15, Angebot 39,94 € + 23,24 € DHL Express):**
 
-Beim Hochladen fragt JLCPCB, wo die Auftragsnummer auf den Bestückungsdruck soll. Wer sie nicht will, wählt die Option zum Positionieren oder Entfernen.
+| Option | Gewählt | Anmerkung |
+| --- | --- | --- |
+| Material / Lagen / Dicke | FR-4 TG135, 4 Lagen, 1,6 mm | JLCPCB erkennt 66,05 × 64 mm |
+| Menge | 10, Single PCB | das Minimum von 5 reicht nicht für 6 Boards |
+| Farbe / Druck | grün / weiß | |
+| Oberfläche | HASL bleifrei | passt zu Handlöten und Heizplatte, feinstes Raster ist SOIC 1,27 mm |
+| Kupfer außen / innen | 1 oz / **1 oz** (+14,51 €) | 0,5 oz würde laut Rechnung im Layout-Stand reichen. 1 oz halbiert den Widerstand der 48-V-Fläche (J10→J12 ≈ 1,2 statt 2,5 mΩ). Bewusst als Reserve gewählt, weil der gesamte Busstrom auf In2 läuft |
+| Lagenreihenfolge festlegen | **Ja** | L1 `DriverDasyChain-F_Cu.gbr`, L2 `-GND.gbr`, L3 `-PWR.gbr`, L4 `-B_Cu.gbr`. Damit ist kein Neuexport mit Protel-Endungen nötig |
+| Stackup festlegen | Nein | Standard-Stackup, keine Impedanzkontrolle nötig |
+| Via-Abdeckung | Plugged | passt zum Tenting im KiCad-Stackup, beim Reflow läuft kein Lot in die Vias |
+| Min. Via | 0,3 mm / (0,4/0,45 mm) | kleinste Via im Design: 0,3 mm Bohrung, 0,6 mm Pad |
+| Produktionsdatei bestätigen | *Empfehlung: Ja* | beim ersten 4-Lagen-Auftrag die Lagenzuordnung vor der Fertigung freigeben. Prüfen, ob sich der Preis ändert |
+| Markierung | Remove Mark | keine Auftragsnummer im Bestückungsdruck |
+| Elektrischer Test | Flying Probe | |
+| Fertigungszeit | 3–4 Tage | |
+
+**Schablone (zusammen mit dem PCB):**
+
+| Option | Gewählt | Anmerkung |
+| --- | --- | --- |
+| Framework | **Nein** | Die Rahmenschablone 470 × 370 mm wiegt allein 1,5 kg und ist für Schablonendrucker gedacht. Für die Heizplatte reicht eine rahmenlose Schablone in der kleinsten Größe, die das Board mit Rand abdeckt |
+| Stufen-Schablone / Nano-Coating | Nein | |
+| Seite | Top only | alle SMD-Teile sitzen oben |
+| Dicke | durch JLCPCB (üblich 0,12 mm) | passt für 0603, SOT-23, SOIC, SMA und TO-252 |
+| Prozess / Politur | Lotpasten-Schablone / Sanding | |
+| Fiducials | keine | das Board hat keine |
+| Öffnungen | JLCPCB-Standard | Die Pasten-Lage enthält auch die DNP-Pads von D5 und R10. Diese Öffnungen vor dem Rakeln mit Kapton abkleben, das ist einfacher als eine Sonderanfrage |
 
 **Export aus KiCad:**
 
 1. Zonen neu füllen (`B`), DRC laufen lassen.
-2. *Datei → Fertigungsunterlagen → Gerber:* F.Cu, In1.Cu, In2.Cu, B.Cu, F.Mask, B.Mask, F.Silkscreen, B.Silkscreen, Edge.Cuts. Danach *Bohrdateien erzeugen* (Excellon, mm).
-3. Alles in ein ZIP packen, hochladen und im Gerber-Viewer des Fertigers alle vier Kupferlagen, die Bohrungen und den Umriss prüfen.
+2. *Datei → Fertigungsunterlagen → Gerber:* F.Cu, GND (In1), PWR (In2), B.Cu, F.Mask, B.Mask, F.Silkscreen, B.Silkscreen, Edge.Cuts. Unter Optionen „Zonenfüllungen vor dem Plotten prüfen", „Erweitertes X2-Format" und „Netzlisten-Attribute" anhaken. „Protel-Dateiendungen verwenden" ist optional: ohne sie die Lagenreihenfolge bei JLCPCB von Hand zuordnen (so beim Auftrag vom 2026-09-15). Danach *Bohrdateien erzeugen* (Excellon, mm, Nullen „Dezimal", alternativer Bohrmodus für ovale Löcher).
+3. Die Dateien am besten **im Terminal** zippen, damit keine macOS-Metadaten mitkommen: `cd PCB/KiCad/Fertigunsunterlagen && rm -f R0192.zip && zip -X R0192.zip *.gbr *.drl *.gbrjob`. Hochladen und im Gerber-Viewer des Fertigers alle vier Kupferlagen in der richtigen Reihenfolge, die Bohrungen und den Umriss prüfen.
+
+**Stand der Fertigungsunterlagen (geprüft 2026-09-15):**
+
+- **Inhalt aktuell:** Die Gerber vom 13.09. 22:30 sind geometrisch identisch mit dem aktuellen PCB (alle Lagen, Flächen, Masken, Paste, Silkscreen), auch mit frisch gefüllten Zonen. Die Bohrdaten sind identisch.
+- **Bohrdaten passen zu den Bauteilen:**
+
+  | Bohrung | Anzahl | Verwendung |
+  | --- | ---: | --- |
+  | 0,3 / 0,4 / 0,6 mm | 24 / 6 / 5 | Vias |
+  | 0,75 mm | 6 | JST PH J3/J5 |
+  | 0,8 mm | 2 | F1 (Draht 0,51 mm) |
+  | 1,0 mm | 24 | XIAO (14), J6 (4), Elkos (6, Draht 0,6 mm) |
+  | 1,2 mm | 36 | WAGO (24, laut WAGO-Datenblatt 1,2 (+0,1) mm bei Lötstift 1 × 0,5 mm) und PTSM (12) |
+  | 2,2 mm | 4 | M2-Befestigungslöcher |
+  | 0,9 mm NPTH | 2 | Positionierstifte SW2 |
+
+  XIAO-Reihenabstand 15,24 mm (6 × 2,54 mm) passt zum Modul.
+- **Innenlagen-Dateinamen:** Die Innenlagen heißen `-GND.gbr` / `-PWR.gbr`, weil Protel-Endungen ausgeschaltet sind. Gelöst über „Specify Layer Sequence" bei JLCPCB (L2 = GND, L3 = PWR). Das deckt sich mit den X2-Attributen und der Job-Datei. `R0192.zip` enthält zusätzlich `__MACOSX/._*`-Dateien aus dem Finder; JLCPCB hat die Gerber trotzdem richtig erkannt.
+- **Pasten-Lage:** Sie enthält auch die DNP-Pads von D5 und R10. Die Schablonenöffnungen dort abkleben (s. „Bestückung").
+
+---
+
+## Bestückung (selbst löten)
+
+**Strategie (entschieden 2026-09-15):** Board 1 komplett von Hand löten und dabei Block für Block in Betrieb nehmen. Boards 2–6 mit Schablone und Heizplatte. Board 1 dient zum Lernen und zeigt Fehler dort, wo sie entstehen; die restlichen fünf gehen dann schnell.
+
+Umfang pro Board: 34 SMD-Teile mit 93 Lötstellen (alle auf der Oberseite) und 13 THT-Teile mit 68 Lötstellen. Vorhandene Lötstation: Atten ST-909 (90 W). Sie reicht auch für GND-Pads an den Innenlagen.
+
+**Board 1: von Hand, Block für Block**
+
+| Schritt | Bauteile | Test |
+| --- | --- | --- |
+| 1 Versorgung | J10, D3, C5, C8, U1, C6 | 5 V über J10 mit Strombegrenzung (~100 mA) einspeisen, 3,3 V messen |
+| 2 MCU | SW2 (vorher durchpiepen), J6, R5, R14, R11, D4, XIAO | flashen, LED blinken lassen |
+| 3 CAN | U4, C7, D2, R12, R13, C13, SW1, R6, C11, J1, J2, J4 | CAN-Test gegen den Pi |
+| 4 Hall | C1, R1, R9, C10, J5 | Pegelwechsel mit Magnet |
+| 5 Bremse | U3, C9, R2, R3, R4, Q2, D1, R7, R8, C12, C4, F1, J3, C2/C3/C14, J12 | 48 V zuerst mit strombegrenztem Netzteil, dann Anzug, Halten, Einfallzeit |
+
+Innerhalb eines Schritts erst flache, dann hohe Teile: 0603 → SOT/SOIC → SMA/TO-252 → THT.
+
+**Boards 2–6: Schablone und Heizplatte**
+
+1. Platine in eine Halterung legen, z. B. einen 1,6 mm dicken 3D-gedruckten Rahmen mit rundem Ausschnitt oder Reste-Platinen gleicher Dicke drumherum. Die Schablone an einer Kante mit Klebeband anschlagen, damit sie wie ein Scharnier immer gleich liegt.
+2. Die Öffnungen von D5 und R10 mit Kapton abkleben.
+3. Paste mit einer Karte in einem Zug abziehen, Schablone gerade abheben.
+4. SMD-Teile mit der Pinzette setzen.
+5. Auf die Heizplatte legen, bis das Lot zusammenläuft, kurz auf Spitzentemperatur halten, dann herunternehmen und abkühlen lassen.
+6. Mit Lupe prüfen, Brücken mit Flussmittel und Entlötlitze entfernen.
+7. THT von Hand: WAGO, PTSM, JST, J6, Elkos, F1 und XIAO. Sie dürfen **nicht** auf die Heizplatte (Kunststoff, Elkos).
+
+SW1 (CTS 219) und SW2 (PCM12) sind reflowfähige SMD-Teile. Nur kurz auf Spitzentemperatur halten oder vorsichtshalber nachträglich von Hand löten.
+
+**Einkauf**
+
+| Teil | Hinweis |
+| --- | --- |
+| Schablone | mit dem PCB bei JLCPCB, rahmenlos (s. „Fertigung") |
+| Heizplatte | beheizte Fläche **≥ 100 × 100 mm** (Platine 66 × 64 mm), Temperatur einstellbar. Mini-Platten mit 30 × 30 oder 50 × 50 mm sind zu klein |
+| Lötpaste | **Sn63Pb37** (183 °C, einsteigerfreundlich) oder **SAC305** (~217 °C, bleifrei, braucht mehr Hitze). Dose zum Rakeln, im Kühlschrank lagern. **Keine Sn42Bi58:** spröde, und der Arm vibriert |
+| Lötdraht | gleiche Legierung wie die Paste, ~0,5 mm mit Flussmittelkern |
+| Zubehör | No-Clean-Gelflussmittel, feine gebogene Pinzette, Entlötlitze, Isopropanol, Kapton-Band, Lupe oder Mikroskop, Absaugung oder offenes Fenster, strombegrenztes Labornetzteil für die ersten Tests |
+
+**Zeitaufwand (grob)**
+
+| Variante | Board 1 | Boards 2–6 | SMD gesamt |
+| --- | --- | --- | --- |
+| Alles von Hand | 2–3 h (inkl. Testen) | je 1,5–2 h | ~10–13 h |
+| Board 1 von Hand, dann Heizplatte | 2–3 h | je ~30 min + einmal Einrichten | ~5–6 h |
+
+THT kostet in beiden Varianten ~20–30 min pro Board.
 
 ---
 
 ## Offene Punkte
 
-Stand 2026-09-13: ERC 0 Fehler / 4 Warnungen, DRC 0 offene Pads (nur Silk-/Courtyard-Meldungen). Notiztexte, Values (D4), Notes (C2/C3/C4/C14/J4) und die DNP-Attribute von R10 und D5 sind aktuell. Erledigte Punkte sind gelöscht, ihre Begründungen stehen in den Abschnitten oben.
+Stand 2026-09-15: ERC 0 Fehler / 1 Warnung (Bibliothekspfad), DRC 0 offene Pads (nur Silk-/Courtyard-Meldungen). Notiztexte, Values (D4), Notes (C2/C3/C4/C14/J4) und die DNP-Attribute von R10 und D5 sind aktuell. Erledigte Punkte sind gelöscht, ihre Begründungen stehen in den Abschnitten oben.
 
 **Schaltplan / Layout**
 
 - [ ] **ERC-Warnung Bibliothekspfad:** `sym-lib-table` zeigt für `Seeed_Studio_XIAO_Series` noch auf den alten OneDrive-Pfad. Harmlos, weil das Symbol im Schaltplan eingebettet ist. Sauber wäre, die `.kicad_sym` ins Repo zu legen (neben `R0192.pretty`) und per `${KIPRJMOD}` einzubinden.
-- [ ] **3 ERC-Warnungen `endpoint_off_grid` an D5:** Pin 2 und die GND-Leitung (x 55,2–62,9 mm / y 147,3 mm) liegen neben dem 1,27-mm-Raster. D5 und das GND-Symbol aufs Raster schieben. Dabei im Brake-Notiztext `D5 -> TVS, Q2-Schutz falls D1 fehlt (DNP)` ergänzen.
 
 **Auslegung / Entscheidungen**
 
@@ -430,12 +520,15 @@ Stand 2026-09-13: ERC 0 Fehler / 4 Warnungen, DRC 0 offene Pads (nur Silk-/Court
 
 - [ ] Mouser: D2 PESD12VL2BT,215 (771-PESD12VL2BT215), 6 Stück + Reserve, und D5 SMAJ58A (576-SMAJ58A), einige als Reserve.
 - [ ] 3+ UVR2A101MPD nachbestellen (für 6 Boards sind 18 nötig, 15 bestellt).
-- [ ] PCB bei JLCPCB bestellen (s. „Fertigung"): Zonen neu füllen, DRC, Gerber und Bohrdaten exportieren, im Gerber-Viewer des Fertigers prüfen.
+- [ ] PCB und rahmenlose Schablone bei JLCPCB bestellen. Die Konfiguration steht, die Lagenreihenfolge ist von Hand zugeordnet (s. „Fertigung"). Vor dem Bestellen im Gerber-Viewer die vier Kupferlagen kontrollieren.
+- [ ] Bestückungswerkzeug (s. „Bestückung"): Heizplatte ≥ 100 × 100 mm, Lötpaste Sn63Pb37 oder SAC305, Flussmittel, Pinzette, Entlötlitze, Kapton-Band, Isopropanol.
 
 **Bring-up**
 
+- [ ] **Board 1 schrittweise** von Hand bestücken und testen (s. „Bestückung", Schritte 1–5), erst danach Boards 2–6 mit Schablone und Heizplatte.
 - [ ] **Vor dem ersten Einschalten jedes Kabel durchmessen:** An J10/J12 darf +48 V nur auf Pin 4 liegen. Es gibt kein Serienelement vor D3 (s. Spannungsdomänen).
 - [ ] Kurzschlusstest 48 V / 5 V / 3,3 V gegen GND, 3,3-V-Schiene messen
+- [ ] SW2 vor dem Einlöten des XIAO durchpiepen: In Stellung „3.3V" muss XIAO-Pad 12 (3V3) mit J6 Pin 4 (+3,3 V) verbunden sein, in „OFF" nicht.
 - [ ] ESP32 flashen, CAN-Loopback, dann `/homing`-Protokoll end-to-end gegen den Pi
 - [ ] TLE4905L mit Magnet: sauberer 3,3-V-Pegelwechsel an D1
 - [ ] Bremse: Anzug (48 V, 150 ms) → öffnet; Halten bei 10,4 % Duty; **Einfallzeit aus dem Haltezustand messen** (Ziel < 20 ms, entspricht L ≤ ~0,78 H, s. „Einfallzeit mit D1")
