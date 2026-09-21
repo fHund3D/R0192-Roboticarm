@@ -108,6 +108,7 @@ Der `robot_state_manager` ist die *Single Source of Truth* für den Betriebszust
 - [x] Schaltungskonzept & Leistungsplanung
 - [x] Design Daisy-Chain PCB (PCB 2) - *Draft*
 - [ ] Design Breakout-Board (PCB 1) - *Main Power Distribution*
+- [ ] Not-Aus-Schütz 48 V aufbauen (Konzept steht: [`doku/estop_konzept.md`](doku/estop_konzept.md))
 - [ ] PCB-Fertigung (PCBWay) & Bestückung
 - [ ] Systemintegration & EMV-Tests
 
@@ -139,11 +140,14 @@ Der `robot_state_manager` ist die *Single Source of Truth* für den Betriebszust
 * **Energieversorgung:**
     * Bus-Spannung: 48 V — MeanWell LRS-600N2-48
     * Logik-Spannung: 5 V — MeanWell LRS-50
+    * Steuerspannung Not-Aus-Kette: 24 V — separates Netzteil, nur für Schütz- und Relaisspulen
     * Regen-/Bremsenergie: [ODrive Regen Clamp](https://eu.odriverobotics.com/shop/odrive-regen-clamp) am 48-V-Bus — verhindert Überspannung beim Abbremsen/Rückspeisen der Motoren (2 Ohm und 50W Widerstand)
 * **Steuerungs- & Versorgungsschrank:** separates Gehäuse aus Item-/Profil-5-Aluprofilen (20×20) — nimmt beide Netzteile, die Regen Clamp und den Raspberry Pi auf und bildet die externe Steuerung & Stromversorgung des Arms
 * **Umbilical-Steckverbindung (Schrank ↔ Arm):** Heavy-Duty-Rechteckstecker im **Han-E-Format, 24-polig** (Typ HDC-HE-024, Harting-Han-24E-kompatibel) — 16 A/Kontakt, 500 V, 0,5–6 mm² Schraubanschluss, Metallgehäuse (Schirm-/PE-Anbindung), IP65. Führt 48 V, 5 V, Bremse (Achsen 1–3) und CAN in einem Stecker; CAN-Trio in einer Ecke mit GND-Guard, Kabelschirm aufs Metallgehäuse
-* **Homing-Sensorik:** TLE4905L Hall-Effekt-Sensoren (je 1 Arduino Uno R3 + MCP2515 CAN-Transceiver pro Achse)
-* **Schnittstellen:** XT60PW (Power-Bus), XT30PW (Motor-Abgriff), XH-2A (CAN-Bus)
+* **Homing-Sensorik:** TLE4905L Hall-Effekt-Sensoren, je ein Node pro Achse — Prototyp Achse 1 mit Arduino Uno R3 + MCP2515, Zielhardware **XIAO-ESP32-S3 (natives TWAI)** auf der Daisy-Chain-Platine
+* **Haltebremsen:** SteadyWin STW-S035 (24 V / 0,64 A, stromlos geschlossen), **PWM-gechoppt aus 48 V** über eine Low-Side-Endstufe pro Achse (Anzug 100 % Duty ~150 ms, Halten ~10,4 % Duty ≈ 0,7 W). **Am Arm liegt kein 24-V-Netz** — das 24-V-Netzteil im Schrank versorgt nur die Not-Aus-Kette.
+* **Not-Aus (Hardware, geplant):** DC-Schütz in der 48-V-Schiene mit Selbsthaltung und Wiederanlaufschutz, Steuerkette über ein eigenes 24-V-Netzteil. Konzept: [`doku/estop_konzept.md`](doku/estop_konzept.md)
+* **Schnittstellen (Platine):** WAGO 2601-3104 (Power-Durchschleife + Motorabzweig), Phoenix PTSM 0,5/3-2,5-V-THR (CAN), JST PH B3B-PH-K (Hall + Bremse) — Details in [`PCB/pcb_daisy_chain.md`](PCB/pcb_daisy_chain.md)
 
 #### Verkabelung
 

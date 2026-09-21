@@ -50,9 +50,11 @@ Always consult these before implementing or modifying driver communication logic
 
 **Only axes 1 and 4 have physical motors available.** Axes 2, 3, 5, 6, and the gripper use passthrough feedback (command = state) so the full software stack runs without hardware.
 
-**Power supply**: 48 V bus (MeanWell LRS-600N2), 5 V logic (MeanWell LRS-50)  
-**Connectors**: XT60PW power bus, XT30PW motor tap, XH-2A CAN bus  
-**Homing**: TLE4905L Hall-effect sensors for zero-point calibration (one Arduino Uno R3 per axis via MCP2515 CAN transceiver)  
+**Power supply**: 48 V bus (MeanWell LRS-600N2, 12,5 A Dauer / ~25 A für 5 s), 5 V logic (MeanWell LRS-50), separates 24-V-Netzteil **ausschließlich für die Not-Aus-Steuerkette**. **Am Arm selbst gibt es kein 24-V-Netz** — die Haltebremsen laufen PWM-gechoppt direkt aus 48 V.  
+**Connectors**: WAGO 2601-3104 (Power-Durchschleife + Motorabzweig), Phoenix PTSM 0,5/3-2,5-V-THR (CAN), JST PH B3B-PH-K (Hall + Bremse); Umbilical Schrank↔Arm: Han-E 24-polig. *(XT60PW / XT30PW / XH-2A waren der abgelöste Prototypen-Stand.)*  
+**Homing**: TLE4905L Hall-effect sensors for zero-point calibration — ein Node pro Achse. Prototyp Achse 1: Arduino Uno R3 + MCP2515 (`microcontroller/r0192_homing.ino`). **Zielhardware: XIAO-ESP32-S3 mit nativem TWAI auf der Daisy-Chain-Platine** (s. [PCB/pcb_daisy_chain.md](PCB/pcb_daisy_chain.md)).  
+**Haltebremsen**: SteadyWin STW-S035 (24 V / 0,64 A, stromlos geschlossen), pro Achse über eine Low-Side-Endstufe auf der Daisy-Chain-Platine **aus 48 V PWM-gechoppt**: Anzug 100 % Duty für ~150 ms, Halten bei ~10,4 % Duty (≈ 5 V Mittelwert, ~0,7 W statt 15 W). Default = FET aus = Bremse eingefallen.  
+**Not-Aus (Hardware)**: DC-Schütz (K1) in der 48-V-Schiene, Steuerkette aus dem separaten 24-V-Netzteil — Konzept in [doku/estop_konzept.md](doku/estop_konzept.md). **Noch nicht gebaut.**  
 
 ---
 
@@ -102,9 +104,10 @@ Web-Interface (MacBook/Browser) ──── HTTP/WS ────► r0192_remot
                                                         SocketCAN (can0 @ 1 Mbit/s)
                                                             │
                                              ┌──────────────┴──────────────┐
-                                        Arduino (Achse 1)  …  Arduino (Achse 6)
-                                         TLE4905L + MCP2515              (je 1 pro Achse)
-                                         Homing-Sensor-Node
+                                     Daisy-Chain-Board (Achse 1) … (Achse 6)
+                                       XIAO-ESP32-S3 (TWAI) + TLE4905L
+                                       Homing-Sensor-Node + Bremsen-Endstufe
+                                       (Prototyp Achse 1: Arduino Uno + MCP2515)
 
 Debug (lokal):
   RViz ◄──── ROS-Topics     Foxglove Studio ◄── foxglove_bridge (Port 8765)
@@ -125,7 +128,7 @@ Debug (lokal):
 
 Result stored in `axis1_present_` / `axis4_present_`. Axes that don't respond are silently treated as virtual (passthrough). Initialization, CAN sends, and stop commands are gated on these flags.
 
-CAN bitrate: **1 Mbit/s** (bus + both drivers configured; GDS68 factory default was 500 kbit/s). Set per boot via `ip link set can0 up type can bitrate 1000000`; the Arduino homing nodes run `CAN_1000KBPS` to match.
+CAN bitrate: **1 Mbit/s** (bus + both drivers configured; GDS68 factory default was 500 kbit/s). Set per boot via `ip link set can0 up type can bitrate 1000000`; die Homing-Nodes laufen mit derselben Rate (Arduino-Prototyp `CAN_1000KBPS`, XIAO-ESP32-S3 über TWAI).
 
 ---
 
@@ -319,7 +322,7 @@ Geplante Bedienfunktionen und ihr ROS-Interface:
 
 | Funktion | ROS-Interface | Typ | Status |
 |----------|--------------|-----|--------|
-| Notaus | `/e_stop` | `std_srvs/Trigger` (Service) | **implementiert** (Robot State Manager → Hardware `/robot_estop`; latchender Treiber-Torque-Cut aus jedem Zustand). Echter HW-Power-Cut + Homing-Abbruch folgt |
+| Notaus | `/e_stop` | `std_srvs/Trigger` (Service) | **implementiert** (Robot State Manager → Hardware `/robot_estop`; latchender Treiber-Torque-Cut aus jedem Zustand). Echter HW-Power-Cut (Schütz) als Konzept in [doku/estop_konzept.md](doku/estop_konzept.md), Homing-Abbruch folgt |
 | Reset nach Notaus | `/robot_reset` | `std_srvs/Trigger` (Service) | **implementiert** (Robot State Manager → Hardware `/robot_clear_faults`; löst Treiber-Latch) |
 | Zustand setzen (DISABLED/HOLD/JOG/MOVEIT/HOMING) | `/set_robot_state` | `r0192_interfaces/SetRobotState` (Service) | **implementiert** (Robot State Manager) |
 | Aktueller Zustand | `/robot_state` | `r0192_interfaces/RobotState` (Topic, latched) | **implementiert** (Robot State Manager) |
@@ -427,7 +430,10 @@ Verbindung in Foxglove Studio: **Foxglove WebSocket** → `ws://<rpi-ip>:8765`
 
 ### Konzept
 
-Jede Achse hat einen **eigenen Arduino Uno R3 (später den Seeed Studio XIAO ESP32-S3)** als dedizierter Homing-Node. Der Arduino verbindet sich über einen **MCP2515 SPI-CAN-Transceiver** mit dem CAN-Bus (1 Mbit/s, 8 MHz Quarz am MCP2515). Ein **TLE4905L** Hall-Effekt-Sensor detektiert einen an der rotierenden Achse befestigten Magneten.
+Jede Achse hat einen eigenen Mikrocontroller als dedizierten Homing-Node. Ein **TLE4905L** Hall-Effekt-Sensor detektiert einen an der rotierenden Achse befestigten Magneten.
+
+- **Prototyp (implementiert, Achse 1):** Arduino Uno R3 + **MCP2515** SPI-CAN-Transceiver (1 Mbit/s, 8 MHz Quarz), Firmware `microcontroller/r0192_homing.ino`.
+- **Zielhardware (Platine gezeichnet, noch nicht bestückt):** **XIAO-ESP32-S3** mit nativem CAN-Controller (TWAI) auf der Daisy-Chain-Platine, zusammen mit Bremsen-Endstufe und Bus-Durchschleife — s. [PCB/pcb_daisy_chain.md](PCB/pcb_daisy_chain.md). Das **CAN-Protokoll bleibt unverändert** (achsenspezifische ID, `CMD_ARM`/`RSP_DETECTED`/`RSP_ERROR`), die ROS-Seite muss also nicht angefasst werden.
 
 Aktueller Stand: **Achse 1 vollständig implementiert** — Arduino-Firmware (`microcontroller/r0192_homing.ino`) und ROS-seitiger Service (in `r0192_hardware`). Achsen 2–6 folgen mit identischer Firmware (nur CAN-IDs anpassen).
 
@@ -573,7 +579,9 @@ Parameter zur Laufzeit änderbar via `ros2 param set /r0192_homing <name> <value
 - [x] Treiber-Reset nach Notaus: `/robot_reset` (State Manager) → Hardware-`/robot_clear_faults` (GDS68 `Clear_Errors()`, RS05 Fault-Clear-Stop); löst das `estop_latched_`-Gate; Reset-Button im JogPanel (nur in DISABLED)
 - [x] Nebenläufigkeits-Fix: Homing-Worker des State Managers nutzt eigene `homing_node_` (kein paralleles Spinnen derselben Node bei `/e_stop` während Homing)
 - [ ] Hardware-Test Notaus: `/e_stop` kappt Drehmoment auf Treiber-Ebene; Re-Enable ohne Reset wird abgelehnt; nach `/robot_reset` läuft `DISABLED→HOLD` wieder
-- [ ] Echter Hardware-Notaus: laufenden Homing-Sweep abbrechen (HomingController-Abort-Hook), ggf. Power-Cut/Schütz statt nur Treiber-Torque-Aus
+- [ ] Echter Hardware-Notaus: laufenden Homing-Sweep abbrechen (HomingController-Abort-Hook)
+- [ ] Not-Aus-Schütz aufbauen (Konzept: [doku/estop_konzept.md](doku/estop_konzept.md)) — DC-Schütz HEV2aN-P-DC24V (K1) in der 48-V-Schiene, Steuerkette aus dem separaten 24-V-Netzteil, Selbsthaltung mit Wiederanlaufschutz (K2), Vorladung (K3); `/e_stop` und `/robot_reset` um die GPIO-Ansteuerung erweitern
+- [ ] Bremsen beim Not-Aus schneller einfallen lassen: Bus-Unterspannung auf dem Sense-Pin D3 der Daisy-Chain-Platine erkennen → PWM = 0 (sonst halten die ~1,8 mF Buskapazität die Bremsen einige hundert ms offen)
 - [ ] Optional: `/e_stop` zusätzlich als latched Topic spiegeln, damit andere Nodes (Web-Interface) auf den Notaus-Zustand reagieren können
 
 **Wenn weitere Motoren gekauft sind (Achsen 2, 3, 5, 6, Greifer):**
